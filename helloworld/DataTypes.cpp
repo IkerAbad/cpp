@@ -32,4 +32,5 @@ int main()
     int age = 23;
     cout << age << endl;
 
+    const float pi = 3.14f;
 }
