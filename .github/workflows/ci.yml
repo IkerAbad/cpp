@@ -118,11 +118,14 @@ jobs:
           SDL_VIDEO_DRIVER: x11
         run: xvfb-run -a -s "-screen 0 1600x900x24" "build/${{ matrix.preset }}/src/rts" --frames 120
 
-      - name: Hash de estado (10 minutos de juego sin ventana)
+      # 2 minutos de juego: cubre todas las órdenes de data/scenarios/headless.toml
+      # (la última, en el tick 1400). En Debug, 12 000 ticks con 400 unidades en
+      # movimiento costaban ~3 minutos por trabajo.
+      - name: Hash de estado (2 minutos de juego sin ventana)
         run: |
           exe="build/${{ matrix.preset }}/src/rts"
           [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
-          "$exe" --headless --ticks 12000 | tee headless.log
+          "$exe" --headless --ticks 2400 | tee headless.log
           grep -o 'state_hash=[0-9a-f]*' headless.log > hash-${{ matrix.name }}.txt
           cat hash-${{ matrix.name }}.txt
 
@@ -130,6 +133,59 @@ jobs:
         with:
           name: hash-${{ matrix.name }}
           path: hash-${{ matrix.name }}.txt
+
+  bench:
+    name: Banco de rendimiento (Release, 1000 y 2000 unidades)
+    runs-on: ubuntu-24.04
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias del sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang-20 g++-14 pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
+            libdbus-1-dev libibus-1.0-dev
+
+      - name: vcpkg en el commit del baseline
+        run: |
+          VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
+          echo "VCPKG_ROOT=$VCPKG_ROOT" >> "$GITHUB_ENV"
+          baseline=$(python -c "import json; print(json.load(open('vcpkg.json'))['builtin-baseline'])")
+          git clone --filter=tree:0 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$baseline"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
+      # Mismo triplet que el trabajo linux-clang: reutiliza su caché binaria.
+      - name: Restaurar caché binaria de vcpkg
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-linux-clang-${{ hashFiles('vcpkg.json') }}-
+          restore-keys: |
+            vcpkg-linux-clang-${{ hashFiles('vcpkg.json') }}-
+            vcpkg-linux-clang-
+
+      - name: Configurar y compilar (RelWithDebInfo)
+        run: |
+          cmake --preset linux-clang-release -DRTS_BUILD_TESTS=OFF
+          cmake --build --preset linux-clang-release --target rts_bench
+
+      # Criterio de M2: ningún tick por encima de 50 ms (el presupuesto de un tick a
+      # 20 Hz). El runner es compartido: un fallo aislado se reproduce antes de culpar
+      # al código, pero el umbral es el máximo, no un percentil.
+      - name: 1000 unidades
+        run: build/linux-clang-release/bench/rts_bench --units 1000 --ticks 1200 --max-ms 50
+
+      - name: 2000 unidades
+        run: build/linux-clang-release/bench/rts_bench --units 2000 --ticks 1200 --max-ms 50
 
   determinism:
     name: Mismo hash en todas las plataformas

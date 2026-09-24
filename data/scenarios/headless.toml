@@ -1,0 +1,32 @@
+# Guion de órdenes para el modo --headless. La CI lo ejecuta en los cuatro compiladores
+# y exige el mismo hash de estado: cubre HPA*, campos de flujo y evitación local.
+#
+# Cada orden mueve las unidades [first, first + count) (en orden de creación) a target
+# al inicio del tick indicado.
+
+# Todas juntas hacia el noreste: grupo grande -> campo de flujo.
+[[order]]
+tick = 20
+first = 0
+count = 400
+target = [150, 100]
+
+# Se parten en dos mitades que se cruzan de frente: evitación local.
+[[order]]
+tick = 700
+first = 0
+count = 200
+target = [100, 150]
+
+[[order]]
+tick = 700
+first = 200
+count = 200
+target = [160, 110]
+
+# Cuatro unidades sueltas (grupo pequeño -> HPA* individual) a la otra punta del mapa.
+[[order]]
+tick = 1400
+first = 0
+count = 4
+target = [30, 220]

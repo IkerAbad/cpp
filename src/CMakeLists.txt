@@ -14,6 +14,10 @@ include(Shaders)
 # --- Simulación pura -----------------------------------------------------------
 add_library(rts_sim STATIC
     sim/map_gen.cpp
+    sim/movement.cpp
+    sim/path/flow_field.cpp
+    sim/path/grid.cpp
+    sim/path/hpa.cpp
     sim/tile_map.cpp
     sim/world.cpp)
 target_include_directories(rts_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

@@ -88,6 +88,23 @@ public:
         return color;
     }
 
+    // Casilla [x, y] con coordenadas en [0, 1023] (el mapa más grande admitido).
+    sim::TileCoord get_tile(std::string_view path) {
+        constexpr std::int64_t kMaxCoord = 1023;
+        const toml::array* arr = table_.at_path(path).as_array();
+        if (arr == nullptr || arr->size() != 2) {
+            fail(std::format("'{}' debe ser una lista de 2 enteros [x, y]", full(path)));
+            return {};
+        }
+        const auto x = (*arr)[0].value<std::int64_t>();
+        const auto y = (*arr)[1].value<std::int64_t>();
+        if (!x || !y || *x < 0 || *y < 0 || *x > kMaxCoord || *y > kMaxCoord) {
+            fail(std::format("'{}' debe tener coordenadas enteras en [0, {}]", full(path), kMaxCoord));
+            return {};
+        }
+        return {static_cast<std::int32_t>(*x), static_cast<std::int32_t>(*y)};
+    }
+
     // Lista de tablas ([[nombre]] en TOML). Vacía y con error si no existe.
     const toml::array* get_table_array(std::string_view path) {
         const toml::array* arr = table_.at_path(path).as_array();
@@ -179,6 +196,79 @@ std::optional<sim::TerrainId> TerrainCatalog::find(std::string_view name) const 
     return std::nullopt;
 }
 
+std::optional<sim::UnitTypeId> UnitCatalog::find(std::string_view name) const {
+    for (std::size_t i = 0; i < types.size(); ++i) {
+        if (types[i].name == name) {
+            return static_cast<sim::UnitTypeId>(i);
+        }
+    }
+    return std::nullopt;
+}
+
+std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml_text, std::string_view source_name) {
+    auto root = parse_toml(toml_text, source_name);
+    if (!root) {
+        return std::unexpected(root.error());
+    }
+    std::optional<std::string> error;
+    Reader r(*root, source_name, "", error);
+    UnitCatalog catalog;
+    const toml::array* types = r.get_table_array("unit");
+    if (types != nullptr && types->size() > static_cast<std::size_t>(kByteMax) + 1) {
+        r.fail(std::format("hay {} tipos de unidad y el máximo es {}", types->size(), kByteMax + 1));
+    }
+    if (types != nullptr && !error) {
+        for (std::size_t i = 0; i < types->size(); ++i) {
+            Reader ur(*(*types)[i].as_table(), source_name, std::format("unit[{}]", i), error);
+            UnitInfo info;
+            info.name = ur.get_string("name");
+            // Radio hasta media casilla: la separación y la rejilla espacial suponen
+            // que dos unidades que se tocan están en casillas vecinas.
+            info.type.radius = sim::Fixed::from_ratio(ur.get_i32("radius_milli_tiles", 50, kMilli / 2), kMilli);
+            info.type.speed = sim::Fixed::from_ratio(ur.get_i32("speed_milli_tiles_per_tick", 1, kMilli / 2), kMilli);
+            info.color = ur.get_color<3>("color");
+            if (!error && catalog.find(info.name)) {
+                ur.fail(std::format("nombre de unidad repetido: \"{}\"", info.name));
+            }
+            catalog.types.push_back(std::move(info));
+        }
+    }
+    if (error) {
+        return std::unexpected(*error);
+    }
+    return catalog;
+}
+
+std::expected<std::vector<ScenarioOrder>, std::string> parse_scenario(std::string_view toml_text,
+                                                                      std::string_view source_name) {
+    auto root = parse_toml(toml_text, source_name);
+    if (!root) {
+        return std::unexpected(root.error());
+    }
+    std::optional<std::string> error;
+    Reader r(*root, source_name, "", error);
+    std::vector<ScenarioOrder> orders;
+    const toml::array* list = r.get_table_array("order");
+    if (list != nullptr) {
+        for (std::size_t i = 0; i < list->size(); ++i) {
+            Reader orr(*(*list)[i].as_table(), source_name, std::format("order[{}]", i), error);
+            ScenarioOrder o;
+            o.tick = static_cast<sim::Tick>(orr.get_i32("tick", 0, std::numeric_limits<std::int32_t>::max()));
+            o.first = orr.get_i32("first", 0, 1'000'000);
+            o.count = orr.get_i32("count", 1, 1'000'000);
+            o.target = orr.get_tile("target");
+            if (!orders.empty() && o.tick < orders.back().tick) {
+                orr.fail(std::format("'{}' debe ser >= que el de la orden anterior", orr.full("tick")));
+            }
+            orders.push_back(o);
+        }
+    }
+    if (error) {
+        return std::unexpected(*error);
+    }
+    return orders;
+}
+
 std::expected<TerrainCatalog, std::string> parse_terrain_catalog(std::string_view toml_text,
                                                                  std::string_view source_name) {
     auto root = parse_toml(toml_text, source_name);
@@ -212,7 +302,7 @@ std::expected<TerrainCatalog, std::string> parse_terrain_catalog(std::string_vie
 }
 
 std::expected<EngineConfig, std::string> parse_engine_config(std::string_view toml_text,
-                                                             const TerrainCatalog& terrain,
+                                                             const TerrainCatalog& terrain, const UnitCatalog& units,
                                                              std::string_view source_name) {
     auto root = parse_toml(toml_text, source_name);
     if (!root) {
@@ -230,12 +320,40 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     read_map_params(*root, source_name, terrain, error, cfg.world.map);
 
+    for (const TerrainInfo& t : terrain.types) {
+        cfg.world.passable_by_terrain.push_back(t.passable ? 1 : 0);
+    }
+    for (const UnitInfo& u : units.types) {
+        cfg.world.unit_types.push_back(u.type);
+    }
+
     sim::DemoParams& demo = cfg.world.demo;
     demo.seed = r.get_u64("demo.seed");
-    demo.point_count = r.get_i32("demo.point_count", 0, 100'000);
+    const std::string unit_name = r.get_string("demo.unit");
+    demo.count = r.get_i32("demo.count", 0, 100'000);
     demo.area_tiles = r.get_i32("demo.area_tiles", 2, 1024);
-    const std::int32_t speed_milli = r.get_i32("demo.max_speed_milli_tiles_per_tick", 0, 10 * kMilli);
-    demo.max_speed = sim::Fixed::from_ratio(speed_milli, kMilli);
+    if (const auto id = units.find(unit_name)) {
+        demo.unit_type = *id;
+    } else if (!error) {
+        r.fail(std::format("'demo.unit' = \"{}\" no está en units.toml", unit_name));
+    }
+
+    sim::MovementParams& mv = cfg.world.movement;
+    mv.hpa.sector_size = r.get_i32("movement.sector_size_tiles", 4, 256);
+    mv.hpa.max_portal_width = r.get_i32("movement.max_portal_width_tiles", 1, 256);
+    mv.path_node_budget_per_tick = r.get_i32("movement.path_node_budget_per_tick", 256, 10'000'000);
+    mv.flow_field_min_group = r.get_i32("movement.flow_field_min_group", 1, 100'000);
+    mv.flow_field_cache_size = r.get_i32("movement.flow_field_cache_size", 1, 64);
+    mv.retarget_radius_tiles = r.get_i32("movement.retarget_radius_tiles", 0, 256);
+    mv.neighbor_radius = sim::Fixed::from_ratio(r.get_i32("movement.neighbor_radius_milli_tiles", 100, 8 * kMilli), kMilli);
+    mv.max_neighbors = r.get_i32("movement.max_neighbors", 1, 32);
+    mv.time_horizon_ticks = r.get_i32("movement.time_horizon_ticks", 1, 400);
+    mv.preference_weight = r.get_i32("movement.preference_weight", 0, 10'000);
+    mv.collision_weight = r.get_i32("movement.collision_weight", 0, 10'000);
+    mv.stuck_arrive_ticks = r.get_i32("movement.stuck_arrive_ticks", 1, 10'000);
+    mv.arrive_radius = sim::Fixed::from_ratio(r.get_i32("movement.arrive_radius_milli_tiles", 10, 4 * kMilli), kMilli);
+    mv.waypoint_radius =
+        sim::Fixed::from_ratio(r.get_i32("movement.waypoint_radius_milli_tiles", 10, 4 * kMilli), kMilli);
 
     cfg.view.tile_width_px = r.get_i32("view.tile_width_px", 4, 1024);
     cfg.view.tile_height_px = r.get_i32("view.tile_height_px", 2, 512);
@@ -243,7 +361,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.view.elevation_shade_min_percent = r.get_i32("view.elevation_shade_min_percent", 0, 100);
     cfg.view.hillshade_step_percent = r.get_i32("view.hillshade_step_percent", 0, 100);
     cfg.view.clear_color = r.get_color<4>("view.clear_color");
-    cfg.view.marker_color = r.get_color<4>("view.marker_color");
+    cfg.view.debug_overlay_color = r.get_color<4>("view.debug_overlay_color");
     cfg.view.marker_selected_color = r.get_color<4>("view.marker_selected_color");
     cfg.view.selection_rect_color = r.get_color<4>("view.selection_rect_color");
     cfg.view.hover_tile_color = r.get_color<4>("view.hover_tile_color");
@@ -263,36 +381,46 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
                                            "view.tile_height_px ({})",
                                            source_name, cfg.view.tile_width_px, cfg.view.tile_height_px));
     }
-    const std::int32_t area = std::min({demo.area_tiles, cfg.world.map.width, cfg.world.map.height});
-    if (demo.max_speed * 2 >= sim::Fixed::from_int(area)) {
-        return std::unexpected(std::format("{}: demo.max_speed_milli_tiles_per_tick debe ser menor que la mitad "
-                                           "del área de los marcadores ({} casillas)",
-                                           source_name, area));
-    }
     return cfg;
 }
 
 std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir) {
-    const std::filesystem::path terrain_path = data_dir / "terrain.toml";
-    const std::filesystem::path engine_path = data_dir / "config" / "engine.toml";
-
-    const auto terrain_text = read_text_file(terrain_path);
-    if (!terrain_text) {
-        return std::unexpected(terrain_text.error());
+    GameData data;
+    // Cada fichero: leer, analizar y mover al resultado; el primer error corta.
+    auto load = [&](const std::filesystem::path& rel, auto&& parse, auto& dest) -> std::optional<std::string> {
+        const std::filesystem::path path = data_dir / rel;
+        const auto text = read_text_file(path);
+        if (!text) {
+            return text.error();
+        }
+        auto parsed = parse(*text, path.string());
+        if (!parsed) {
+            return parsed.error();
+        }
+        dest = std::move(*parsed);
+        return std::nullopt;
+    };
+    if (auto e = load("terrain.toml", [](std::string_view t, std::string_view n) { return parse_terrain_catalog(t, n); },
+                      data.terrain)) {
+        return std::unexpected(*e);
     }
-    auto terrain = parse_terrain_catalog(*terrain_text, terrain_path.string());
-    if (!terrain) {
-        return std::unexpected(terrain.error());
+    if (auto e = load("units.toml", [](std::string_view t, std::string_view n) { return parse_unit_catalog(t, n); },
+                      data.units)) {
+        return std::unexpected(*e);
     }
-    const auto engine_text = read_text_file(engine_path);
-    if (!engine_text) {
-        return std::unexpected(engine_text.error());
+    if (auto e = load(std::filesystem::path("config") / "engine.toml",
+                      [&](std::string_view t, std::string_view n) {
+                          return parse_engine_config(t, data.terrain, data.units, n);
+                      },
+                      data.engine)) {
+        return std::unexpected(*e);
     }
-    auto engine = parse_engine_config(*engine_text, *terrain, engine_path.string());
-    if (!engine) {
-        return std::unexpected(engine.error());
+    if (auto e = load(std::filesystem::path("scenarios") / "headless.toml",
+                      [](std::string_view t, std::string_view n) { return parse_scenario(t, n); },
+                      data.headless_scenario)) {
+        return std::unexpected(*e);
     }
-    return GameData{std::move(*terrain), std::move(*engine)};
+    return data;
 }
 
 }  // namespace rts::game

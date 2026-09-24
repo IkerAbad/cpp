@@ -20,7 +20,7 @@ struct ViewParams {
     std::int32_t hillshade_step_percent = 0;
 
     Rgba clear_color{};
-    Rgba marker_color{};
+    Rgba debug_overlay_color{};  // superposiciones de depuración (portales, campo de flujo)
     Rgba marker_selected_color{};
     Rgba selection_rect_color{};  // alfa < 255: relleno translúcido
     Rgba hover_tile_color{};

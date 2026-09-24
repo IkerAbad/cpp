@@ -1,8 +1,7 @@
 #pragma once
 
-// Mundo de la simulación: el mapa y las entidades. Hasta M2 las únicas entidades son
-// marcadores de prueba que rebotan dentro de una zona del mapa; sirven para comprobar
-// la interpolación, la selección y el hash de regresión.
+// Mundo de la simulación: mapa, unidades y órdenes. Todo el estado que influye en el
+// futuro entra en state_hash(); la presentación solo ve snapshots.
 
 #include <cstdint>
 #include <memory>
@@ -12,40 +11,35 @@
 
 #include "sim/fixed.hpp"
 #include "sim/map_gen.hpp"
+#include "sim/movement.hpp"
 #include "sim/rng.hpp"
 #include "sim/tick.hpp"
 #include "sim/tile_map.hpp"
+#include "sim/units.hpp"
 
 namespace rts::sim {
 
-// Posición en casillas: (1.5, 2.5) es el centro de la casilla (1, 2).
-struct Position {
-    Fixed x;
-    Fixed y;
-};
-
-// Desplazamiento en casillas por tick.
-struct Velocity {
-    Fixed dx;
-    Fixed dy;
-};
-
+// Unidades iniciales de prueba hasta que haya economía (M3): count unidades de un tipo
+// repartidas en un cuadrado de area_tiles casillas centrado en el mapa.
 struct DemoParams {
     std::uint64_t seed = 0;
-    std::int32_t point_count = 0;
-    // Lado del cuadrado centrado en el mapa donde rebotan los marcadores.
+    UnitTypeId unit_type = 0;
+    std::int32_t count = 0;
     std::int32_t area_tiles = 0;
-    Fixed max_speed;  // casillas por tick
 };
 
 struct WorldParams {
     MapGenParams map;
+    std::vector<std::uint8_t> passable_by_terrain;  // por TerrainId
+    std::vector<UnitType> unit_types;                // por UnitTypeId
+    MovementParams movement;
     DemoParams demo;
 };
 
 struct SnapshotEntity {
     std::uint32_t id;
     Position pos;
+    UnitTypeId type;
 };
 
 // Copia de solo lectura del estado que se presenta. El render nunca toca el registro.
@@ -63,19 +57,29 @@ class World {
 public:
     explicit World(const WorldParams& params);
 
+    // Encola una orden. Se aplica al inicio del tick command.tick (o del siguiente
+    // step() si ese tick ya pasó), en el orden en que se encoló.
+    void issue(Command command);
+
     void step();
 
     [[nodiscard]] Tick tick() const noexcept { return tick_; }
     [[nodiscard]] const TileMap& map() const noexcept { return *map_; }
+    [[nodiscard]] const MovementSystem& movement() const noexcept { return movement_; }
+    [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
     void write_snapshot(Snapshot& out) const;
 
 private:
+    void spawn_demo_units(const WorldParams& params);
+
     std::shared_ptr<TileMap> map_;
+    std::vector<UnitType> unit_types_;
+    MovementSystem movement_;
     entt::registry registry_;
     Xoshiro256pp rng_;
-    Fixed area_min_;
-    Fixed area_max_;
+    std::vector<Command> pending_;
+    std::uint32_t next_order_id_ = 1;
     Tick tick_ = 0;
 };
 
