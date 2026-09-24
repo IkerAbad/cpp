@@ -1,36 +1,45 @@
 #pragma once
 
-// Presentación. Lee snapshots de la simulación y nunca escribe en ella.
-// M0: dispositivo SDL_GPU, ImGui y dibujo de la demo mediante la lista de dibujo de
-// fondo de ImGui. El sprite batcher con shaders propios llega en M1.
+// Presentación con SDL_GPU. Lee snapshots de la simulación y nunca escribe en ella.
+//
+// Por fotograma:
+//   begin_frame()     nuevo fotograma de ImGui (el juego añade sus paneles después)
+//   draw_scene()      traduce la escena a instancias de sprite (CPU)
+//   end_frame()       sube las instancias, dibuja sprites + ImGui y presenta
 
+#include <array>
 #include <cstdint>
 #include <expected>
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "sim/world.hpp"
+#include "render/atlas.hpp"
+#include "render/scene.hpp"
+#include "render/sprite_batch.hpp"
+#include "render/view_params.hpp"
 
 struct SDL_Window;
 struct SDL_GPUDevice;
+struct SDL_GPUGraphicsPipeline;
+struct SDL_GPUTexture;
+struct SDL_GPUSampler;
+struct SDL_GPUBuffer;
+struct SDL_GPUTransferBuffer;
 union SDL_Event;
 
 namespace rts::render {
 
-// Métricas que el pegamento de juego entrega al panel de depuración.
-struct FrameStats {
-    double frame_ms = 0.0;
-    double sim_ms_last_frame = 0.0;  // tiempo total de simulación en este fotograma
-    double sim_ms_per_tick = 0.0;    // media móvil del coste de un tick
-    std::int32_t ticks_this_frame = 0;
-    std::int64_t dropped_ticks_total = 0;
-    double alpha = 0.0;
-    std::uint64_t state_hash = 0;
+struct RendererDesc {
+    SDL_Window* window = nullptr;
+    bool vsync = true;
+    ViewParams view;
+    std::vector<std::array<std::uint8_t, 3>> terrain_colors;
 };
 
 class Renderer {
 public:
-    static std::expected<std::unique_ptr<Renderer>, std::string> create(SDL_Window* window, bool vsync);
+    static std::expected<std::unique_ptr<Renderer>, std::string> create(const RendererDesc& desc);
 
     ~Renderer();
     Renderer(const Renderer&) = delete;
@@ -39,22 +48,41 @@ public:
     Renderer& operator=(Renderer&&) = delete;
 
     void process_event(const SDL_Event& event);
+    [[nodiscard]] bool ui_wants_mouse() const noexcept;
+    [[nodiscard]] bool ui_wants_keyboard() const noexcept;
 
-    // Interpola cada entidad entre prev y curr con alpha en [0, 1).
-    void render_frame(const sim::Snapshot& prev, const sim::Snapshot& curr, double alpha,
-                      const FrameStats& stats);
+    // Tamaño de la ventana en píxeles lógicos: el mismo espacio que el ratón y la escena.
+    [[nodiscard]] Vec2 screen_size() const noexcept;
+
+    void begin_frame();
+    SceneStats draw_scene(const Scene& scene);
+    void end_frame();
 
     [[nodiscard]] const char* driver_name() const noexcept;
+    [[nodiscard]] std::size_t sprites_last_frame() const noexcept { return sprites_last_frame_; }
 
 private:
-    Renderer(SDL_Window* window, SDL_GPUDevice* device) noexcept : window_(window), device_(device) {}
+    Renderer(SDL_Window* window, SDL_GPUDevice* device, const RendererDesc& desc, Atlas atlas);
 
-    void draw_world(const sim::Snapshot& prev, const sim::Snapshot& curr, double alpha);
-    void draw_debug_panel(const FrameStats& stats, const sim::Snapshot& curr);
+    std::expected<void, std::string> init_gpu_resources(bool vsync);
+    std::expected<void, std::string> upload_atlas();
+    bool ensure_instance_capacity(std::uint32_t count);
 
     SDL_Window* window_ = nullptr;
     SDL_GPUDevice* device_ = nullptr;
+    SDL_GPUGraphicsPipeline* pipeline_ = nullptr;
+    SDL_GPUTexture* atlas_texture_ = nullptr;
+    SDL_GPUSampler* sampler_ = nullptr;
+    SDL_GPUBuffer* instance_buffer_ = nullptr;
+    SDL_GPUTransferBuffer* instance_transfer_ = nullptr;
+    std::uint32_t instance_capacity_ = 0;
     bool imgui_ready_ = false;
+
+    ViewParams view_;
+    Atlas atlas_;
+    SceneBuilder scene_builder_;
+    SpriteBatch batch_;
+    std::size_t sprites_last_frame_ = 0;
 };
 
 }  // namespace rts::render

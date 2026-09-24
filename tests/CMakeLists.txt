@@ -2,12 +2,16 @@ find_package(doctest CONFIG REQUIRED)
 
 add_executable(rts_tests
     test_main.cpp
-    test_fixed.cpp
-    test_rng.cpp
-    test_fixed_step.cpp
     test_config.cpp
+    test_fixed.cpp
+    test_fixed_step.cpp
+    test_map_gen.cpp
+    test_projection.cpp
+    test_rng.cpp
+    test_scene.cpp
+    test_selection.cpp
     test_sim_regression.cpp)
-target_link_libraries(rts_tests PRIVATE rts_game_core rts_sim doctest::doctest)
+target_link_libraries(rts_tests PRIVATE rts_game_core rts_render_core rts_sim doctest::doctest)
 target_compile_definitions(rts_tests PRIVATE RTS_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
 rts_set_warnings(rts_tests)
 

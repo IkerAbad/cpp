@@ -12,21 +12,13 @@
 #include <doctest/doctest.h>
 
 #include "sim/world.hpp"
+#include "test_helpers.hpp"
 
-using rts::sim::DemoParams;
 using rts::sim::Fixed;
 using rts::sim::World;
+using rts::test::test_world_params;
 
 namespace {
-
-DemoParams regression_params() {
-    DemoParams p;
-    p.seed = 0x5EED'2026'0924ULL;
-    p.point_count = 1000;
-    p.arena_tiles = 256;
-    p.max_speed = Fixed::from_ratio(3, 10);
-    return p;
-}
 
 // 10 minutos de juego a 20 Hz.
 constexpr int kTicks = 12'000;
@@ -34,18 +26,18 @@ constexpr int kTicks = 12'000;
 }  // namespace
 
 TEST_CASE("Regresión: hash de estado tras 12 000 ticks") {
-    World world(regression_params());
+    World world(test_world_params());
     for (int i = 0; i < kTicks; ++i) {
         world.step();
     }
-    constexpr std::uint64_t kExpectedHash = 0xb462a265f9449b10ULL;
+    constexpr std::uint64_t kExpectedHash = 0xa6dc4a641e1269f9ULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }
 
 TEST_CASE("Determinismo: dos mundos con la misma semilla coinciden tick a tick") {
-    World a(regression_params());
-    World b(regression_params());
+    World a(test_world_params());
+    World b(test_world_params());
     for (int i = 0; i < 200; ++i) {
         a.step();
         b.step();
@@ -53,26 +45,43 @@ TEST_CASE("Determinismo: dos mundos con la misma semilla coinciden tick a tick")
     }
 }
 
-TEST_CASE("Determinismo: otra semilla da otro estado") {
-    DemoParams other = regression_params();
-    other.seed += 1;
-    World a(regression_params());
-    World b(other);
-    CHECK(a.state_hash() != b.state_hash());
+TEST_CASE("Determinismo: otra semilla de marcadores u otra semilla de mapa dan otro estado") {
+    auto other_demo = test_world_params();
+    other_demo.demo.seed += 1;
+    auto other_map = test_world_params();
+    other_map.map.seed += 1;
+    const World base(test_world_params());
+    CHECK(base.state_hash() != World(other_demo).state_hash());
+    CHECK(base.state_hash() != World(other_map).state_hash());
 }
 
-TEST_CASE("Demo: ningún punto sale de la arena") {
-    World world(regression_params());
+TEST_CASE("Demo: ningún marcador sale de su zona central") {
+    const auto params = test_world_params();
+    World world(params);
     rts::sim::Snapshot snap;
     for (int i = 0; i < 2'000; ++i) {
         world.step();
     }
     world.write_snapshot(snap);
     REQUIRE(snap.entities.size() == 1000);
+    const Fixed lo = Fixed::from_int((params.map.width - params.demo.area_tiles) / 2);
+    const Fixed hi = lo + Fixed::from_int(params.demo.area_tiles);
     for (const auto& e : snap.entities) {
-        CHECK(e.pos.x >= Fixed{});
-        CHECK(e.pos.x <= snap.arena_size);
-        CHECK(e.pos.y >= Fixed{});
-        CHECK(e.pos.y <= snap.arena_size);
+        CHECK(e.pos.x >= lo);
+        CHECK(e.pos.x <= hi);
+        CHECK(e.pos.y >= lo);
+        CHECK(e.pos.y <= hi);
     }
+}
+
+TEST_CASE("Snapshot: comparte el mapa sin copiarlo") {
+    World world(test_world_params());
+    rts::sim::Snapshot a;
+    rts::sim::Snapshot b;
+    world.write_snapshot(a);
+    world.step();
+    world.write_snapshot(b);
+    REQUIRE(a.map != nullptr);
+    CHECK(a.map.get() == b.map.get());
+    CHECK(a.map.get() == &world.map());
 }

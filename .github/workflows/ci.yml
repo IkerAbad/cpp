@@ -42,7 +42,8 @@ jobs:
           sudo apt-get install -y ninja-build clang-20 g++-14 pkg-config \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
             libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
-            libdbus-1-dev libibus-1.0-dev
+            libdbus-1-dev libibus-1.0-dev \
+            xvfb mesa-vulkan-drivers
 
       - name: Entorno de MSVC (Windows)
         if: runner.os == 'Windows'
@@ -106,6 +107,16 @@ jobs:
 
       - name: Pruebas
         run: ctest --preset ${{ matrix.preset }}
+
+      # Render real sin GPU: Xvfb como servidor X y lavapipe (Vulkan por software de
+      # Mesa). Crea el dispositivo SDL_GPU, compila el pipeline con los shaders SPIR-V,
+      # sube el atlas y presenta 120 fotogramas. En Windows no hay equivalente fiable.
+      - name: Humo con ventana (Vulkan por software)
+        if: runner.os == 'Linux'
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+          SDL_VIDEO_DRIVER: x11
+        run: xvfb-run -a -s "-screen 0 1600x900x24" "build/${{ matrix.preset }}/src/rts" --frames 120
 
       - name: Hash de estado (10 minutos de juego sin ventana)
         run: |

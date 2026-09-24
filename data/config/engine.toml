@@ -15,10 +15,80 @@ vsync = true
 # cada vez más lentos (espiral de la muerte).
 max_ticks_per_frame = 5
 
-[demo]
-# Demostración de M0: puntos que rebotan, para ver la interpolación entre ticks.
+[map]
+width_tiles = 256
+height_tiles = 256
 seed = 20260924
-point_count = 500
-arena_tiles = 64
+# Separación de la retícula del ruido de la primera octava; la segunda usa la mitad.
+# Más grande = continentes más amplios.
+noise_cell_tiles = 32
+# Niveles de altura (0..7). En M1 solo sombrean; el relieve real llega con M4.
+elevation_levels = 8
+
+# Bandas de elevación del generador, de 0 a 65536, en orden creciente. Cada casilla
+# recibe el terreno de la primera banda cuyo max_elevation supera su elevación.
+[[map.bands]]
+terrain = "agua_profunda"
+max_elevation = 18000
+
+[[map.bands]]
+terrain = "agua"
+max_elevation = 24000
+
+[[map.bands]]
+terrain = "arena"
+max_elevation = 26500
+
+[[map.bands]]
+terrain = "pradera"
+max_elevation = 40000
+
+[[map.bands]]
+terrain = "bosque"
+max_elevation = 47000
+
+[[map.bands]]
+terrain = "colinas"
+max_elevation = 53000
+
+[[map.bands]]
+terrain = "roca"
+max_elevation = 65536
+
+[demo]
+# Marcadores de prueba hasta que haya unidades (M2): rebotan dentro de un cuadrado
+# de area_tiles casillas centrado en el mapa. Sirven para probar selección e interpolación.
+seed = 20260924
+point_count = 400
+area_tiles = 24
 # 150 milésimas de casilla por tick = 3 casillas por segundo.
 max_speed_milli_tiles_per_tick = 150
+
+[view]
+# Proyección isométrica 2:1: cada casilla es un rombo de 64x32 píxeles.
+tile_width_px = 64
+tile_height_px = 32
+# Radio de los marcadores de prueba.
+marker_radius_px = 5
+# Sombreado por altura: el nivel 0 se pinta al 72 % de brillo y el máximo al 100 %;
+# cada nivel de diferencia con la casilla de detrás suma o resta un 8 % (luz del norte).
+elevation_shade_min_percent = 72
+hillshade_step_percent = 8
+# Colores provisionales [r, g, b, a], 0-255.
+clear_color = [18, 20, 26, 255]
+marker_color = [236, 206, 96, 255]
+marker_selected_color = [120, 255, 140, 255]
+selection_rect_color = [120, 255, 140, 48]
+hover_tile_color = [255, 255, 255, 56]
+
+[camera]
+scroll_keys_px_per_s = 1200
+scroll_edge_px_per_s = 1200
+# Distancia al borde de la ventana a la que empieza el scroll con el ratón.
+edge_margin_px = 6
+
+[selection]
+# Un arrastre menor que esto cuenta como clic.
+drag_threshold_px = 4
+# Distancia máxima entre el clic y un marcador para seleccionarlo.
+click_radius_px = 10
