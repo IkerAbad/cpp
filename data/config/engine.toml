@@ -56,13 +56,42 @@ terrain = "roca"
 max_elevation = 65536
 
 [demo]
-# Marcadores de prueba hasta que haya unidades (M2): rebotan dentro de un cuadrado
-# de area_tiles casillas centrado en el mapa. Sirven para probar selección e interpolación.
+# Unidades iniciales de prueba hasta que haya economía (M3): count unidades del tipo
+# indicado (units.toml) en casillas transitables de un cuadrado centrado en el mapa.
 seed = 20260924
-point_count = 400
-area_tiles = 24
-# 150 milésimas de casilla por tick = 3 casillas por segundo.
-max_speed_milli_tiles_per_tick = 150
+unit = "milicia"
+count = 400
+area_tiles = 32
+
+[movement]
+# HPA*: sectores de 16x16 casillas; un tramo de borde transitable más ancho que
+# max_portal_width_tiles se parte en varios portales.
+sector_size_tiles = 16
+max_portal_width_tiles = 8
+# Nodos de rejilla que el planificador puede expandir por tick. Se mide en nodos y no
+# en tiempo para que el reparto entre ticks sea idéntico en todas las máquinas.
+path_node_budget_per_tick = 20000
+# Una orden a 8 unidades o más usa un campo de flujo compartido en lugar de 8 A*.
+flow_field_min_group = 8
+flow_field_cache_size = 4
+# Si el destino no es alcanzable (agua, otra isla), se busca la casilla alcanzable más
+# cercana en este radio.
+retarget_radius_tiles = 16
+# Evitación local (RVO muestreado): vecinas a menos de 2 casillas, como mucho 8.
+neighbor_radius_milli_tiles = 2000
+max_neighbors = 8
+# Horizonte de anticipación: colisiones previstas a más de 20 ticks (1 s) no penalizan.
+time_horizon_ticks = 20
+# Peso de desviarse de la velocidad deseada frente al de acercarse a una colisión.
+preference_weight = 100
+collision_weight = 60
+# Atasco: 40 ticks (2 s) casi parada junto a una compañera ya llegada = llegada;
+# 160 ticks (8 s) atascada = desiste.
+stuck_arrive_ticks = 40
+# Llegada: a 0,25 casillas del destino; en ruta, a 0,45 casillas de una casilla del
+# tramo se pasa a la siguiente.
+arrive_radius_milli_tiles = 250
+waypoint_radius_milli_tiles = 450
 
 [view]
 # Proyección isométrica 2:1: cada casilla es un rombo de 64x32 píxeles.
@@ -76,7 +105,7 @@ elevation_shade_min_percent = 72
 hillshade_step_percent = 8
 # Colores provisionales [r, g, b, a], 0-255.
 clear_color = [18, 20, 26, 255]
-marker_color = [236, 206, 96, 255]
+debug_overlay_color = [80, 160, 255, 110]
 marker_selected_color = [120, 255, 140, 255]
 selection_rect_color = [120, 255, 140, 48]
 hover_tile_color = [255, 255, 255, 56]

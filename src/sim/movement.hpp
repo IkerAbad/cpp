@@ -1,0 +1,104 @@
+#pragma once
+
+// Sistema de movimiento: órdenes, planificación (HPA* y campos de flujo) y evitación
+// local (RVO muestreado). Determinista: enteros y Fixed, orden de iteración fijo.
+
+#include <cstdint>
+#include <memory>
+#include <span>
+#include <vector>
+
+#include <entt/entity/registry.hpp>
+
+#include "sim/path/flow_field.hpp"
+#include "sim/path/grid.hpp"
+#include "sim/path/hpa.hpp"
+#include "sim/units.hpp"
+
+namespace rts::sim {
+
+class StateHasher;
+
+struct MovementTickStats {
+    std::int64_t nodes_expanded = 0;
+    std::int32_t paths_solved = 0;
+    std::int32_t paths_pending = 0;
+    std::int32_t flow_fields_built = 0;
+    std::int32_t moving_units = 0;
+};
+
+class MovementSystem {
+public:
+    MovementSystem(const TileMap& map, std::span<const std::uint8_t> passable_by_terrain,
+                   const MovementParams& params);
+
+    // Pone a cero las estadísticas del tick; se llama antes de aplicar las órdenes.
+    void begin_tick() noexcept { stats_ = MovementTickStats{}; }
+    void apply(entt::registry& registry, const Command& command, std::uint32_t order_id, Tick tick);
+    void update(entt::registry& registry, Tick tick);
+
+    [[nodiscard]] const PassGrid& grid() const noexcept { return grid_; }
+    [[nodiscard]] const HpaGraph& hpa() const noexcept { return hpa_; }
+    [[nodiscard]] const MovementTickStats& last_stats() const noexcept { return stats_; }
+    // Campo de flujo de una unidad, si lo sigue (para la superposición de depuración).
+    [[nodiscard]] const FlowField* flow_field_of(const MoveGoal& goal) const noexcept;
+
+    void hash_into(StateHasher& h) const;
+
+private:
+    struct CachedField {
+        std::unique_ptr<FlowField> field;
+        std::uint32_t order_id = 0;
+        Tick last_used = 0;
+    };
+
+    // Datos por unidad de un tick, en estructura de arrays e índice denso.
+    struct Scratch {
+        std::vector<entt::entity> entity;
+        std::vector<FVec2> pos;
+        std::vector<FVec2> vel;
+        std::vector<FVec2> pref;
+        std::vector<Fixed> radius;
+        std::vector<Fixed> speed;
+        std::vector<std::uint32_t> order;   // 0 = sin orden
+        std::vector<std::uint8_t> arrived;
+        std::vector<std::int32_t> stuck;
+        std::vector<Fixed> blob_radius;  // radio esperado del racimo de su orden
+        std::vector<FVec2> goal_point;
+        std::vector<FVec2> chosen;
+        std::vector<FVec2> correction;
+        // Rejilla espacial por ordenación por conteo: cell_start[c]..cell_start[c+1].
+        std::vector<std::uint32_t> cell_start;
+        std::vector<std::uint32_t> cell_units;
+        std::vector<std::uint32_t> neighbors;  // max_neighbors por unidad
+        std::vector<std::uint32_t> neighbor_count;
+    };
+
+    void run_planner(entt::registry& registry);
+    void enqueue_path(entt::entity e, PathFollow& follow);
+    FVec2 preferred_velocity(entt::registry& registry, entt::entity e, FVec2 pos, const Unit& unit, MoveGoal& goal,
+                             Tick tick);
+    std::int32_t build_flow_field(entt::registry& registry, std::span<const entt::entity> units, TileCoord goal,
+                                  std::uint32_t order_id, Tick tick);
+    void build_spatial_grid(std::size_t n);
+    void gather_neighbors(std::size_t n);
+    FVec2 choose_velocity(std::size_t i) const;
+    void integrate_and_separate(std::size_t n);
+
+    [[nodiscard]] TileCoord tile_of(FVec2 p) const noexcept { return {p.x.floor_to_int(), p.y.floor_to_int()}; }
+    [[nodiscard]] static FVec2 tile_center(TileCoord c) noexcept {
+        return {Fixed::from_int(c.x) + Fixed::from_ratio(1, 2), Fixed::from_int(c.y) + Fixed::from_ratio(1, 2)};
+    }
+
+    MovementParams params_;
+    PassGrid grid_;
+    GridSearch search_;
+    HpaGraph hpa_;
+    std::vector<CachedField> fields_;
+    std::vector<entt::entity> path_queue_;
+    std::size_t queue_head_ = 0;
+    Scratch s_;
+    MovementTickStats stats_;
+};
+
+}  // namespace rts::sim

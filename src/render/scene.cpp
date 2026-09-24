@@ -87,6 +87,12 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
                                   out.add(pos, tile_size, diamond_, tile_colors_[idx]);
                                   ++stats.tiles_drawn;
                               });
+        for (const TileTint& tint : scene.tile_tints) {
+            if (map.contains(tint.tile)) {
+                const Vec2 pos = scene.camera.world_to_screen(proj_.tile_top(tint.tile.x, tint.tile.y)) + top_to_corner;
+                out.add(pos, tile_size, diamond_, tint.color);
+            }
+        }
         if (scene.hovered_tile && map.contains(*scene.hovered_tile)) {
             const Vec2 pos = scene.camera.world_to_screen(proj_.tile_top(scene.hovered_tile->x, scene.hovered_tile->y)) +
                              top_to_corner;
@@ -102,12 +108,17 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
             m.screen_pos.y > scene.screen.y + ring_size.y) {
             continue;
         }
-        out.add(m.screen_pos - disc_size * 0.5f, disc_size, disc_,
-                m.selected ? view_.marker_selected_color : view_.marker_color);
+        out.add(m.screen_pos - disc_size * 0.5f, disc_size, disc_, m.selected ? view_.marker_selected_color : m.color);
         if (m.selected) {
             out.add(m.screen_pos - ring_size * 0.5f, ring_size, ring_, view_.marker_selected_color);
         }
         ++stats.markers_drawn;
+    }
+
+    // Puntos de ruta: discos a la mitad de tamaño.
+    const Vec2 dot_size = disc_size * 0.5f;
+    for (const Vec2& p : scene.path_points) {
+        out.add(p - dot_size * 0.5f, dot_size, disc_, view_.marker_selected_color);
     }
 
     if (scene.drag_rect) {

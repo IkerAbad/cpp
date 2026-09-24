@@ -8,8 +8,8 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | Hito | Contenido | Estado |
 |------|-----------|--------|
 | M0 | Esqueleto: ventana, paso fijo, ImGui, CMake + vcpkg, CI Windows/Linux | hecho, en revisión |
-| M1 | Mapa isométrico por casillas, cámara, selección por rectángulo | **en curso** |
-| M2 | Unidades y búsqueda de caminos | — |
+| M1 | Mapa isométrico por casillas, cámara, selección por rectángulo | hecho, en revisión |
+| M2 | Unidades, HPA*, campos de flujo, evitación local, banco de 1000/2000 unidades | **en curso** |
 | M3 | Economía | — |
 | M4 | Combate y experiencia | — |
 | M5 | Repeticiones deterministas | — |
@@ -58,6 +58,7 @@ Controles:
 | Seleccionar | Clic sobre un marcador, o arrastre con el botón izquierdo |
 | Añadir a la selección | Mayús + clic o arrastre |
 | Vaciar la selección | Esc |
+| Mover la selección | Clic derecho sobre el destino |
 
 Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) y `RTS_BUILD_TESTS` (ON).
 
@@ -109,6 +110,32 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
    - El tick dura exactamente 50 000 000 ns.
    - El reloj acumula nanosegundos enteros y ejecuta como mucho `loop.max_ticks_per_frame` ticks por fotograma. El retraso que sobre se descarta para evitar la espiral de la muerte.
 
+### Movimiento (M2)
+
+- **Órdenes.** `sim::Command{tick, jugador, tipo, unidades, destino}` se encola con `World::issue` y se aplica al inicio del tick indicado, en orden de llegada. Es la unidad que grabarán las repeticiones (M5) y que viajará en lockstep (M8).
+- **Rejilla.**
+  - 8 direcciones con coste entero octil: 10 en recto, 14 en diagonal.
+  - Prohibido atajar esquinas bloqueadas.
+  - Las componentes conexas precalculadas descartan al instante los destinos inalcanzables, que se sustituyen por la casilla alcanzable más cercana.
+- **HPA\*.**
+  - Sectores de 16×16, con portales en los tramos abiertos de cada borde (como mucho 8 casillas por portal) y aristas internas precalculadas con Dijkstra acotado al sector.
+  - Una consulta es un A\* sobre el grafo abstracto (1626 nodos y 11 390 aristas en el mapa por defecto), más un refinado perezoso tramo a tramo.
+  - Medido frente a A\* óptimo en 200 rutas: 3,6 % más largas de media y 15,7 % en el peor caso.
+- **Presupuesto determinista.** El planificador expande como mucho `path_node_budget_per_tick` nodos por tick. Se mide en nodos, no en milisegundos, para que el reparto sea idéntico en todas las máquinas.
+- **Campos de flujo.**
+  - Una orden a 8 o más unidades usa un único Dijkstra desde el destino, limitado al pasillo de sectores del camino abstracto.
+  - Cada unidad tiene su hueco de llegada: su desplazamiento respecto al centroide del grupo, comprimido al radio de un racimo compacto (el "magic box" de StarCraft).
+- **Evitación local "RVO muestreado".**
+  - Rejilla espacial por ordenación por conteo y hasta 8 vecinas a menos de 2 casillas.
+  - 18 velocidades candidatas, puntuadas por desvío más el riesgo de colisión en 20 ticks, con velocidad relativa recíproca `2v' − vᵢ − vⱼ`.
+  - La separación de solapamientos es de tipo Jacobi, así que no depende del orden de las unidades.
+- **Llegada.**
+  - En el radio del destino.
+  - En cadena, al tocar a una compañera ya llegada dentro del radio esperado del racimo.
+  - Por atasco, tras `stuck_arrive_ticks` casi parada.
+  - Las llegadas quedan quietas y son obstáculos para las demás.
+- **Sin coma flotante.** Todo el movimiento usa `Fixed` y enteros; la raíz cuadrada es entera (`isqrt`). El mismo hash tras 1200 ticks de movimiento con Clang 20 y GCC 14.
+
 ### Convenciones de `data/`
 
 - Solo enteros. Una magnitud fraccionaria se escribe en una unidad menor que figura en el nombre de la clave: `max_speed_milli_tiles_per_tick = 150` significa 0,150 casillas por tick. Así la carga no depende del redondeo decimal→binario de cada plataforma.
@@ -130,11 +157,26 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 |---|---|
 | `unit` | Punto fijo, RNG contra los vectores de referencia de los autores, reloj de paso fijo, configuración, generación de mapas, proyección y recorte (contra fuerza bruta en 200 cámaras), cámara, selección, atlas, escena, regresión por hash (mapa de 256×256 + 1000 entidades, 12 000 ticks) |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
-| `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana |
+| `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
-| CI `determinism` | El hash tras 12 000 ticks es idéntico en MSVC, clang-cl, Clang y GCC |
+| CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
+| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades: falla si algún tick supera 50 ms |
 
 Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el cambio de diseño es intencionado, se actualiza `kExpectedHash` en el mismo commit y se justifica en el mensaje.
+
+## Rendimiento medido
+
+Release, Clang 20, contenedor de 4 núcleos. Guion de `rts_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.
+
+| Unidades | Media | p99 | Máximo | Criterio |
+|---|---|---|---|---|
+| 1000 | 2,99 ms/tick | 6,39 ms | 10,1 ms | ≤ 50 ms ✅ |
+| 2000 | 6,68 ms/tick | 10,8 ms | 15,9 ms | ≤ 50 ms ✅ |
+
+| Otras medidas | Valor |
+|---|---|
+| Construir la escena de render (1963 sprites) | 0,036 ms/fotograma |
+| Generar el mapa de 256×256 + el grafo HPA\* + la aparición de unidades | ~51 ms, una vez |
 
 ## Licencia
 

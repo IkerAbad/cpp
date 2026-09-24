@@ -20,6 +20,13 @@ namespace rts::render {
 struct Marker {
     Vec2 screen_pos;  // centro, píxeles de pantalla
     bool selected = false;
+    Rgba color{};     // color propio (tipo de unidad); seleccionado usa marker_selected_color
+};
+
+// Casilla teñida para superposiciones de depuración (sectores, campo de flujo).
+struct TileTint {
+    sim::TileCoord tile;
+    Rgba color;
 };
 
 struct Rect {
@@ -34,6 +41,8 @@ struct Scene {
     std::span<const Marker> markers;  // en orden de pintado
     std::optional<Rect> drag_rect;
     std::optional<sim::TileCoord> hovered_tile;
+    std::span<const TileTint> tile_tints;  // se dibujan sobre el terreno, bajo los marcadores
+    std::span<const Vec2> path_points;     // puntos de ruta en pantalla
 };
 
 struct SceneStats {

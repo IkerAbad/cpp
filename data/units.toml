@@ -1,0 +1,17 @@
+# Tipos de unidad. El identificador de cada tipo es su posición en esta lista.
+# Magnitudes en enteros con la unidad en el nombre de la clave (_milli = milésimas):
+#   radius_milli_tiles = 300           -> radio de 0,3 casillas
+#   speed_milli_tiles_per_tick = 60    -> 0,06 casillas/tick = 1,2 casillas/s a 20 Hz
+# color: RGB provisional (0-255) hasta que haya arte.
+
+[[unit]]
+name = "milicia"
+radius_milli_tiles = 300
+speed_milli_tiles_per_tick = 60
+color = [236, 206, 96]
+
+[[unit]]
+name = "explorador"
+radius_milli_tiles = 350
+speed_milli_tiles_per_tick = 110
+color = [214, 128, 72]

@@ -6,6 +6,8 @@ add_executable(rts_tests
     test_fixed.cpp
     test_fixed_step.cpp
     test_map_gen.cpp
+    test_movement.cpp
+    test_path.cpp
     test_projection.cpp
     test_rng.cpp
     test_scene.cpp

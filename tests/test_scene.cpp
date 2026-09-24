@@ -27,7 +27,7 @@ ViewParams test_view() {
     v.marker_radius_px = 5;
     v.elevation_shade_min_percent = 70;
     v.hillshade_step_percent = 0;
-    v.marker_color = {200, 200, 0, 255};
+    v.debug_overlay_color = {0, 0, 255, 100};
     v.marker_selected_color = {0, 255, 0, 255};
     v.selection_rect_color = {0, 255, 0, 64};
     v.hover_tile_color = {255, 255, 255, 64};

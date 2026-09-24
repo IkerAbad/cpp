@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.28)
 option(RTS_WERROR "Warnings como errores" ON)
 option(RTS_TRACY "Instrumentación con Tracy" OFF)
 option(RTS_BUILD_TESTS "Compilar las pruebas" ON)
+option(RTS_BUILD_BENCH "Compilar el banco de rendimiento" ON)
 
 # Las features del manifiesto deben fijarse antes de project(), que es cuando
 # el toolchain de vcpkg instala las dependencias.
@@ -43,6 +44,10 @@ if(RTS_TRACY)
 endif()
 
 add_subdirectory(src)
+
+if(RTS_BUILD_BENCH)
+    add_subdirectory(bench)
+endif()
 
 if(RTS_BUILD_TESTS)
     enable_testing()

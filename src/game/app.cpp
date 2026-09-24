@@ -37,6 +37,7 @@ constexpr double kSmoothing = 0.05;
 constexpr float kMaxCameraDtS = 0.1f;
 // Separación de los paneles de depuración respecto al borde de la ventana.
 constexpr float kPanelMarginPx = 10.0f;
+constexpr std::uint8_t kOpaque = 255;
 
 using SteadyClock = std::chrono::steady_clock;
 
@@ -55,6 +56,24 @@ void print_usage() {
 bool parse_count(std::string_view value, std::int64_t& out) {
     const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), out);
     return ec == std::errc{} && end == value.data() + value.size() && out >= 0;
+}
+
+// Convierte las órdenes del guion en órdenes de la simulación: [first, first + count)
+// indexa las unidades en orden de creación, que es el orden del snapshot inicial.
+void issue_scenario(sim::World& world, const std::vector<ScenarioOrder>& orders) {
+    sim::Snapshot snap;
+    world.write_snapshot(snap);
+    for (const ScenarioOrder& o : orders) {
+        sim::Command c;
+        c.tick = o.tick;
+        c.type = sim::CommandType::Move;
+        c.target = o.target;
+        const auto end = std::min<std::size_t>(snap.entities.size(), static_cast<std::size_t>(o.first + o.count));
+        for (auto i = static_cast<std::size_t>(o.first); i < end; ++i) {
+            c.units.push_back(snap.entities[i].id);
+        }
+        world.issue(std::move(c));
+    }
 }
 
 // Métricas del panel de depuración.
@@ -129,6 +148,8 @@ private:
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                     if (event.button.button == SDL_BUTTON_LEFT && !ui_mouse) {
                         selection_.begin_drag({event.button.x, event.button.y});
+                    } else if (event.button.button == SDL_BUTTON_RIGHT && !ui_mouse) {
+                        issue_move_to({event.button.x, event.button.y});
                     }
                     break;
                 case SDL_EVENT_MOUSE_MOTION:
@@ -150,6 +171,81 @@ private:
             }
         }
         return true;
+    }
+
+    // Orden de mover a la casilla bajo el cursor. Se aplica al inicio del siguiente tick;
+    // en lockstep (M8) se programará unos ticks más tarde para absorber la latencia.
+    void issue_move_to(render::Vec2 screen_pos) {
+        if (selection_.selected().empty()) {
+            return;
+        }
+        const render::Vec2 tile = proj_.world_to_tile(camera_.screen_to_world(screen_pos));
+        sim::Command c;
+        c.tick = world_.tick();
+        c.type = sim::CommandType::Move;
+        c.units = selection_.selected();
+        c.target = {static_cast<std::int32_t>(std::floor(tile.x)), static_cast<std::int32_t>(std::floor(tile.y))};
+        world_.issue(std::move(c));
+    }
+
+    // Superposiciones de depuración. Leen el registro en solo lectura: son herramientas,
+    // no presentación del juego, y no pasan por el snapshot.
+    void build_overlays() {
+        tints_.clear();
+        path_points_.clear();
+        const sim::MovementSystem& mv = world_.movement();
+        const auto& reg = world_.registry();
+        if (show_portals_) {
+            for (std::size_t n = 0; n < mv.hpa().node_count(); ++n) {
+                tints_.push_back({mv.hpa().node_tile(n), data_.engine.view.debug_overlay_color});
+            }
+        }
+        const sim::FlowField* field = nullptr;
+        for (const std::uint32_t id : selection_.selected()) {
+            const auto e = static_cast<entt::entity>(id);
+            if (!reg.valid(e)) {
+                continue;
+            }
+            const sim::MoveGoal* goal = reg.try_get<sim::MoveGoal>(e);
+            if (goal != nullptr && field == nullptr) {
+                field = mv.flow_field_of(*goal);
+            }
+            const sim::PathFollow* follow = reg.try_get<sim::PathFollow>(e);
+            if (!show_paths_ || follow == nullptr) {
+                continue;
+            }
+            auto add_point = [&](sim::TileCoord t) {
+                const render::Vec2 center{static_cast<float>(t.x) + 0.5f, static_cast<float>(t.y) + 0.5f};
+                path_points_.push_back(camera_.world_to_screen(proj_.tile_to_world(center)));
+            };
+            for (std::size_t i = follow->next_tile; i < follow->segment.size(); ++i) {
+                add_point(follow->segment[i]);
+            }
+            for (std::size_t i = follow->next_waypoint; i < follow->waypoints.size(); ++i) {
+                add_point(follow->waypoints[i]);
+            }
+        }
+        if (show_flow_ && field != nullptr) {
+            // Tinte proporcional a la cercanía al destino, solo en las casillas visibles.
+            const render::Vec2 screen = renderer_.screen_size();
+            const sim::TileMap& map = world_.map();
+            std::int32_t max_cost = 1;
+            render::for_each_visible_tile(proj_, camera_, screen, map.width(), map.height(), [&](std::int32_t i, std::int32_t j) {
+                const std::int32_t c = field->cost(mv.grid(), {i, j});
+                if (c != sim::kUnreached) {
+                    max_cost = std::max(max_cost, c);
+                }
+            });
+            render::for_each_visible_tile(proj_, camera_, screen, map.width(), map.height(), [&](std::int32_t i, std::int32_t j) {
+                const std::int32_t c = field->cost(mv.grid(), {i, j});
+                if (c == sim::kUnreached) {
+                    return;
+                }
+                render::Rgba color = data_.engine.view.debug_overlay_color;
+                color[3] = static_cast<std::uint8_t>(color[3] * (max_cost - c) / max_cost);
+                tints_.push_back({{i, j}, color});
+            });
+        }
     }
 
     void simulate(std::int64_t frame_ns) {
@@ -199,6 +295,7 @@ private:
     // Interpola cada marcador entre los dos últimos ticks y lo proyecta a pantalla.
     void build_screen_entities() {
         screen_entities_.clear();
+        screen_types_.clear();
         const bool can_interpolate = prev_.entities.size() == curr_.entities.size();
         const auto a = static_cast<float>(stats_.alpha);
         for (std::size_t i = 0; i < curr_.entities.size(); ++i) {
@@ -210,8 +307,19 @@ private:
             }
             screen_entities_.push_back({c.id, camera_.world_to_screen(proj_.tile_to_world(tile))});
         }
-        // Orden de pintado: de atrás (y pequeña) hacia delante.
-        std::ranges::stable_sort(screen_entities_, {}, [](const ScreenEntity& e) { return e.pos.y; });
+        // Orden de pintado: de atrás (y pequeña) hacia delante. Se ordena una permutación
+        // para llevar el tipo de cada unidad con su posición.
+        order_.resize(screen_entities_.size());
+        for (std::size_t i = 0; i < order_.size(); ++i) {
+            order_[i] = i;
+        }
+        std::ranges::stable_sort(order_, {}, [this](std::size_t i) { return screen_entities_[i].pos.y; });
+        sorted_.clear();
+        for (const std::size_t i : order_) {
+            sorted_.push_back(screen_entities_[i]);
+            screen_types_.push_back(curr_.entities[i].type);
+        }
+        screen_entities_.swap(sorted_);
     }
 
     [[nodiscard]] std::optional<sim::TileCoord> hovered_tile() const {
@@ -245,8 +353,21 @@ private:
         ImGui::Text("alpha: %.3f", stats_.alpha);
         ImGui::Text("Hash de estado: %016llx", static_cast<unsigned long long>(stats_.state_hash));
         ImGui::Separator();
+        const sim::MovementTickStats& mv = world_.movement().last_stats();
+        ImGui::Text("Movimiento: %d en marcha · %d caminos resueltos, %d pendientes", mv.moving_units, mv.paths_solved,
+                    mv.paths_pending);
+        ImGui::Text("Nodos expandidos en el último tick: %lld · campos de flujo: %d",
+                    static_cast<long long>(mv.nodes_expanded), mv.flow_fields_built);
+        ImGui::Text("HPA*: %zu nodos, %zu aristas", world_.movement().hpa().node_count(),
+                    world_.movement().hpa().edge_count());
+        ImGui::Checkbox("Portales HPA*", &show_portals_);
+        ImGui::SameLine();
+        ImGui::Checkbox("Ruta", &show_paths_);
+        ImGui::SameLine();
+        ImGui::Checkbox("Campo de flujo", &show_flow_);
+        ImGui::Separator();
         ImGui::Text("Seleccionados: %zu de %zu", selection_.selected().size(), curr_.entities.size());
-        ImGui::TextDisabled("Arrastre: rectángulo · Mayús: añadir · Esc: limpiar");
+        ImGui::TextDisabled("Arrastre: rectángulo · Mayús: añadir · Esc: limpiar · clic derecho: mover");
         ImGui::TextDisabled("Flechas/WASD o borde de ventana: desplazar");
         ImGui::End();
 
@@ -272,9 +393,12 @@ private:
         renderer_.begin_frame();
 
         markers_.clear();
-        for (const ScreenEntity& e : screen_entities_) {
-            markers_.push_back({e.pos, selection_.is_selected(e.id)});
+        for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
+            const ScreenEntity& e = screen_entities_[i];
+            const auto& rgb = data_.units.types[screen_types_[i]].color;
+            markers_.push_back({e.pos, selection_.is_selected(e.id), {rgb[0], rgb[1], rgb[2], kOpaque}});
         }
+        build_overlays();
         const std::optional<sim::TileCoord> hover = hovered_tile();
         draw_ui(hover);
 
@@ -284,6 +408,8 @@ private:
         scene.screen = renderer_.screen_size();
         scene.markers = markers_;
         scene.hovered_tile = hover;
+        scene.tile_tints = tints_;
+        scene.path_points = path_points_;
         if (selection_.has_visible_rect()) {
             const ScreenRect r = selection_.drag_rect();
             scene.drag_rect = render::Rect{r.min, r.max};
@@ -307,7 +433,15 @@ private:
     FixedStepClock clock_;
     Selection selection_;
     std::vector<ScreenEntity> screen_entities_;
+    std::vector<ScreenEntity> sorted_;
+    std::vector<std::size_t> order_;
+    std::vector<sim::UnitTypeId> screen_types_;
     std::vector<render::Marker> markers_;
+    std::vector<render::TileTint> tints_;
+    std::vector<render::Vec2> path_points_;
+    bool show_portals_ = false;
+    bool show_paths_ = true;
+    bool show_flow_ = false;
     FrameStats stats_;
 };
 
@@ -344,6 +478,7 @@ int run_headless(const GameData& data, std::int64_t ticks) {
     const auto gen_start = SteadyClock::now();
     sim::World world(data.engine.world);
     const double gen_ms = elapsed_ms(gen_start);
+    issue_scenario(world, data.headless_scenario);
 
     const auto start = SteadyClock::now();
     for (std::int64_t i = 0; i < ticks; ++i) {
@@ -352,8 +487,8 @@ int run_headless(const GameData& data, std::int64_t ticks) {
     const double total_ms = elapsed_ms(start);
     const double per_tick = ticks > 0 ? total_ms / static_cast<double>(ticks) : 0.0;
     spdlog::info("headless: mapa {}x{} generado en {:.2f} ms", world.map().width(), world.map().height(), gen_ms);
-    spdlog::info("headless: {} ticks, {} entidades, {:.3f} ms total, {:.4f} ms/tick", ticks,
-                 data.engine.world.demo.point_count, total_ms, per_tick);
+    spdlog::info("headless: {} ticks, {} unidades, {} órdenes de guion, {:.3f} ms total, {:.4f} ms/tick", ticks,
+                 data.engine.world.demo.count, data.headless_scenario.size(), total_ms, per_tick);
     // Formato estable: la CI lo compara entre plataformas.
     spdlog::info("state_hash={:016x}", world.state_hash());
     return 0;
