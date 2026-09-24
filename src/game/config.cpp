@@ -19,6 +19,13 @@ namespace {
 // un decimal a binario.
 constexpr std::int32_t kMilli = 1000;
 constexpr std::int64_t kByteMax = std::numeric_limits<std::uint8_t>::max();
+// Límites de cordura de los datos (no de diseño): atrapan erratas como un cero de más.
+constexpr std::int64_t kMaxAmount = 1'000'000;
+constexpr std::int64_t kMaxTicks = 1'000'000;
+constexpr std::int64_t kMaxFootprint = 8;
+constexpr std::int64_t kMaxPlayers = 8;
+
+constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro"};
 
 // Lector con acumulación del primer error. Las rutas de error incluyen el prefijo
 // de la tabla (p. ej. "map.bands[2].terrain") para que el mensaje sea accionable.
@@ -105,15 +112,85 @@ public:
         return {static_cast<std::int32_t>(*x), static_cast<std::int32_t>(*y)};
     }
 
-    // Lista de tablas ([[nombre]] en TOML). Vacía y con error si no existe.
-    const toml::array* get_table_array(std::string_view path) {
-        const toml::array* arr = table_.at_path(path).as_array();
+    // Lista de tablas ([[nombre]] en TOML). Si es obligatoria, vacía o ausente es error;
+    // si no, ausente devuelve nullptr sin error.
+    const toml::array* get_table_array(std::string_view path, bool required = true) {
+        const toml::node_view node = table_.at_path(path);
+        if (!node && !required) {
+            return nullptr;
+        }
+        const toml::array* arr = node.as_array();
         if (arr == nullptr || arr->empty() || !arr->is_array_of_tables()) {
             fail(std::format("falta la lista de tablas '[[{}]]'", full(path)));
             return nullptr;
         }
         return arr;
     }
+
+    // Cantidades por recurso: { comida = 50, madera = 20 }. Las ausentes valen 0; una
+    // clave que no es un recurso es un error (atrapa erratas).
+    sim::Stock get_stock(std::string_view path) {
+        sim::Stock stock{};
+        const toml::table* t = table_.at_path(path).as_table();
+        if (t == nullptr) {
+            fail(std::format("falta la tabla '{}' (p. ej. {{ comida = 50, madera = 20 }})", full(path)));
+            return stock;
+        }
+        for (const auto& [key, node] : *t) {
+            const auto r = find_resource(key.str());
+            const auto v = node.value<std::int64_t>();
+            if (!r) {
+                fail(std::format("'{}.{}' no es un recurso (comida, madera, piedra, oro)", full(path), key.str()));
+                return stock;
+            }
+            if (!v || *v < 0 || *v > kMaxAmount) {
+                fail(std::format("'{}.{}' debe ser un entero en [0, {}]", full(path), key.str(), kMaxAmount));
+                return stock;
+            }
+            stock[sim::resource_index(*r)] = static_cast<std::int32_t>(*v);
+        }
+        return stock;
+    }
+
+    std::vector<std::string> get_string_list(std::string_view path) {
+        const toml::array* arr = table_.at_path(path).as_array();
+        if (arr == nullptr) {
+            fail(std::format("falta la lista de textos '{}'", full(path)));
+            return {};
+        }
+        std::vector<std::string> out;
+        for (std::size_t i = 0; i < arr->size(); ++i) {
+            const auto v = (*arr)[i].value<std::string>();
+            if (!v) {
+                fail(std::format("'{}[{}]' debe ser un texto", full(path), i));
+                return {};
+            }
+            out.push_back(*v);
+        }
+        return out;
+    }
+
+    sim::Resource get_resource(std::string_view path) {
+        const std::string key = get_string(path);
+        const auto r = find_resource(key);
+        if (!r && !error_) {
+            fail(std::format("'{}' = \"{}\" no es un recurso (comida, madera, piedra, oro)", full(path), key));
+        }
+        return r.value_or(sim::Resource::Food);
+    }
+
+    // Nombre que se resuelve contra un catálogo (unidad, edificio, nodo, terreno).
+    template <typename Catalog>
+    auto get_named(std::string_view path, const Catalog& catalog, std::string_view file) {
+        const std::string name = get_string(path);
+        const auto id = catalog.find(name);
+        if (!id && !error_) {
+            fail(std::format("'{}' = \"{}\" no está en {}", full(path), name, file));
+        }
+        return id.value_or(0);
+    }
+
+    [[nodiscard]] bool failed() const noexcept { return error_.has_value(); }
 
     void fail(std::string message) {
         if (!error_) {
@@ -185,24 +262,58 @@ void read_map_params(const toml::table& root, std::string_view source, const Ter
     }
 }
 
-}  // namespace
-
-std::optional<sim::TerrainId> TerrainCatalog::find(std::string_view name) const {
+template <typename Types>
+std::optional<std::uint8_t> find_by_name(const Types& types, std::string_view name) {
     for (std::size_t i = 0; i < types.size(); ++i) {
         if (types[i].name == name) {
-            return static_cast<sim::TerrainId>(i);
+            return static_cast<std::uint8_t>(i);
         }
     }
     return std::nullopt;
 }
 
-std::optional<sim::UnitTypeId> UnitCatalog::find(std::string_view name) const {
-    for (std::size_t i = 0; i < types.size(); ++i) {
-        if (types[i].name == name) {
-            return static_cast<sim::UnitTypeId>(i);
+// Recorre [[array_name]] y llama a read(reader, índice) con un lector con prefijo.
+template <typename Read>
+void for_each_table(const toml::array* list, std::string_view source, std::string_view array_name,
+                    std::optional<std::string>& error, Read&& read) {
+    if (list == nullptr) {
+        return;
+    }
+    for (std::size_t i = 0; i < list->size() && !error; ++i) {
+        Reader item(*(*list)[i].as_table(), source, std::format("{}[{}]", array_name, i), error);
+        read(item, i);
+    }
+}
+
+}  // namespace
+
+std::string_view resource_key(sim::Resource r) noexcept {
+    return kResourceKeys[sim::resource_index(r)];
+}
+
+std::optional<sim::Resource> find_resource(std::string_view key) noexcept {
+    for (std::size_t i = 0; i < kResourceKeys.size(); ++i) {
+        if (kResourceKeys[i] == key) {
+            return static_cast<sim::Resource>(i);
         }
     }
     return std::nullopt;
+}
+
+std::optional<sim::NodeTypeId> NodeCatalog::find(std::string_view name) const {
+    return find_by_name(types, name);
+}
+
+std::optional<sim::BuildingTypeId> BuildingCatalog::find(std::string_view name) const {
+    return find_by_name(types, name);
+}
+
+std::optional<sim::TerrainId> TerrainCatalog::find(std::string_view name) const {
+    return find_by_name(types, name);
+}
+
+std::optional<sim::UnitTypeId> UnitCatalog::find(std::string_view name) const {
+    return find_by_name(types, name);
 }
 
 std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml_text, std::string_view source_name) {
@@ -227,6 +338,13 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             info.type.radius = sim::Fixed::from_ratio(ur.get_i32("radius_milli_tiles", 50, kMilli / 2), kMilli);
             info.type.speed = sim::Fixed::from_ratio(ur.get_i32("speed_milli_tiles_per_tick", 1, kMilli / 2), kMilli);
             info.color = ur.get_color<3>("color");
+            info.type.cost = ur.get_stock("cost");
+            info.type.train_ticks = ur.get_i32("train_ticks", 1, kMaxTicks);
+            info.type.population = ur.get_i32("population", 0, 100);
+            info.type.worker = ur.get_bool("worker");
+            // Un aldeano debe poder llevar algo; los demás no llevan nada.
+            info.type.carry_capacity =
+                ur.get_i32("carry_capacity", info.type.worker ? 1 : 0, info.type.worker ? kMaxAmount : 0);
             if (!error && catalog.find(info.name)) {
                 ur.fail(std::format("nombre de unidad repetido: \"{}\"", info.name));
             }
@@ -239,34 +357,132 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
     return catalog;
 }
 
-std::expected<std::vector<ScenarioOrder>, std::string> parse_scenario(std::string_view toml_text,
-                                                                      std::string_view source_name) {
+std::expected<NodeCatalog, std::string> parse_node_catalog(std::string_view toml_text, std::string_view source_name) {
     auto root = parse_toml(toml_text, source_name);
     if (!root) {
         return std::unexpected(root.error());
     }
     std::optional<std::string> error;
     Reader r(*root, source_name, "", error);
-    std::vector<ScenarioOrder> orders;
-    const toml::array* list = r.get_table_array("order");
-    if (list != nullptr) {
-        for (std::size_t i = 0; i < list->size(); ++i) {
-            Reader orr(*(*list)[i].as_table(), source_name, std::format("order[{}]", i), error);
-            ScenarioOrder o;
-            o.tick = static_cast<sim::Tick>(orr.get_i32("tick", 0, std::numeric_limits<std::int32_t>::max()));
-            o.first = orr.get_i32("first", 0, 1'000'000);
-            o.count = orr.get_i32("count", 1, 1'000'000);
-            o.target = orr.get_tile("target");
-            if (!orders.empty() && o.tick < orders.back().tick) {
-                orr.fail(std::format("'{}' debe ser >= que el de la orden anterior", orr.full("tick")));
-            }
-            orders.push_back(o);
-        }
+    NodeCatalog catalog;
+    const toml::array* list = r.get_table_array("node");
+    if (list != nullptr && list->size() > static_cast<std::size_t>(kByteMax) + 1) {
+        r.fail(std::format("hay {} tipos de nodo y el máximo es {}", list->size(), kByteMax + 1));
     }
+    for_each_table(list, source_name, "node", error, [&](Reader& nr, std::size_t) {
+        NodeInfo info;
+        info.name = nr.get_string("name");
+        info.type.kind = nr.get_resource("resource");
+        info.type.amount = nr.get_i32("amount", 1, kMaxAmount);
+        info.type.size = nr.get_i32("size_tiles", 1, kMaxFootprint);
+        info.color = nr.get_color<3>("color");
+        if (!nr.failed() && catalog.find(info.name)) {
+            nr.fail(std::format("nombre de nodo repetido: \"{}\"", info.name));
+        }
+        catalog.types.push_back(std::move(info));
+    });
     if (error) {
         return std::unexpected(*error);
     }
-    return orders;
+    return catalog;
+}
+
+std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_view toml_text,
+                                                                   const UnitCatalog& units,
+                                                                   std::string_view source_name) {
+    auto root = parse_toml(toml_text, source_name);
+    if (!root) {
+        return std::unexpected(root.error());
+    }
+    std::optional<std::string> error;
+    Reader r(*root, source_name, "", error);
+    BuildingCatalog catalog;
+    const toml::array* list = r.get_table_array("building");
+    if (list != nullptr && list->size() > static_cast<std::size_t>(kByteMax) + 1) {
+        r.fail(std::format("hay {} tipos de edificio y el máximo es {}", list->size(), kByteMax + 1));
+    }
+    for_each_table(list, source_name, "building", error, [&](Reader& br, std::size_t) {
+        BuildingInfo info;
+        info.name = br.get_string("name");
+        info.type.size = br.get_i32("size_tiles", 1, kMaxFootprint);
+        info.type.cost = br.get_stock("cost");
+        info.type.build_ticks = br.get_i32("build_ticks", 1, kMaxTicks);
+        info.type.hp = br.get_i32("hp", 1, kMaxAmount);
+        info.type.population = br.get_i32("population", 0, 1000);
+        for (const std::string& key : br.get_string_list("accepts")) {
+            const auto res = find_resource(key);
+            if (!res) {
+                br.fail(std::format("'{}' contiene \"{}\", que no es un recurso", br.full("accepts"), key));
+                return;
+            }
+            info.type.accepts = static_cast<std::uint8_t>(info.type.accepts | sim::resource_bit(*res));
+        }
+        for (const std::string& name : br.get_string_list("trains")) {
+            const auto id = units.find(name);
+            if (!id) {
+                br.fail(std::format("'{}' contiene \"{}\", que no está en units.toml", br.full("trains"), name));
+                return;
+            }
+            info.type.trains.push_back(*id);
+        }
+        info.color = br.get_color<3>("color");
+        if (!br.failed() && catalog.find(info.name)) {
+            br.fail(std::format("nombre de edificio repetido: \"{}\"", info.name));
+        }
+        catalog.types.push_back(std::move(info));
+    });
+    if (error) {
+        return std::unexpected(*error);
+    }
+    return catalog;
+}
+
+std::expected<Scenario, std::string> parse_scenario(std::string_view toml_text, const Catalogs& catalogs,
+                                                    std::string_view source_name) {
+    auto root = parse_toml(toml_text, source_name);
+    if (!root) {
+        return std::unexpected(root.error());
+    }
+    std::optional<std::string> error;
+    Reader r(*root, source_name, "", error);
+    Scenario scenario;
+    scenario.build_gap_tiles = r.get_i32("build_site.gap_tiles", 0, 64);
+    scenario.build_search_radius_tiles = r.get_i32("build_site.search_radius_tiles", 1, 256);
+    std::vector<ScenarioOrder>& orders = scenario.orders;
+    for_each_table(r.get_table_array("order"), source_name, "order", error, [&](Reader& orr, std::size_t) {
+        ScenarioOrder o;
+        o.tick = static_cast<sim::Tick>(orr.get_i32("tick", 0, std::numeric_limits<std::int32_t>::max()));
+        o.player = static_cast<sim::PlayerId>(orr.get_i32("player", 0, kMaxPlayers - 1));
+        const std::string action = orr.get_string("action");
+        if (action == "mover") {
+            o.action = ScenarioAction::Move;
+            o.target = orr.get_tile("target");
+        } else if (action == "recoger") {
+            o.action = ScenarioAction::Gather;
+            o.resource = orr.get_resource("resource");
+        } else if (action == "construir") {
+            o.action = ScenarioAction::Build;
+            o.building = orr.get_named("building", catalogs.buildings, "buildings.toml");
+        } else if (action == "entrenar") {
+            o.action = ScenarioAction::Train;
+            o.building = orr.get_named("building", catalogs.buildings, "buildings.toml");
+            o.unit = orr.get_named("unit", catalogs.units, "units.toml");
+        } else if (!orr.failed()) {
+            orr.fail(std::format("'{}' = \"{}\" no es una acción (mover, recoger, construir, entrenar)",
+                                 orr.full("action"), action));
+        }
+        // entrenar no elige unidades: count es cuántas se encolan.
+        o.first = o.action == ScenarioAction::Train ? 0 : orr.get_i32("first", 0, 1'000'000);
+        o.count = orr.get_i32("count", 1, 1'000'000);
+        if (!orders.empty() && o.tick < orders.back().tick) {
+            orr.fail(std::format("'{}' debe ser >= que el de la orden anterior", orr.full("tick")));
+        }
+        orders.push_back(o);
+    });
+    if (error) {
+        return std::unexpected(*error);
+    }
+    return scenario;
 }
 
 std::expected<TerrainCatalog, std::string> parse_terrain_catalog(std::string_view toml_text,
@@ -301,9 +517,10 @@ std::expected<TerrainCatalog, std::string> parse_terrain_catalog(std::string_vie
     return catalog;
 }
 
-std::expected<EngineConfig, std::string> parse_engine_config(std::string_view toml_text,
-                                                             const TerrainCatalog& terrain, const UnitCatalog& units,
+std::expected<EngineConfig, std::string> parse_engine_config(std::string_view toml_text, const Catalogs& catalogs,
                                                              std::string_view source_name) {
+    const TerrainCatalog& terrain = catalogs.terrain;
+    const UnitCatalog& units = catalogs.units;
     auto root = parse_toml(toml_text, source_name);
     if (!root) {
         return std::unexpected(root.error());
@@ -326,17 +543,71 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     for (const UnitInfo& u : units.types) {
         cfg.world.unit_types.push_back(u.type);
     }
+    for (const BuildingInfo& b : catalogs.buildings.types) {
+        cfg.world.building_types.push_back(b.type);
+    }
+    for (const NodeInfo& n : catalogs.nodes.types) {
+        cfg.world.node_types.push_back(n.type);
+    }
+
+    // Jugadores: inicio (simulación) y color (presentación).
+    for_each_table(r.get_table_array("player"), source_name, "player", error, [&](Reader& pr, std::size_t i) {
+        if (i >= static_cast<std::size_t>(kMaxPlayers)) {
+            pr.fail(std::format("hay más de {} jugadores", kMaxPlayers));
+            return;
+        }
+        const sim::TileCoord start = pr.get_tile("start");
+        if (!pr.failed() && (start.x >= cfg.world.map.width || start.y >= cfg.world.map.height)) {
+            pr.fail(std::format("'{}' queda fuera del mapa", pr.full("start")));
+        }
+        cfg.world.setup.starts.push_back(start);
+        cfg.player_colors.push_back(pr.get_color<3>("color"));
+    });
 
     sim::DemoParams& demo = cfg.world.demo;
     demo.seed = r.get_u64("demo.seed");
-    const std::string unit_name = r.get_string("demo.unit");
+    demo.unit_type = r.get_named("demo.unit", units, "units.toml");
+    demo.player = static_cast<sim::PlayerId>(r.get_i32("demo.player", 0, kMaxPlayers - 1));
     demo.count = r.get_i32("demo.count", 0, 100'000);
     demo.area_tiles = r.get_i32("demo.area_tiles", 2, 1024);
-    if (const auto id = units.find(unit_name)) {
-        demo.unit_type = *id;
-    } else if (!error) {
-        r.fail(std::format("'demo.unit' = \"{}\" no está en units.toml", unit_name));
+
+    sim::EconomyParams& eco = cfg.world.economy;
+    const sim::Stock gather = r.get_stock("economy.gather_ticks");
+    for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
+        eco.gather_ticks[i] = gather[i];
+        if (!error && gather[i] < 1) {
+            r.fail(std::format("'economy.gather_ticks.{}' debe ser al menos 1", kResourceKeys[i]));
+        }
     }
+    eco.interact_range = sim::Fixed::from_ratio(r.get_i32("economy.interact_range_milli_tiles", 0, 4 * kMilli), kMilli);
+    eco.retarget_radius_tiles = r.get_i32("economy.retarget_radius_tiles", 0, 64);
+    eco.approach_attempts = r.get_i32("economy.approach_attempts", 1, 32);
+    eco.gatherers_per_tile = r.get_i32("economy.gatherers_per_tile", 1, 8);
+    eco.queue_capacity = r.get_i32("economy.queue_capacity", 1, 64);
+    eco.max_population = r.get_i32("economy.max_population", 1, 100'000);
+    eco.spawn_search_radius = r.get_i32("economy.spawn_search_radius_tiles", 1, 32);
+
+    sim::SetupParams& setup = cfg.world.setup;
+    setup.seed = r.get_u64("setup.seed");
+    setup.start_search_radius = r.get_i32("setup.start_search_radius_tiles", 0, 1024);
+    setup.min_start_region_tiles = r.get_i32("setup.min_start_region_tiles", 0, 1 << 20);
+    setup.start_building = r.get_named("setup.start_building", catalogs.buildings, "buildings.toml");
+    setup.start_unit = r.get_named("setup.start_unit", units, "units.toml");
+    setup.start_units = r.get_i32("setup.start_units", 0, 1000);
+    setup.start_stock = r.get_stock("setup.start_stock");
+    setup.forest_terrain = r.get_named("setup.forest_terrain", terrain, "terrain.toml");
+    setup.tree_type = r.get_named("setup.tree", catalogs.nodes, "resources.toml");
+    setup.tree_density_permille = r.get_i32("setup.tree_density_permille", 0, kMilli);
+    setup.clear_radius = r.get_i32("setup.clear_radius_tiles", 0, 1024);
+    for_each_table(r.get_table_array("setup.near_start", false), source_name, "setup.near_start", error,
+                   [&](Reader& nr, std::size_t) {
+                       sim::StartNodes group;
+                       group.type = nr.get_named("node", catalogs.nodes, "resources.toml");
+                       group.count = nr.get_i32("count", 0, 1000);
+                       group.min_distance = nr.get_i32("min_distance_tiles", 0, 1024);
+                       group.max_distance = nr.get_i32("max_distance_tiles", group.min_distance, 1024);
+                       setup.near_start.push_back(group);
+                   });
 
     sim::MovementParams& mv = cfg.world.movement;
     mv.hpa.sector_size = r.get_i32("movement.sector_size_tiles", 4, 256);
@@ -365,6 +636,14 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.view.marker_selected_color = r.get_color<4>("view.marker_selected_color");
     cfg.view.selection_rect_color = r.get_color<4>("view.selection_rect_color");
     cfg.view.hover_tile_color = r.get_color<4>("view.hover_tile_color");
+    cfg.view.building_body_percent = r.get_i32("view.building_body_percent", 1, 100);
+    cfg.view.node_body_percent = r.get_i32("view.node_body_percent", 1, 100);
+    cfg.view.construction_shade_percent = r.get_i32("view.construction_shade_percent", 0, 100);
+    cfg.view.ghost_valid_color = r.get_color<4>("view.ghost_valid_color");
+    cfg.view.ghost_invalid_color = r.get_color<4>("view.ghost_invalid_color");
+    for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
+        cfg.view.resource_colors[i] = r.get_color<4>(std::format("view.resource_colors.{}", kResourceKeys[i]));
+    }
 
     cfg.camera.scroll_keys_px_per_s = r.get_i32("camera.scroll_keys_px_per_s", 0, 100'000);
     cfg.camera.scroll_edge_px_per_s = r.get_i32("camera.scroll_edge_px_per_s", 0, 100'000);
@@ -408,15 +687,23 @@ std::expected<GameData, std::string> load_game_data(const std::filesystem::path&
                       data.units)) {
         return std::unexpected(*e);
     }
+    if (auto e = load("resources.toml", [](std::string_view t, std::string_view n) { return parse_node_catalog(t, n); },
+                      data.nodes)) {
+        return std::unexpected(*e);
+    }
+    if (auto e = load("buildings.toml",
+                      [&](std::string_view t, std::string_view n) { return parse_building_catalog(t, data.units, n); },
+                      data.buildings)) {
+        return std::unexpected(*e);
+    }
+    const Catalogs catalogs{data.terrain, data.units, data.buildings, data.nodes};
     if (auto e = load(std::filesystem::path("config") / "engine.toml",
-                      [&](std::string_view t, std::string_view n) {
-                          return parse_engine_config(t, data.terrain, data.units, n);
-                      },
+                      [&](std::string_view t, std::string_view n) { return parse_engine_config(t, catalogs, n); },
                       data.engine)) {
         return std::unexpected(*e);
     }
     if (auto e = load(std::filesystem::path("scenarios") / "headless.toml",
-                      [](std::string_view t, std::string_view n) { return parse_scenario(t, n); },
+                      [&](std::string_view t, std::string_view n) { return parse_scenario(t, catalogs, n); },
                       data.headless_scenario)) {
         return std::unexpected(*e);
     }

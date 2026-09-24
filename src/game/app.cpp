@@ -4,6 +4,11 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <format>
+#include <limits>
+#include <optional>
+#include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -38,6 +43,54 @@ constexpr float kMaxCameraDtS = 0.1f;
 // Separación de los paneles de depuración respecto al borde de la ventana.
 constexpr float kPanelMarginPx = 10.0f;
 constexpr std::uint8_t kOpaque = 255;
+// Jugador humano de esta máquina. En LAN (M8) lo asignará la sala de espera.
+constexpr sim::PlayerId kLocalPlayer = 0;
+constexpr std::int32_t kPercent = 100;
+
+render::Rgba opaque(const std::array<std::uint8_t, 3>& rgb) noexcept {
+    return {rgb[0], rgb[1], rgb[2], kOpaque};
+}
+
+render::Rgba shaded(render::Rgba c, std::int32_t percent) noexcept {
+    for (std::size_t i = 0; i < 3; ++i) {
+        c[i] = static_cast<std::uint8_t>(c[i] * percent / kPercent);
+    }
+    return c;
+}
+
+// "madera 30, piedra 100"
+std::string cost_text(const sim::Stock& cost) {
+    std::string out;
+    for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
+        if (cost[r] > 0) {
+            out += std::format("{}{} {}", out.empty() ? "" : ", ", resource_key(static_cast<sim::Resource>(r)), cost[r]);
+        }
+    }
+    return out.empty() ? "gratis" : out;
+}
+
+bool affordable(const sim::Stock& stock, const sim::Stock& cost) noexcept {
+    for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
+        if (stock[r] < cost[r]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+const char* task_name(sim::WorkerTask t) noexcept {
+    switch (t) {
+        case sim::WorkerTask::Idle:
+            return "ocioso";
+        case sim::WorkerTask::Gather:
+            return "recogiendo";
+        case sim::WorkerTask::Deliver:
+            return "llevando al almacén";
+        case sim::WorkerTask::Build:
+            return "construyendo";
+    }
+    return "?";
+}
 
 using SteadyClock = std::chrono::steady_clock;
 
@@ -58,19 +111,145 @@ bool parse_count(std::string_view value, std::int64_t& out) {
     return ec == std::errc{} && end == value.data() + value.size() && out >= 0;
 }
 
-// Convierte las órdenes del guion en órdenes de la simulación: [first, first + count)
-// indexa las unidades en orden de creación, que es el orden del snapshot inicial.
-void issue_scenario(sim::World& world, const std::vector<ScenarioOrder>& orders) {
+// Unidades de un jugador en orden de creación (el del snapshot).
+std::vector<std::uint32_t> player_units(const sim::Snapshot& snap, sim::PlayerId player) {
+    std::vector<std::uint32_t> ids;
+    for (const sim::SnapshotEntity& e : snap.entities) {
+        if (e.owner == player) {
+            ids.push_back(e.id);
+        }
+    }
+    return ids;
+}
+
+const sim::SnapshotObject* first_building(const sim::Snapshot& snap, sim::PlayerId player,
+                                          std::optional<sim::BuildingTypeId> type) {
+    for (const sim::SnapshotObject& o : snap.objects) {
+        if (o.kind == sim::ObjectKind::Building && o.owner == player && (!type || o.type == *type)) {
+            return &o;
+        }
+    }
+    return nullptr;
+}
+
+sim::TileCoord clamp_to(const sim::SnapshotObject& o, sim::TileCoord c) {
+    return {std::clamp(c.x, o.origin.x, o.origin.x + o.size - 1), std::clamp(c.y, o.origin.y, o.origin.y + o.size - 1)};
+}
+
+// Resolución del guion en enteros (sin coma flotante): el hash de la CI depende de
+// qué nodo y qué sitio se eligen, y debe coincidir entre compiladores.
+std::optional<std::uint32_t> nearest_node(const GameData& data, const sim::Snapshot& snap,
+                                          std::span<const std::uint32_t> units, sim::Resource kind) {
+    std::int64_t sx = 0;
+    std::int64_t sy = 0;
+    std::int64_t n = 0;
+    for (const sim::SnapshotEntity& e : snap.entities) {
+        if (std::ranges::find(units, e.id) != units.end()) {
+            sx += e.pos.x.floor_to_int();
+            sy += e.pos.y.floor_to_int();
+            ++n;
+        }
+    }
+    if (n == 0) {
+        return std::nullopt;
+    }
+    const sim::TileCoord from{static_cast<std::int32_t>(sx / n), static_cast<std::int32_t>(sy / n)};
+    std::optional<std::uint32_t> best;
+    std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
+    for (const sim::SnapshotObject& o : snap.objects) {
+        if (o.kind != sim::ObjectKind::Resource || data.nodes.types[o.type].type.kind != kind) {
+            continue;
+        }
+        const std::int32_t d = sim::octile_distance(from, clamp_to(o, from));
+        if (d < best_d) {
+            best_d = d;
+            best = o.id;
+        }
+    }
+    return best;
+}
+
+std::optional<sim::TileCoord> build_site(const GameData& data, const sim::World& world, const sim::Snapshot& snap,
+                                         sim::PlayerId player, sim::BuildingTypeId type) {
+    const sim::SnapshotObject* home = first_building(snap, player, std::nullopt);
+    if (home == nullptr) {
+        return std::nullopt;
+    }
+    const std::int32_t size = data.buildings.types[type].type.size;
+    const Scenario& sc = data.headless_scenario;
+    // Anillos de orígenes alrededor de la huella de referencia, con gap casillas libres.
+    for (std::int32_t r = sc.build_gap_tiles + size; r <= sc.build_search_radius_tiles; ++r) {
+        const std::int32_t x0 = home->origin.x - r;
+        const std::int32_t y0 = home->origin.y - r;
+        const std::int32_t x1 = home->origin.x + home->size - 1 + r;
+        const std::int32_t y1 = home->origin.y + home->size - 1 + r;
+        for (std::int32_t y = y0; y <= y1; ++y) {
+            for (std::int32_t x = x0; x <= x1; ++x) {
+                const bool on_ring = x == x0 || x == x1 || y == y0 || y == y1;
+                if (on_ring && world.can_place(type, {x, y})) {
+                    return sim::TileCoord{x, y};
+                }
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+// Convierte las órdenes del guion en órdenes de la simulación, resueltas contra el
+// estado inicial del mundo.
+void issue_scenario(const GameData& data, sim::World& world) {
     sim::Snapshot snap;
     world.write_snapshot(snap);
-    for (const ScenarioOrder& o : orders) {
+    for (const ScenarioOrder& o : data.headless_scenario.orders) {
         sim::Command c;
         c.tick = o.tick;
-        c.type = sim::CommandType::Move;
-        c.target = o.target;
-        const auto end = std::min<std::size_t>(snap.entities.size(), static_cast<std::size_t>(o.first + o.count));
-        for (auto i = static_cast<std::size_t>(o.first); i < end; ++i) {
-            c.units.push_back(snap.entities[i].id);
+        c.player = o.player;
+        const auto ids = player_units(snap, o.player);
+        const auto first = std::min(ids.size(), static_cast<std::size_t>(o.first));
+        const auto last = std::min(ids.size(), static_cast<std::size_t>(o.first) + static_cast<std::size_t>(o.count));
+        c.units.assign(ids.begin() + static_cast<std::ptrdiff_t>(first), ids.begin() + static_cast<std::ptrdiff_t>(last));
+        switch (o.action) {
+            case ScenarioAction::Move:
+                c.type = sim::CommandType::Move;
+                c.target = o.target;
+                break;
+            case ScenarioAction::Gather: {
+                const auto node = nearest_node(data, snap, c.units, o.resource);
+                if (!node) {
+                    spdlog::warn("guion: no hay nodos de {} para el jugador {}", resource_key(o.resource), o.player);
+                    continue;
+                }
+                c.type = sim::CommandType::Gather;
+                c.object = *node;
+                break;
+            }
+            case ScenarioAction::Build: {
+                const auto site = build_site(data, world, snap, o.player, o.building);
+                if (!site) {
+                    spdlog::warn("guion: sin sitio para {} del jugador {}", data.buildings.types[o.building].name,
+                                 o.player);
+                    continue;
+                }
+                c.type = sim::CommandType::Place;
+                c.kind = o.building;
+                c.target = *site;
+                break;
+            }
+            case ScenarioAction::Train: {
+                const sim::SnapshotObject* b = first_building(snap, o.player, o.building);
+                if (b == nullptr) {
+                    spdlog::warn("guion: el jugador {} no tiene {}", o.player, data.buildings.types[o.building].name);
+                    continue;
+                }
+                c.type = sim::CommandType::Train;
+                c.object = b->id;
+                c.kind = o.unit;
+                c.units.clear();
+                for (std::int32_t i = 0; i < o.count; ++i) {
+                    world.issue(c);
+                }
+                continue;
+            }
         }
         world.issue(std::move(c));
     }
@@ -102,9 +281,17 @@ public:
         world_.write_snapshot(curr_);
         prev_ = curr_;
         stats_.state_hash = world_.state_hash();
-        // La cámara arranca centrada en el mapa, donde están los marcadores de prueba.
+        // La cámara arranca sobre el primer edificio del jugador local o, sin él, en el
+        // centro del mapa (donde aparecen las unidades de prueba).
         const sim::TileMap& map = world_.map();
-        const render::Vec2 center{static_cast<float>(map.width()) * 0.5f, static_cast<float>(map.height()) * 0.5f};
+        render::Vec2 center{static_cast<float>(map.width()) * 0.5f, static_cast<float>(map.height()) * 0.5f};
+        for (const sim::SnapshotObject& o : curr_.objects) {
+            if (o.kind == sim::ObjectKind::Building && o.owner == kLocalPlayer) {
+                const float half = static_cast<float>(o.size) * 0.5f;
+                center = {static_cast<float>(o.origin.x) + half, static_cast<float>(o.origin.y) + half};
+                break;
+            }
+        }
         camera_.center_on(proj_.tile_to_world(center), renderer_.screen_size());
     }
 
@@ -147,23 +334,35 @@ private:
             switch (event.type) {
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                     if (event.button.button == SDL_BUTTON_LEFT && !ui_mouse) {
-                        selection_.begin_drag({event.button.x, event.button.y});
+                        if (placing_) {
+                            place_at({event.button.x, event.button.y});
+                        } else {
+                            selection_.begin_drag({event.button.x, event.button.y});
+                        }
                     } else if (event.button.button == SDL_BUTTON_RIGHT && !ui_mouse) {
-                        issue_move_to({event.button.x, event.button.y});
+                        if (placing_) {
+                            placing_.reset();
+                        } else {
+                            issue_context_order({event.button.x, event.button.y});
+                        }
                     }
                     break;
                 case SDL_EVENT_MOUSE_MOTION:
                     selection_.update_drag({event.motion.x, event.motion.y});
                     break;
                 case SDL_EVENT_MOUSE_BUTTON_UP:
-                    if (event.button.button == SDL_BUTTON_LEFT) {
-                        // Se selecciona sobre las posiciones del último fotograma: lo que el jugador veía.
-                        selection_.end_drag({event.button.x, event.button.y}, window_.shift_held(), screen_entities_);
+                    if (event.button.button == SDL_BUTTON_LEFT && selection_.dragging()) {
+                        finish_selection({event.button.x, event.button.y});
                     }
                     break;
                 case SDL_EVENT_KEY_DOWN:
                     if (event.key.scancode == SDL_SCANCODE_ESCAPE && !renderer_.ui_wants_keyboard()) {
-                        selection_.clear();
+                        if (placing_) {
+                            placing_.reset();
+                        } else {
+                            selection_.clear();
+                            selected_building_.reset();
+                        }
                     }
                     break;
                 default:
@@ -173,19 +372,84 @@ private:
         return true;
     }
 
-    // Orden de mover a la casilla bajo el cursor. Se aplica al inicio del siguiente tick;
-    // en lockstep (M8) se programará unos ticks más tarde para absorber la latencia.
-    void issue_move_to(render::Vec2 screen_pos) {
+    [[nodiscard]] sim::TileCoord tile_at(render::Vec2 screen_pos) const {
+        const render::Vec2 tile = proj_.world_to_tile(camera_.screen_to_world(screen_pos));
+        return {static_cast<std::int32_t>(std::floor(tile.x)), static_cast<std::int32_t>(std::floor(tile.y))};
+    }
+
+    [[nodiscard]] const sim::SnapshotObject* find_object(std::uint32_t id) const {
+        const auto it = std::ranges::find(curr_.objects, id, &sim::SnapshotObject::id);
+        return it == curr_.objects.end() ? nullptr : &*it;
+    }
+
+    [[nodiscard]] const sim::SnapshotObject* object_under(sim::TileCoord tile) const {
+        const auto id = world_.object_at(tile);
+        return id ? find_object(*id) : nullptr;
+    }
+
+    // Clic (sin rectángulo) sin unidades debajo: un edificio propio queda seleccionado.
+    // Solo se seleccionan unidades propias; se usan las posiciones del último fotograma,
+    // que es lo que el jugador veía.
+    void finish_selection(render::Vec2 at) {
+        const bool click = !selection_.has_visible_rect();
+        selection_.end_drag(at, window_.shift_held(), own_screen_entities_);
+        selected_building_.reset();
+        if (click && selection_.selected().empty()) {
+            const sim::SnapshotObject* o = object_under(tile_at(at));
+            if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
+                selected_building_ = o->id;
+            }
+        }
+    }
+
+    [[nodiscard]] sim::Command local_command(sim::CommandType type) const {
+        // Se aplica al inicio del siguiente tick; en lockstep (M8) se programará unos
+        // ticks más tarde para absorber la latencia.
+        sim::Command c;
+        c.tick = world_.tick();
+        c.player = kLocalPlayer;
+        c.type = type;
+        c.units = selection_.selected();
+        return c;
+    }
+
+    // Clic derecho: recoger si hay un recurso, construir o descargar si es un edificio
+    // propio, mover en cualquier otro caso.
+    void issue_context_order(render::Vec2 screen_pos) {
         if (selection_.selected().empty()) {
             return;
         }
-        const render::Vec2 tile = proj_.world_to_tile(camera_.screen_to_world(screen_pos));
-        sim::Command c;
-        c.tick = world_.tick();
-        c.type = sim::CommandType::Move;
-        c.units = selection_.selected();
-        c.target = {static_cast<std::int32_t>(std::floor(tile.x)), static_cast<std::int32_t>(std::floor(tile.y))};
+        const sim::TileCoord tile = tile_at(screen_pos);
+        const sim::SnapshotObject* o = object_under(tile);
+        sim::Command c = local_command(sim::CommandType::Move);
+        if (o != nullptr && o->kind == sim::ObjectKind::Resource) {
+            c.type = sim::CommandType::Gather;
+            c.object = o->id;
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
+            c.type = sim::CommandType::Build;
+            c.object = o->id;
+        } else {
+            c.target = tile;
+        }
         world_.issue(std::move(c));
+    }
+
+    [[nodiscard]] sim::TileCoord ghost_origin(sim::TileCoord hover, sim::BuildingTypeId type) const {
+        const std::int32_t size = data_.buildings.types[type].type.size;
+        return {hover.x - size / 2, hover.y - size / 2};
+    }
+
+    // Coloca el edificio en curso bajo el cursor con los aldeanos seleccionados. Con
+    // Mayús se sigue colocando más del mismo tipo.
+    void place_at(render::Vec2 screen_pos) {
+        const sim::BuildingTypeId type = *placing_;
+        sim::Command c = local_command(sim::CommandType::Place);
+        c.kind = type;
+        c.target = ghost_origin(tile_at(screen_pos), type);
+        world_.issue(std::move(c));
+        if (!window_.shift_held()) {
+            placing_.reset();
+        }
     }
 
     // Superposiciones de depuración. Leen el registro en solo lectura: son herramientas,
@@ -295,7 +559,7 @@ private:
     // Interpola cada marcador entre los dos últimos ticks y lo proyecta a pantalla.
     void build_screen_entities() {
         screen_entities_.clear();
-        screen_types_.clear();
+        screen_index_.clear();
         const bool can_interpolate = prev_.entities.size() == curr_.entities.size();
         const auto a = static_cast<float>(stats_.alpha);
         for (std::size_t i = 0; i < curr_.entities.size(); ++i) {
@@ -307,6 +571,12 @@ private:
             }
             screen_entities_.push_back({c.id, camera_.world_to_screen(proj_.tile_to_world(tile))});
         }
+        own_screen_entities_.clear();
+        for (std::size_t i = 0; i < curr_.entities.size(); ++i) {
+            if (curr_.entities[i].owner == kLocalPlayer) {
+                own_screen_entities_.push_back(screen_entities_[i]);
+            }
+        }
         // Orden de pintado: de atrás (y pequeña) hacia delante. Se ordena una permutación
         // para llevar el tipo de cada unidad con su posición.
         order_.resize(screen_entities_.size());
@@ -317,7 +587,7 @@ private:
         sorted_.clear();
         for (const std::size_t i : order_) {
             sorted_.push_back(screen_entities_[i]);
-            screen_types_.push_back(curr_.entities[i].type);
+            screen_index_.push_back(i);
         }
         screen_entities_.swap(sorted_);
     }
@@ -343,8 +613,9 @@ private:
         ImGui::Text("Fotograma: %.2f ms (%.0f FPS)", stats_.frame_ms,
                     stats_.frame_ms > 0.0 ? 1000.0 / stats_.frame_ms : 0.0);
         ImGui::Text("Escena: %.3f ms · envío: %.3f ms (incluye vsync)", stats_.scene_ms, stats_.submit_ms);
-        ImGui::Text("Sprites: %zu (%d casillas, %d marcadores), 1 llamada de dibujo", renderer_.sprites_last_frame(),
-                    stats_.scene.tiles_drawn, stats_.scene.markers_drawn);
+        ImGui::Text("Sprites: %zu (%d casillas, %d objetos, %d marcadores), 1 llamada de dibujo",
+                    renderer_.sprites_last_frame(), stats_.scene.tiles_drawn, stats_.scene.objects_drawn,
+                    stats_.scene.markers_drawn);
         ImGui::Separator();
         ImGui::Text("Tick: %u", curr_.tick);
         ImGui::Text("Ticks en este fotograma: %d", stats_.ticks_this_frame);
@@ -358,18 +629,21 @@ private:
                     mv.paths_pending);
         ImGui::Text("Nodos expandidos en el último tick: %lld · campos de flujo: %d",
                     static_cast<long long>(mv.nodes_expanded), mv.flow_fields_built);
-        ImGui::Text("HPA*: %zu nodos, %zu aristas", world_.movement().hpa().node_count(),
-                    world_.movement().hpa().edge_count());
+        ImGui::Text("HPA*: %zu nodos, %zu aristas · sectores rehechos en el último tick: %d",
+                    world_.movement().hpa().node_count(), world_.movement().hpa().edge_count(), mv.sectors_rebuilt);
         ImGui::Checkbox("Portales HPA*", &show_portals_);
         ImGui::SameLine();
         ImGui::Checkbox("Ruta", &show_paths_);
         ImGui::SameLine();
         ImGui::Checkbox("Campo de flujo", &show_flow_);
         ImGui::Separator();
-        ImGui::Text("Seleccionados: %zu de %zu", selection_.selected().size(), curr_.entities.size());
-        ImGui::TextDisabled("Arrastre: rectángulo · Mayús: añadir · Esc: limpiar · clic derecho: mover");
+        ImGui::TextDisabled("Arrastre: rectángulo · Mayús: añadir · Esc: limpiar");
+        ImGui::TextDisabled("Clic derecho: mover, recoger (recurso), construir o descargar (edificio propio)");
         ImGui::TextDisabled("Flechas/WASD o borde de ventana: desplazar");
         ImGui::End();
+
+        draw_resource_bar(display);
+        draw_selection_panel(display);
 
         // Arriba a la derecha, anclado por su esquina superior derecha.
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
@@ -382,10 +656,171 @@ private:
             ImGui::Text("Terreno: %s (id %u)", info.name.c_str(), static_cast<unsigned>(id));
             ImGui::Text("Transitable: %s", info.passable ? "sí" : "no");
             ImGui::Text("Altura: %u", static_cast<unsigned>(map.elevation(*hover)));
+            if (const sim::SnapshotObject* o = object_under(*hover)) {
+                if (o->kind == sim::ObjectKind::Resource) {
+                    const NodeInfo& n = data_.nodes.types[o->type];
+                    ImGui::Text("%s: quedan %d de %s", n.name.c_str(), o->amount,
+                                std::string(resource_key(n.type.kind)).c_str());
+                } else {
+                    ImGui::Text("%s del jugador %u", data_.buildings.types[o->type].name.c_str(),
+                                static_cast<unsigned>(o->owner));
+                }
+            }
         } else {
             ImGui::TextDisabled("Pasa el ratón sobre el mapa");
         }
         ImGui::End();
+    }
+
+    // Barra superior: recursos y población del jugador local.
+    void draw_resource_bar(const ImVec2& display) {
+        if (curr_.players.size() <= kLocalPlayer) {
+            return;
+        }
+        const sim::PlayerState& ps = curr_.players[kLocalPlayer];
+        ImGui::SetNextWindowPos({display.x * 0.5f, kPanelMarginPx}, ImGuiCond_Always, {0.5f, 0.0f});
+        ImGui::Begin("Recursos", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
+        for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
+            const render::Rgba& c = data_.engine.view.resource_colors[r];
+            constexpr float kChannelMax = 255.0f;
+            ImGui::TextColored({static_cast<float>(c[0]) / kChannelMax, static_cast<float>(c[1]) / kChannelMax,
+                                static_cast<float>(c[2]) / kChannelMax, 1.0f},
+                               "%s %d",
+                               std::string(resource_key(static_cast<sim::Resource>(r))).c_str(), ps.stock[r]);
+            ImGui::SameLine();
+        }
+        ImGui::Text("· población %d/%d", ps.population, ps.population_cap);
+        ImGui::End();
+    }
+
+    // Panel inferior: menú de construcción con aldeanos seleccionados, o la cola del
+    // edificio seleccionado.
+    void draw_selection_panel(const ImVec2& display) {
+        // Anclado siempre por la esquina inferior izquierda: crece hacia arriba.
+        ImGui::SetNextWindowPos({kPanelMarginPx, display.y - kPanelMarginPx}, ImGuiCond_Always, {0.0f, 1.0f});
+        ImGui::Begin("Selección", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        const sim::Stock stock =
+            curr_.players.size() > kLocalPlayer ? curr_.players[kLocalPlayer].stock : sim::Stock{};
+        if (selected_building_) {
+            draw_building_panel(*selected_building_, stock);
+        } else if (!selection_.selected().empty()) {
+            std::int32_t workers = 0;
+            for (const std::uint32_t id : selection_.selected()) {
+                const auto it = std::ranges::find(curr_.entities, id, &sim::SnapshotEntity::id);
+                if (it != curr_.entities.end() && data_.units.types[it->type].type.worker) {
+                    ++workers;
+                    if (selection_.selected().size() == 1) {
+                        ImGui::Text("Aldeano: %s, lleva %d de %s", task_name(it->task), it->carried,
+                                    std::string(resource_key(it->carry_kind)).c_str());
+                    }
+                }
+            }
+            ImGui::Text("%zu unidades seleccionadas (%d aldeanos)", selection_.selected().size(), workers);
+            if (workers > 0) {
+                ImGui::SeparatorText("Construir");
+                for (std::size_t b = 0; b < data_.buildings.types.size(); ++b) {
+                    const BuildingInfo& info = data_.buildings.types[b];
+                    ImGui::BeginDisabled(!affordable(stock, info.type.cost));
+                    if (ImGui::Button(std::format("{} ({})", info.name, cost_text(info.type.cost)).c_str())) {
+                        placing_ = static_cast<sim::BuildingTypeId>(b);
+                    }
+                    ImGui::EndDisabled();
+                }
+                if (placing_) {
+                    ImGui::TextDisabled("Clic: colocar · Mayús+clic: varios · clic derecho o Esc: cancelar");
+                }
+            }
+        } else {
+            ImGui::TextDisabled("Nada seleccionado");
+        }
+        ImGui::End();
+    }
+
+    void draw_building_panel(std::uint32_t id, const sim::Stock& stock) {
+        const sim::SnapshotObject* o = find_object(id);
+        if (o == nullptr) {
+            selected_building_.reset();  // destruido
+            return;
+        }
+        const BuildingInfo& info = data_.buildings.types[o->type];
+        ImGui::Text("%s · vida %d/%d", info.name.c_str(), o->hp, info.type.hp);
+        if (!o->complete) {
+            ImGui::ProgressBar(static_cast<float>(o->progress) / static_cast<float>(info.type.build_ticks), {-1.0f, 0.0f},
+                               "en obra");
+            return;
+        }
+        if (info.type.trains.empty()) {
+            return;
+        }
+        ImGui::SeparatorText("Producción");
+        for (std::size_t i = 0; i < o->queue.size(); ++i) {
+            const UnitInfo& u = data_.units.types[o->queue[i]];
+            if (i == 0) {
+                ImGui::ProgressBar(static_cast<float>(o->queue_progress) / static_cast<float>(u.type.train_ticks),
+                                   {-1.0f, 0.0f}, u.name.c_str());
+            } else {
+                ImGui::BulletText("%s", u.name.c_str());
+            }
+        }
+        const bool full = std::cmp_greater_equal(o->queue.size(), data_.engine.world.economy.queue_capacity);
+        for (const sim::UnitTypeId t : info.type.trains) {
+            const UnitInfo& u = data_.units.types[t];
+            ImGui::BeginDisabled(full || !affordable(stock, u.type.cost));
+            if (ImGui::Button(std::format("{} ({})", u.name, cost_text(u.type.cost)).c_str())) {
+                sim::Command c = local_command(sim::CommandType::Train);
+                c.units.clear();
+                c.object = id;
+                c.kind = t;
+                world_.issue(std::move(c));
+            }
+            ImGui::EndDisabled();
+        }
+        ImGui::BeginDisabled(o->queue.empty());
+        if (ImGui::Button("Cancelar la última (reembolso íntegro)")) {
+            sim::Command c = local_command(sim::CommandType::CancelTrain);
+            c.units.clear();
+            c.object = id;
+            world_.issue(std::move(c));
+        }
+        ImGui::EndDisabled();
+    }
+
+    // Edificios y recursos del snapshot, más el fantasma de colocación. Los rombos de
+    // huellas distintas nunca se solapan, así que no hace falta ordenarlos.
+    void build_objects(const std::optional<sim::TileCoord>& hover) {
+        const render::ViewParams& view = data_.engine.view;
+        objects_.clear();
+        for (const sim::SnapshotObject& o : curr_.objects) {
+            render::SceneObject so;
+            so.origin = o.origin;
+            so.size = o.size;
+            if (o.kind == sim::ObjectKind::Resource) {
+                so.body = opaque(data_.nodes.types[o.type].color);
+                so.body_percent = view.node_body_percent;
+            } else {
+                so.base = o.owner < data_.engine.player_colors.size() ? opaque(data_.engine.player_colors[o.owner])
+                                                                      : render::Rgba{};
+                so.body = opaque(data_.buildings.types[o.type].color);
+                if (!o.complete) {
+                    so.body = shaded(so.body, view.construction_shade_percent);
+                }
+                so.body_percent = view.building_body_percent;
+                so.highlighted = selected_building_ == o.id;
+            }
+            objects_.push_back(so);
+        }
+        if (placing_ && hover) {
+            const BuildingInfo& info = data_.buildings.types[*placing_];
+            const sim::TileCoord origin = ghost_origin(*hover, *placing_);
+            const bool can_pay = curr_.players.size() > kLocalPlayer &&
+                                 affordable(curr_.players[kLocalPlayer].stock, info.type.cost);
+            render::SceneObject ghost;
+            ghost.origin = origin;
+            ghost.size = info.type.size;
+            ghost.body = can_pay && world_.can_place(*placing_, origin) ? view.ghost_valid_color : view.ghost_invalid_color;
+            objects_.push_back(ghost);
+        }
     }
 
     void present() {
@@ -395,17 +830,29 @@ private:
         markers_.clear();
         for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
             const ScreenEntity& e = screen_entities_[i];
-            const auto& rgb = data_.units.types[screen_types_[i]].color;
-            markers_.push_back({e.pos, selection_.is_selected(e.id), {rgb[0], rgb[1], rgb[2], kOpaque}});
+            const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
+            render::Marker m;
+            m.screen_pos = e.pos;
+            m.selected = selection_.is_selected(e.id);
+            m.color = opaque(data_.units.types[se.type].color);
+            if (se.owner < data_.engine.player_colors.size()) {
+                m.owner = opaque(data_.engine.player_colors[se.owner]);
+            }
+            if (se.carried > 0) {
+                m.badge = data_.engine.view.resource_colors[sim::resource_index(se.carry_kind)];
+            }
+            markers_.push_back(m);
         }
         build_overlays();
         const std::optional<sim::TileCoord> hover = hovered_tile();
         draw_ui(hover);
+        build_objects(hover);
 
         render::Scene scene;
         scene.map = curr_.map.get();
         scene.camera = camera_;
         scene.screen = renderer_.screen_size();
+        scene.objects = objects_;
         scene.markers = markers_;
         scene.hovered_tile = hover;
         scene.tile_tints = tints_;
@@ -435,8 +882,12 @@ private:
     std::vector<ScreenEntity> screen_entities_;
     std::vector<ScreenEntity> sorted_;
     std::vector<std::size_t> order_;
-    std::vector<sim::UnitTypeId> screen_types_;
+    std::vector<std::size_t> screen_index_;  // índice en curr_.entities de cada entidad ordenada
+    std::vector<ScreenEntity> own_screen_entities_;
     std::vector<render::Marker> markers_;
+    std::vector<render::SceneObject> objects_;
+    std::optional<std::uint32_t> selected_building_;
+    std::optional<sim::BuildingTypeId> placing_;
     std::vector<render::TileTint> tints_;
     std::vector<render::Vec2> path_points_;
     bool show_portals_ = false;
@@ -478,7 +929,7 @@ int run_headless(const GameData& data, std::int64_t ticks) {
     const auto gen_start = SteadyClock::now();
     sim::World world(data.engine.world);
     const double gen_ms = elapsed_ms(gen_start);
-    issue_scenario(world, data.headless_scenario);
+    issue_scenario(data, world);
 
     const auto start = SteadyClock::now();
     for (std::int64_t i = 0; i < ticks; ++i) {
@@ -487,8 +938,16 @@ int run_headless(const GameData& data, std::int64_t ticks) {
     const double total_ms = elapsed_ms(start);
     const double per_tick = ticks > 0 ? total_ms / static_cast<double>(ticks) : 0.0;
     spdlog::info("headless: mapa {}x{} generado en {:.2f} ms", world.map().width(), world.map().height(), gen_ms);
-    spdlog::info("headless: {} ticks, {} unidades, {} órdenes de guion, {:.3f} ms total, {:.4f} ms/tick", ticks,
-                 data.engine.world.demo.count, data.headless_scenario.size(), total_ms, per_tick);
+    sim::Snapshot snap;
+    world.write_snapshot(snap);
+    spdlog::info("headless: {} ticks, {} unidades, {} objetos, {} órdenes de guion, {:.3f} ms total, {:.4f} ms/tick",
+                 ticks, snap.entities.size(), snap.objects.size(), data.headless_scenario.orders.size(), total_ms,
+                 per_tick);
+    for (std::size_t p = 0; p < snap.players.size(); ++p) {
+        const sim::PlayerState& ps = snap.players[p];
+        spdlog::info("headless: jugador {}: comida {} madera {} piedra {} oro {}, población {}/{}", p, ps.stock[0],
+                     ps.stock[1], ps.stock[2], ps.stock[3], ps.population, ps.population_cap);
+    }
     // Formato estable: la CI lo compara entre plataformas.
     spdlog::info("state_hash={:016x}", world.state_hash());
     return 0;

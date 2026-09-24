@@ -21,6 +21,19 @@ struct Marker {
     Vec2 screen_pos;  // centro, píxeles de pantalla
     bool selected = false;
     Rgba color{};     // color propio (tipo de unidad); seleccionado usa marker_selected_color
+    Rgba owner{};     // anillo fino del color del jugador; alfa 0 = sin anillo
+    Rgba badge{};     // punto pequeño encima (p. ej. lo que lleva un aldeano); alfa 0 = nada
+};
+
+// Objeto estático en el suelo (edificio o nodo de recurso): un rombo del tamaño de su
+// huella y otro interior, más pequeño, con el color del tipo.
+struct SceneObject {
+    sim::TileCoord origin;
+    std::int32_t size = 1;
+    Rgba base{};                      // rombo de toda la huella; alfa 0 = sin él
+    Rgba body{};                      // rombo interior
+    std::int32_t body_percent = 100;  // lado del rombo interior respecto a la huella
+    bool highlighted = false;         // seleccionado: se cubre con hover_tile_color
 };
 
 // Casilla teñida para superposiciones de depuración (sectores, campo de flujo).
@@ -38,7 +51,8 @@ struct Scene {
     const sim::TileMap* map = nullptr;
     Camera camera;
     Vec2 screen;
-    std::span<const Marker> markers;  // en orden de pintado
+    std::span<const SceneObject> objects;  // en orden de pintado, bajo los marcadores
+    std::span<const Marker> markers;       // en orden de pintado
     std::optional<Rect> drag_rect;
     std::optional<sim::TileCoord> hovered_tile;
     std::span<const TileTint> tile_tints;  // se dibujan sobre el terreno, bajo los marcadores
@@ -47,6 +61,7 @@ struct Scene {
 
 struct SceneStats {
     std::int32_t tiles_drawn = 0;
+    std::int32_t objects_drawn = 0;
     std::int32_t markers_drawn = 0;
 };
 

@@ -9,8 +9,8 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 |------|-----------|--------|
 | M0 | Esqueleto: ventana, paso fijo, ImGui, CMake + vcpkg, CI Windows/Linux | hecho, en revisión |
 | M1 | Mapa isométrico por casillas, cámara, selección por rectángulo | hecho, en revisión |
-| M2 | Unidades, HPA*, campos de flujo, evitación local, banco de 1000/2000 unidades | **en curso** |
-| M3 | Economía | — |
+| M2 | Unidades, HPA*, campos de flujo, evitación local, banco de 1000/2000 unidades | hecho, en revisión |
+| M3 | Economía: 4 recursos, aldeanos, construcción, colas de producción | **en curso** |
 | M4 | Combate y experiencia | — |
 | M5 | Repeticiones deterministas | — |
 | M6 | Logística | — |
@@ -59,6 +59,10 @@ Controles:
 | Añadir a la selección | Mayús + clic o arrastre |
 | Vaciar la selección | Esc |
 | Mover la selección | Clic derecho sobre el destino |
+| Recoger un recurso | Clic derecho sobre el nodo (árbol, arbusto, mina) con aldeanos seleccionados |
+| Construir o descargar | Clic derecho sobre un edificio propio: si está en obra, se construye; si es almacén, se descarga |
+| Colocar un edificio | Botón del panel «Selección» con aldeanos seleccionados; clic para colocar, Mayús + clic para varios, clic derecho o Esc para cancelar |
+| Producir unidades | Clic sobre un edificio propio y botones de su panel; «Cancelar la última» devuelve el coste entero |
 
 Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) y `RTS_BUILD_TESTS` (ON).
 
@@ -136,11 +140,55 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - Las llegadas quedan quietas y son obstáculos para las demás.
 - **Sin coma flotante.** Todo el movimiento usa `Fixed` y enteros; la raíz cuadrada es entera (`isqrt`). El mismo hash tras 1200 ticks de movimiento con Clang 20 y GCC 14.
 
+### Economía (M3)
+
+- **Jugadores.** `PlayerState` guarda las existencias de los 4 recursos (comida, madera, piedra y oro), la población y el tope, todo en enteros. Cada unidad y cada edificio llevan un `Owner`. Una orden sobre entidades de otro jugador se ignora.
+- **Objetos estáticos.**
+  - Los nodos de recurso (árbol, arbusto, minas de 2×2) y los edificios son entidades con una huella (`Footprint`).
+  - La huella bloquea sus casillas en una capa de ocupación de `PassGrid`. El `TileMap` del terreno no cambia nunca, así que los snapshots lo siguen compartiendo sin copiarlo.
+- **Pathfinding incremental.** Los cambios de ocupación de un tick se aplican juntos:
+  - Se reetiquetan las componentes conexas.
+  - Se vuelven a detectar los portales de todos los bordes, que es barato.
+  - Los Dijkstra internos se repiten solo en los sectores sucios o en los que cambió su conjunto de nodos.
+  - El grafo resultante es idéntico, nodo a nodo y arista a arista, al construido desde cero. En la prueba con 12 rondas de 4 cambios se recalculan 64 sectores de 3072.
+  - Se rehacen los campos de flujo cuyo pasillo toca un sector cambiado y se replanifican los caminos que ahora cruzan una casilla bloqueada.
+- **Ciclo del aldeano** (componente `Worker`):
+  - Va al nodo y recoge una unidad cada `gather_ticks`. Con `carry_capacity` encima, va al almacén propio más cercano que acepte ese recurso, descarga y vuelve.
+  - Si el nodo se agota, busca otro del mismo recurso a menos de `retarget_radius_tiles`. Tiene que ser accesible (con una casilla vecina en su componente) y tener sitio: `gatherers_per_tile` aldeanos por casilla de huella.
+  - Si cambia de recurso, pierde lo que llevaba.
+- **Acercarse a un objeto.**
+  - El aldeano va a la casilla de acceso del primer anillo más cercana dentro de su componente.
+  - Está al alcance cuando el borde de su disco queda a `interact_range` del borde de la huella.
+  - Tras `approach_attempts` intentos sin llegar, cambia de objetivo.
+- **Edificios.**
+  - Se cobran al colocarlos. La casilla debe tener terreno transitable, sin objetos y sin unidades encima.
+  - Cada aldeano al alcance aporta un tick de trabajo por tick, así que la obra crece linealmente con el número de aldeanos. Medido: una casa de 300 ticks tarda 300 ticks con 1 aldeano y 100 con 3.
+- **Colas de producción.**
+  - Caben `queue_capacity` unidades. Se cobran al encolar y cancelar la última devuelve el coste entero.
+  - Sin plazas de población la cola se detiene sin perder nada.
+  - La unidad nueva aparece en una casilla libre alrededor del edificio, repartida entre las del primer anillo que tenga sitio.
+- **Preparación de partida** (`[setup]` y `[[player]]` en `engine.toml`, RNG propio con `setup.seed`):
+  - El edificio inicial va al sitio válido más cercano al pedido, en una región de al menos `min_start_region_tiles` casillas.
+  - Alrededor se colocan los recursos garantizados.
+  - Los bosques se pueblan de árboles con la densidad pedida, dejando un claro alrededor de cada inicio.
+  - Cada jugador recibe sus aldeanos iniciales.
+- **Interfaz.**
+  - Barra de recursos y población.
+  - Con aldeanos seleccionados, menú de construcción con un fantasma verde o rojo.
+  - Con un edificio seleccionado, su cola de producción.
+  - Clic derecho contextual.
+  - Los marcadores llevan un anillo con el color del jugador y un punto con el color del recurso que cargan.
+- **Pendiente, a sabiendas:**
+  - Punto de reunión, granjas, derribo y reparación.
+  - Nada garantiza que un recurso no quede encerrado por el bosque.
+  - La construcción es lineal; el género suele dar rendimientos decrecientes.
+
 ### Convenciones de `data/`
 
 - Solo enteros. Una magnitud fraccionaria se escribe en una unidad menor que figura en el nombre de la clave: `max_speed_milli_tiles_per_tick = 150` significa 0,150 casillas por tick. Así la carga no depende del redondeo decimal→binario de cada plataforma.
 - Las duraciones de la simulación van en ticks.
-- `data/terrain.toml`: el id de cada terreno es su posición en la lista. Las bandas del generador (`[[map.bands]]` en `engine.toml`) nombran terrenos, no ids.
+- `data/terrain.toml`, `units.toml`, `resources.toml` y `buildings.toml`: el id de cada tipo es su posición en la lista. Las referencias entre ficheros (bandas del generador, unidades que produce un edificio, edificio inicial, etc.) usan nombres, no ids.
+- Los costes y existencias son tablas por recurso: `cost = { madera = 275, piedra = 100 }`. Las claves ausentes valen 0 y una clave que no es un recurso es un error.
 - Los colores son listas `[r, g, b]` o `[r, g, b, a]` de 0 a 255.
 - La frecuencia de 20 Hz es una constante de arquitectura (`sim::kTicksPerSecond`), no un dato: cambiarla invalida los datos y las repeticiones.
 
@@ -155,7 +203,9 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 
 | Prueba | Qué garantiza |
 |---|---|
-| `unit` | Punto fijo, RNG contra los vectores de referencia de los autores, reloj de paso fijo, configuración, generación de mapas, proyección y recorte (contra fuerza bruta en 200 cámaras), cámara, selección, atlas, escena, regresión por hash (mapa de 256×256 + 1000 entidades, 12 000 ticks) |
+| `unit` | Punto fijo, RNG contra los vectores de referencia de los autores, reloj de paso fijo, configuración, generación de mapas, proyección y recorte (contra fuerza bruta en 200 cámaras), cámara, selección, atlas, escena, caminos y movimiento, economía, regresión por hash |
+| `unit`: economía | Tiempo exacto de recogida (ciclo de 121 ticks), conservación (existencias + carga + nodos = constante en cada tick), agotamiento que libera la casilla, cola (cobro, reembolso, capacidad, otro jugador), pausa por población, 1 frente a 3 constructores, colocación inválida sin cobro, replanificación sin pisar casillas bloqueadas, HPA\* incremental idéntico al construido desde cero, preparación de partida |
+| `unit`: regresión | Hash tras 1200 ticks de movimiento con 500 unidades y hash tras 1500 ticks de una partida económica de dos jugadores |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
@@ -168,15 +218,22 @@ Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el ca
 
 Release, Clang 20, contenedor de 4 núcleos. Guion de `rts_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.
 
+Presupuesto del planificador: 60 000 nodos por tick desde M3. Los valores de M2 (20 000 nodos) van entre paréntesis.
+
 | Unidades | Media | p99 | Máximo | Criterio |
 |---|---|---|---|---|
-| 1000 | 2,99 ms/tick | 6,39 ms | 10,1 ms | ≤ 50 ms ✅ |
-| 2000 | 6,68 ms/tick | 10,8 ms | 15,9 ms | ≤ 50 ms ✅ |
+| 1000 | 3,01 ms/tick (2,99) | 5,12 ms (6,39) | 18,0 ms (10,1) | ≤ 50 ms ✅ |
+| 2000 | 6,54 ms/tick (6,68) | 16,8 ms (10,8) | 19,1 ms (15,9) | ≤ 50 ms ✅ |
+
+Con más presupuesto, el tick del aluvión de 400 órdenes (el 800) resuelve más caminos de golpe: el máximo sube 8 ms con 1000 unidades a cambio de vaciar antes la cola (1861 caminos esperando como mucho con 2000 unidades, frente a 1951).
 
 | Otras medidas | Valor |
 |---|---|
 | Construir la escena de render (1963 sprites) | 0,036 ms/fotograma |
-| Generar el mapa de 256×256 + el grafo HPA\* + la aparición de unidades | ~51 ms, una vez |
+| Generar el mapa de 256×256 + el grafo HPA\* + la aparición de unidades (banco) | ~54 ms, una vez |
+| Partida por defecto: mapa + preparación (6792 árboles, minas, edificios) + HPA\* | ~80 ms, una vez |
+| Partida por defecto: tick de simulación + snapshot con 6790 objetos | 0,157 ms (el snapshot, 0,087 ms) |
+| `state_hash()` de la partida por defecto (una vez por fotograma en el panel) | 0,38 ms |
 
 ## Licencia
 

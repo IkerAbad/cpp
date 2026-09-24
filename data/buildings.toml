@@ -1,0 +1,76 @@
+# Tipos de edificio. El identificador de cada tipo es su posición en la lista.
+# size_tiles: lado de la huella (bloquea esas casillas desde que se colocan los cimientos).
+# cost: se cobra al colocar. build_ticks: ticks de trabajo de un aldeano; n aldeanos
+#   construyen n veces más rápido.
+# accepts: recursos que se pueden descargar aquí (almacén).
+# population: plazas de población que aporta cuando está terminado.
+# trains: unidades que produce (nombres de units.toml).
+# color: RGB provisional; el dueño se indica con el color del jugador.
+#
+# Valores de diseño propios, a ajustar jugando.
+
+[[building]]
+name = "centro_urbano"
+size_tiles = 3
+cost = { madera = 275, piedra = 100 }
+build_ticks = 3000
+hp = 2400
+accepts = ["comida", "madera", "piedra", "oro"]
+population = 5
+trains = ["aldeano"]
+color = [196, 176, 140]
+
+[[building]]
+name = "casa"
+size_tiles = 2
+cost = { madera = 30 }
+build_ticks = 500
+hp = 550
+accepts = []
+population = 5
+trains = []
+color = [176, 132, 96]
+
+[[building]]
+name = "aserradero"
+size_tiles = 2
+cost = { madera = 100 }
+build_ticks = 700
+hp = 600
+accepts = ["madera"]
+population = 0
+trains = []
+color = [120, 92, 60]
+
+[[building]]
+name = "campamento_minero"
+size_tiles = 2
+cost = { madera = 100 }
+build_ticks = 700
+hp = 600
+accepts = ["piedra", "oro"]
+population = 0
+trains = []
+color = [132, 132, 140]
+
+[[building]]
+name = "molino"
+size_tiles = 2
+cost = { madera = 100 }
+build_ticks = 700
+hp = 600
+accepts = ["comida"]
+population = 0
+trains = []
+color = [206, 184, 110]
+
+[[building]]
+name = "cuartel"
+size_tiles = 3
+cost = { madera = 175 }
+build_ticks = 1000
+hp = 1200
+accepts = []
+population = 0
+trains = ["milicia", "explorador"]
+color = [150, 70, 60]

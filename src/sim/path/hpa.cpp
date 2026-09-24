@@ -33,7 +33,29 @@ HpaGraph::HpaGraph(const PassGrid& grid, const HpaParams& params, GridSearch& se
     sectors_w_ = (grid.width() + s - 1) / s;
     sectors_h_ = (grid.height() + s - 1) / s;
     tile_to_node_.assign(static_cast<std::size_t>(grid.width()) * static_cast<std::size_t>(grid.height()), -1);
-    sector_nodes_.resize(static_cast<std::size_t>(sectors_w_) * static_cast<std::size_t>(sectors_h_));
+    const auto sectors = static_cast<std::size_t>(sectors_w_) * static_cast<std::size_t>(sectors_h_);
+    sector_nodes_.resize(sectors);
+    sector_intra_.resize(sectors);
+    const std::vector<std::uint8_t> all(sectors, 1);
+    rebuild(grid, all, search);
+}
+
+std::int32_t HpaGraph::rebuild(const PassGrid& grid, std::span<const std::uint8_t> dirty_sectors,
+                               GridSearch& search) {
+    assert(dirty_sectors.size() == sector_nodes_.size());
+    const std::int32_t s = params_.sector_size;
+
+    // Casillas de los nodos anteriores por sector: si un sector limpio conserva
+    // exactamente las mismas, sus aristas internas siguen valiendo.
+    std::vector<std::vector<TileCoord>> old_tiles(sector_nodes_.size());
+    for (std::size_t sector = 0; sector < sector_nodes_.size(); ++sector) {
+        for (const std::uint32_t n : sector_nodes_[sector]) {
+            old_tiles[sector].push_back(nodes_[n].tile);
+            tile_to_node_[grid.index(nodes_[n].tile)] = -1;
+        }
+        sector_nodes_[sector].clear();
+    }
+    nodes_.clear();
 
     // 1. Portales en los bordes entre sectores (aristas entre sectores, coste 10).
     std::vector<std::vector<TempEdge>> adj;
@@ -55,26 +77,43 @@ HpaGraph::HpaGraph(const PassGrid& grid, const HpaParams& params, GridSearch& se
     }
     adj.resize(nodes_.size());
 
-    // 2. Aristas internas: Dijkstra acotado al sector desde cada nodo.
+    // 2. Aristas internas: Dijkstra acotado al sector desde cada nodo, o las del
+    //    rebuild anterior si el sector no cambió. Solo dependen de las casillas del
+    //    sector (la regla de esquinas no sale del rectángulo) y de sus nodos.
+    std::int32_t recomputed = 0;
     for (std::size_t sector = 0; sector < sector_nodes_.size(); ++sector) {
-        const SearchRect rect = sector_rect(static_cast<std::int32_t>(sector));
         const auto& members = sector_nodes_[sector];
-        for (const std::uint32_t a : members) {
-            search.dijkstra(grid, nodes_[a].tile, rect);
-            for (const std::uint32_t b : members) {
-                if (a == b) {
-                    continue;
-                }
-                const std::int32_t cost = search.cost_at(grid, nodes_[b].tile);
-                if (cost != kUnreached) {
-                    adj[a].push_back({b, cost});
+        bool reuse = dirty_sectors[sector] == 0 && old_tiles[sector].size() == members.size();
+        for (std::size_t i = 0; reuse && i < members.size(); ++i) {
+            reuse = old_tiles[sector][i] == nodes_[members[i]].tile;
+        }
+        auto& intra = sector_intra_[sector];
+        if (!reuse) {
+            ++recomputed;
+            intra.clear();
+            const SearchRect rect = sector_rect(static_cast<std::int32_t>(sector));
+            for (std::size_t a = 0; a < members.size(); ++a) {
+                search.dijkstra(grid, nodes_[members[a]].tile, rect);
+                for (std::size_t b = 0; b < members.size(); ++b) {
+                    if (a == b) {
+                        continue;
+                    }
+                    const std::int32_t cost = search.cost_at(grid, nodes_[members[b]].tile);
+                    if (cost != kUnreached) {
+                        intra.push_back({static_cast<std::uint32_t>(a), static_cast<std::uint32_t>(b), cost});
+                    }
                 }
             }
+        }
+        for (const IntraEdge& e : intra) {
+            adj[members[e.from]].push_back({members[e.to], e.cost});
         }
     }
 
     // 3. Compactar a CSR.
-    edge_begin_.resize(nodes_.size() + 1, 0);
+    edge_begin_.assign(nodes_.size() + 1, 0);
+    edge_to_.clear();
+    edge_cost_.clear();
     for (std::size_t n = 0; n < nodes_.size(); ++n) {
         edge_begin_[n + 1] = edge_begin_[n] + static_cast<std::uint32_t>(adj[n].size());
         for (const TempEdge& e : adj[n]) {
@@ -87,6 +126,21 @@ HpaGraph::HpaGraph(const PassGrid& grid, const HpaParams& params, GridSearch& se
     g_.assign(abstract_nodes, kUnreached);
     parent_.assign(abstract_nodes, 0);
     closed_.assign(abstract_nodes, 0);
+    generation_ = 0;
+    return recomputed;
+}
+
+bool HpaGraph::same_graph(const HpaGraph& other) const noexcept {
+    if (nodes_.size() != other.nodes_.size() || edge_begin_ != other.edge_begin_ || edge_to_ != other.edge_to_ ||
+        edge_cost_ != other.edge_cost_) {
+        return false;
+    }
+    for (std::size_t n = 0; n < nodes_.size(); ++n) {
+        if (!(nodes_[n].tile == other.nodes_[n].tile) || nodes_[n].sector != other.nodes_[n].sector) {
+            return false;
+        }
+    }
+    return true;
 }
 
 SearchRect HpaGraph::sector_rect(std::int32_t sector) const noexcept {

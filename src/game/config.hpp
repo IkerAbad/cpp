@@ -46,15 +46,67 @@ struct UnitCatalog {
     [[nodiscard]] std::optional<sim::UnitTypeId> find(std::string_view name) const;
 };
 
+// --- Recursos ------------------------------------------------------------------
+
+// Nombre de cada recurso en los ficheros de datos (claves de coste, "resource = ...").
+[[nodiscard]] std::string_view resource_key(sim::Resource r) noexcept;
+[[nodiscard]] std::optional<sim::Resource> find_resource(std::string_view key) noexcept;
+
+// --- data/resources.toml ---------------------------------------------------------
+
+struct NodeInfo {
+    std::string name;
+    sim::ResourceNodeType type;
+    std::array<std::uint8_t, 3> color{};
+};
+
+struct NodeCatalog {
+    std::vector<NodeInfo> types;  // el índice es el NodeTypeId
+
+    [[nodiscard]] std::optional<sim::NodeTypeId> find(std::string_view name) const;
+};
+
+// --- data/buildings.toml ---------------------------------------------------------
+
+struct BuildingInfo {
+    std::string name;
+    sim::BuildingType type;
+    std::array<std::uint8_t, 3> color{};
+};
+
+struct BuildingCatalog {
+    std::vector<BuildingInfo> types;  // el índice es el BuildingTypeId
+
+    [[nodiscard]] std::optional<sim::BuildingTypeId> find(std::string_view name) const;
+};
+
 // --- data/scenarios/*.toml -------------------------------------------------------
 
-// Orden de un guion: mueve las unidades [first, first + count), en orden de creación,
-// a target al inicio de tick.
+enum class ScenarioAction : std::uint8_t { Move, Gather, Build, Train };
+
+// Orden de un guion, al inicio de tick. first y count eligen unidades del jugador por
+// su orden de creación. Move: a target. Gather: al nodo del recurso más cercano a esas
+// unidades. Build: colocar building junto al primer edificio del jugador y
+// construirlo con ellas. Train: encolar count unidades de tipo unit en el primer
+// edificio del jugador de tipo building.
 struct ScenarioOrder {
     sim::Tick tick = 0;
+    ScenarioAction action = ScenarioAction::Move;
+    sim::PlayerId player = 0;
     std::int32_t first = 0;
     std::int32_t count = 0;
     sim::TileCoord target;
+    sim::Resource resource = sim::Resource::Food;
+    sim::BuildingTypeId building = 0;
+    sim::UnitTypeId unit = 0;
+};
+
+struct Scenario {
+    std::vector<ScenarioOrder> orders;
+    // construir: el sitio se busca en anillos a partir de gap casillas del edificio de
+    // referencia, hasta search_radius.
+    std::int32_t build_gap_tiles = 0;
+    std::int32_t build_search_radius_tiles = 0;
 };
 
 // --- data/config/engine.toml ---------------------------------------------------
@@ -88,6 +140,7 @@ struct EngineConfig {
     render::ViewParams view;
     CameraConfig camera;
     SelectionConfig selection;
+    std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
 };
 
 // Los errores son textos legibles que nombran el fichero y la clave que falla.
@@ -95,24 +148,42 @@ std::expected<TerrainCatalog, std::string> parse_terrain_catalog(std::string_vie
                                                                  std::string_view source_name = "<memoria>");
 std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml_text,
                                                            std::string_view source_name = "<memoria>");
-std::expected<std::vector<ScenarioOrder>, std::string> parse_scenario(std::string_view toml_text,
+std::expected<NodeCatalog, std::string> parse_node_catalog(std::string_view toml_text,
+                                                           std::string_view source_name = "<memoria>");
+// Los edificios nombran las unidades que producen.
+std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_view toml_text,
+                                                                   const UnitCatalog& units,
+                                                                   std::string_view source_name = "<memoria>");
+
+// Catálogos contra los que se resuelven los nombres de los ficheros de configuración.
+struct Catalogs {
+    const TerrainCatalog& terrain;
+    const UnitCatalog& units;
+    const BuildingCatalog& buildings;
+    const NodeCatalog& nodes;
+};
+
+std::expected<Scenario, std::string> parse_scenario(std::string_view toml_text,
+                                                                      const Catalogs& catalogs,
                                                                       std::string_view source_name = "<memoria>");
 
-// Las bandas del mapa nombran terrenos y la demo nombra un tipo de unidad: se
-// resuelven contra los catálogos, que además aportan transitabilidad y tipos a la
-// simulación.
-std::expected<EngineConfig, std::string> parse_engine_config(std::string_view toml_text,
-                                                             const TerrainCatalog& terrain, const UnitCatalog& units,
+// Las bandas del mapa nombran terrenos, la demo y la preparación nombran unidades,
+// edificios y nodos: se resuelven contra los catálogos, que además aportan
+// transitabilidad y tipos a la simulación.
+std::expected<EngineConfig, std::string> parse_engine_config(std::string_view toml_text, const Catalogs& catalogs,
                                                              std::string_view source_name = "<memoria>");
 
 struct GameData {
     TerrainCatalog terrain;
     UnitCatalog units;
+    NodeCatalog nodes;
+    BuildingCatalog buildings;
     EngineConfig engine;
-    std::vector<ScenarioOrder> headless_scenario;
+    Scenario headless_scenario;
 };
 
-// Lee terrain.toml, units.toml, config/engine.toml y scenarios/headless.toml bajo data_dir.
+// Lee terrain.toml, units.toml, resources.toml, buildings.toml, config/engine.toml y
+// scenarios/headless.toml bajo data_dir.
 std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir);
 
 }  // namespace rts::game

@@ -55,13 +55,89 @@ max_elevation = 53000
 terrain = "roca"
 max_elevation = 65536
 
+# Jugadores, en orden de PlayerId. start: centro deseado del edificio inicial (se
+# busca el sitio válido más cercano). color: RGB del dueño en marcadores y edificios.
+[[player]]
+start = [72, 72]
+color = [70, 130, 235]
+
+[[player]]
+start = [184, 184]
+color = [225, 70, 60]
+
 [demo]
-# Unidades iniciales de prueba hasta que haya economía (M3): count unidades del tipo
-# indicado (units.toml) en casillas transitables de un cuadrado centrado en el mapa.
+# Unidades sueltas de prueba (las usan el banco y las pruebas de movimiento): count
+# unidades del tipo indicado, del jugador indicado, en casillas transitables de un
+# cuadrado centrado en el mapa. En la partida normal, ninguna.
 seed = 20260924
 unit = "milicia"
-count = 400
+player = 0
+count = 0
 area_tiles = 32
+
+[economy]
+# Ticks por unidad recogida (20 ticks = 1 s): 55 ticks = 0,36 madera/s por aldeano.
+gather_ticks = { comida = 50, madera = 55, piedra = 70, oro = 65 }
+# Un aldeano trabaja sobre un objeto si el borde de su disco está a menos de 0,8
+# casillas del borde de la huella. Con radio 0,25, el centro puede estar a 1,05: basta
+# con llegar a cualquier casilla vecina, también en diagonal (0,71 desde su centro),
+# aunque se detenga a 0,25 del centro por el radio de llegada del movimiento.
+interact_range_milli_tiles = 800
+# Al agotarse un nodo, busca otro del mismo recurso a esta distancia del anterior.
+retarget_radius_tiles = 10
+# Casillas de acceso distintas que prueba antes de cambiar de nodo o rendirse.
+approach_attempts = 3
+# Aldeanos por casilla de un nodo: 2 en un árbol, 8 en una mina de 2x2. Más se
+# estorban; los que sobran van al nodo accesible más cercano con sitio.
+gatherers_per_tile = 2
+queue_capacity = 5
+max_population = 200
+# Anillos alrededor de un edificio donde busca sitio la unidad recién producida.
+spawn_search_radius_tiles = 4
+
+[setup]
+seed = 20260924
+# Radio de búsqueda del sitio del edificio inicial y tamaño mínimo de su región de
+# tierra (evita empezar en un islote).
+start_search_radius_tiles = 48
+min_start_region_tiles = 4000
+start_building = "centro_urbano"
+start_unit = "aldeano"
+start_units = 5
+start_stock = { comida = 200, madera = 200, piedra = 150, oro = 100 }
+# Bosques: un árbol en el 55 % de las casillas de bosque, salvo en un claro de 8
+# casillas alrededor de cada inicio.
+forest_terrain = "bosque"
+tree = "arbol"
+tree_density_permille = 550
+clear_radius_tiles = 8
+
+# Recursos garantizados junto a cada inicio (distancias de Chebyshev al centro del
+# edificio inicial). El primero de cada grupo cae al azar en el anillo; el resto se
+# agrupa a su lado.
+[[setup.near_start]]
+node = "arbusto_bayas"
+count = 6
+min_distance_tiles = 5
+max_distance_tiles = 8
+
+[[setup.near_start]]
+node = "mina_oro"
+count = 1
+min_distance_tiles = 8
+max_distance_tiles = 12
+
+[[setup.near_start]]
+node = "mina_piedra"
+count = 1
+min_distance_tiles = 8
+max_distance_tiles = 12
+
+[[setup.near_start]]
+node = "arbol"
+count = 20
+min_distance_tiles = 9
+max_distance_tiles = 14
 
 [movement]
 # HPA*: sectores de 16x16 casillas; un tramo de borde transitable más ancho que
@@ -70,7 +146,10 @@ sector_size_tiles = 16
 max_portal_width_tiles = 8
 # Nodos de rejilla que el planificador puede expandir por tick. Se mide en nodos y no
 # en tiempo para que el reparto entre ticks sea idéntico en todas las máquinas.
-path_node_budget_per_tick = 20000
+# Medido con rts_bench en Release: el peor tick es de 18,0 ms con 1000 unidades y de
+# 19,1 ms con 2000 (con 20 000 nodos: 10,1 y 15,9 ms), a cambio de menos caminos
+# esperando turno (máximo 1861 frente a 1951 con 2000 unidades).
+path_node_budget_per_tick = 60000
 # Una orden a 8 unidades o más usa un campo de flujo compartido en lugar de 8 A*.
 flow_field_min_group = 8
 flow_field_cache_size = 4
@@ -109,6 +188,17 @@ debug_overlay_color = [80, 160, 255, 110]
 marker_selected_color = [120, 255, 140, 255]
 selection_rect_color = [120, 255, 140, 48]
 hover_tile_color = [255, 255, 255, 56]
+# Objetos estáticos: el rombo interior de un edificio ocupa el 70 % del lado de su
+# huella (el borde visible es el color del jugador); el de un recurso, el 80 %. Un
+# edificio en obra se pinta al 45 % de brillo.
+building_body_percent = 70
+node_body_percent = 80
+construction_shade_percent = 45
+# Fantasma de colocación: verde si el sitio es válido y alcanza el dinero, rojo si no.
+ghost_valid_color = [120, 255, 140, 120]
+ghost_invalid_color = [255, 80, 80, 120]
+# Punto sobre un aldeano que lleva algo, según el recurso.
+resource_colors = { comida = [232, 96, 120, 255], madera = [150, 104, 60, 255], piedra = [200, 200, 205, 255], oro = [250, 212, 64, 255] }
 
 [camera]
 scroll_keys_px_per_s = 1200

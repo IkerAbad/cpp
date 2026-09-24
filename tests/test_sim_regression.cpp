@@ -46,9 +46,143 @@ TEST_CASE("Regresión: hash de estado tras 1 200 ticks con 500 unidades en movim
     // cubre 1000 y 2000 unidades en Release.
     World world(test_world_params(500, 64));
     run_script(world);
-    constexpr std::uint64_t kExpectedHash = 0xc17592b0db725cbfULL;
+    constexpr std::uint64_t kExpectedHash = 0x8b647c9748cec1b9ULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
+}
+
+namespace {
+
+// Partida de dos jugadores con preparación completa (bosques, recursos, aldeanos) y un
+// guion económico: recogida de cuatro recursos, entrenamiento con pausa por población,
+// construcción de una casa y de un almacén, talas que cambian el pathfinding.
+rts::sim::WorldParams economy_params() {
+    using namespace rts::test;
+    rts::sim::WorldParams p = test_world_params(0, 16);
+    p.setup.seed = 21;
+    p.setup.starts = {{60, 60}, {196, 196}};
+    p.setup.start_search_radius = 60;
+    p.setup.min_start_region_tiles = 2000;
+    p.setup.start_building = kCenter;
+    p.setup.start_unit = kVillager;
+    p.setup.start_units = 5;
+    p.setup.start_stock = stock(300, 200, 100, 100);
+    p.setup.near_start = {{kGoldMine, 1, 6, 10}, {kBerries, 6, 4, 7}, {kTree, 12, 8, 12}};
+    p.setup.forest_terrain = 2;
+    p.setup.tree_type = kTree;
+    p.setup.tree_density_permille = 300;
+    p.setup.clear_radius = 7;
+    return p;
+}
+
+// Objeto del tipo pedido más cercano (en índice de snapshot) al primer edificio del
+// jugador; en enteros.
+std::uint32_t nearest_object(const rts::sim::Snapshot& snap, rts::sim::PlayerId player, rts::sim::ObjectKind kind,
+                             std::uint8_t type) {
+    rts::sim::TileCoord home{};
+    for (const auto& o : snap.objects) {
+        if (o.kind == rts::sim::ObjectKind::Building && o.owner == player) {
+            home = o.origin;
+            break;
+        }
+    }
+    std::uint32_t best = rts::sim::kNoObject;
+    std::int32_t best_d = 1 << 30;
+    for (const auto& o : snap.objects) {
+        if (o.kind == kind && o.type == type) {
+            const std::int32_t d = rts::sim::octile_distance(home, o.origin);
+            if (d < best_d) {
+                best_d = d;
+                best = o.id;
+            }
+        }
+    }
+    return best;
+}
+
+void run_economy_script(World& world, std::int32_t ticks) {
+    using namespace rts::test;
+    rts::sim::Snapshot snap;
+    world.write_snapshot(snap);
+    for (rts::sim::PlayerId player = 0; player < 2; ++player) {
+        std::vector<std::uint32_t> units;
+        std::uint32_t center = rts::sim::kNoObject;
+        rts::sim::TileCoord center_origin{};
+        for (const auto& e : snap.entities) {
+            if (e.owner == player) {
+                units.push_back(e.id);
+            }
+        }
+        for (const auto& o : snap.objects) {
+            if (o.kind == rts::sim::ObjectKind::Building && o.owner == player) {
+                center = o.id;
+                center_origin = o.origin;
+            }
+        }
+        REQUIRE(units.size() == 5);
+        auto order = [&](rts::sim::Tick tick, rts::sim::CommandType type, std::vector<std::uint32_t> who,
+                         std::uint32_t object) {
+            rts::sim::Command c;
+            c.tick = tick;
+            c.player = player;
+            c.type = type;
+            c.units = std::move(who);
+            c.object = object;
+            return c;
+        };
+        const auto tree = nearest_object(snap, player, rts::sim::ObjectKind::Resource, kTree);
+        const auto gold = nearest_object(snap, player, rts::sim::ObjectKind::Resource, kGoldMine);
+        const auto berries = nearest_object(snap, player, rts::sim::ObjectKind::Resource, kBerries);
+        world.issue(order(1, rts::sim::CommandType::Gather, {units[0], units[1], units[2]}, tree));
+        world.issue(order(1, rts::sim::CommandType::Gather, {units[3]}, gold));
+        world.issue(order(1, rts::sim::CommandType::Gather, {units[4]}, berries));
+        for (std::int32_t i = 0; i < 3; ++i) {  // la tercera espera a la casa
+            auto train = order(1, rts::sim::CommandType::Train, {}, center);
+            train.kind = kVillager;
+            world.issue(train);
+        }
+        // Casa de 2x2 dejando una fila libre por encima del centro urbano (dentro del claro).
+        auto house = order(300, rts::sim::CommandType::Place, {units[4]}, rts::sim::kNoObject);
+        house.kind = kHouse;
+        house.target = {center_origin.x, center_origin.y - 3};
+        world.issue(house);
+    }
+    for (std::int32_t i = 0; i < ticks; ++i) {
+        world.step();
+    }
+}
+
+}  // namespace
+
+TEST_CASE("Regresión: hash de estado de una partida económica de 1 500 ticks") {
+    World world(economy_params());
+    run_economy_script(world, 1'500);
+    rts::sim::Snapshot snap;
+    world.write_snapshot(snap);
+    for (std::size_t p = 0; p < snap.players.size(); ++p) {
+        const auto& ps = snap.players[p];
+        MESSAGE("jugador " << p << ": comida " << ps.stock[0] << ", madera " << ps.stock[1] << ", piedra "
+                           << ps.stock[2] << ", oro " << ps.stock[3] << ", población " << ps.population << "/"
+                           << ps.population_cap);
+    }
+    // Las dos casas se construyen (tope 10) y cada jugador entrena sus 3 aldeanos.
+    CHECK(snap.players[0].population_cap == 10);
+    CHECK(snap.players[1].population == 8);
+    constexpr std::uint64_t kExpectedHash = 0x1c2c5da3f0f96e61ULL;
+    INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
+    CHECK(world.state_hash() == kExpectedHash);
+}
+
+TEST_CASE("Determinismo: dos partidas económicas coinciden tick a tick") {
+    World a(economy_params());
+    World b(economy_params());
+    run_economy_script(a, 0);
+    run_economy_script(b, 0);
+    for (int i = 0; i < 400; ++i) {
+        a.step();
+        b.step();
+        REQUIRE(a.state_hash() == b.state_hash());
+    }
 }
 
 TEST_CASE("Determinismo: dos mundos con las mismas órdenes coinciden tick a tick") {

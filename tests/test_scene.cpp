@@ -110,3 +110,44 @@ TEST_CASE("Escena: a igual terreno, la casilla más alta es más clara") {
     map.set_elevation({0, 0}, 7);
     CHECK(builder.tile_color(map, {0, 0})[1] == 200);
 }
+
+TEST_CASE("Escena: objetos con base, cuerpo y resaltado; anillo de dueño y punto de carga") {
+    const Atlas atlas = rts::render::build_atlas(test_view());
+    SceneBuilder builder(test_view(), atlas, kColors);
+    const rts::render::IsoProjection proj(test_view());
+    std::vector<rts::render::SceneObject> objects(3);
+    objects[0].origin = {128, 128};  // edificio: base + cuerpo + resaltado
+    objects[0].size = 3;
+    objects[0].base = {0, 0, 255, 255};
+    objects[0].body = {200, 200, 200, 255};
+    objects[0].body_percent = 70;
+    objects[0].highlighted = true;
+    objects[1].origin = {130, 126};  // recurso: solo cuerpo
+    objects[1].body = {0, 90, 0, 255};
+    objects[2].origin = {10, 10};    // fuera de pantalla
+    objects[2].body = {0, 90, 0, 255};
+    std::vector<Marker> markers(1);
+    markers[0].screen_pos = {640.0f, 360.0f};
+    markers[0].color = {1, 1, 1, 255};
+    markers[0].owner = {255, 0, 0, 255};
+    markers[0].badge = {0, 255, 0, 255};
+
+    Scene scene;
+    scene.screen = {1280.0f, 720.0f};
+    scene.camera.center_on(proj.tile_to_world({128.0f, 128.0f}), scene.screen);
+    scene.objects = objects;
+    scene.markers = markers;
+    SpriteBatch batch;
+    const auto stats = builder.build(scene, batch);
+    CHECK(stats.objects_drawn == 2);
+    // 3 del edificio + 1 del recurso + disco, anillo de dueño y punto.
+    REQUIRE(batch.size() == 3 + 1 + 3);
+    const auto& base = batch.instances()[0];
+    const auto& body = batch.instances()[1];
+    CHECK(static_cast<double>(base.w) == doctest::Approx(3.0 * 64.0));
+    CHECK(static_cast<double>(base.h) == doctest::Approx(3.0 * 32.0));
+    CHECK(static_cast<double>(body.w) == doctest::Approx(0.7 * 3.0 * 64.0));
+    // El cuerpo queda centrado en la huella.
+    CHECK(static_cast<double>(body.x + body.w * 0.5f) == doctest::Approx(static_cast<double>(base.x + base.w * 0.5f)));
+    CHECK(batch.instances()[2].color == test_view().hover_tile_color);
+}

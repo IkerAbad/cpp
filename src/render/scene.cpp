@@ -9,8 +9,11 @@ namespace rts::render {
 namespace {
 
 constexpr std::int32_t kPercent = 100;
-// El anillo de selección se dibuja algo mayor que el disco para rodearlo.
+// El anillo de selección se dibuja algo mayor que el disco para rodearlo; el del dueño,
+// justo por fuera del disco. El punto de estado es un disco a media escala.
 constexpr float kRingScale = 1.6f;
+constexpr float kOwnerRingScale = 1.25f;
+constexpr float kBadgeScale = 0.5f;
 constexpr float kRectBorderPx = 1.0f;
 constexpr std::uint8_t kOpaque = 255;
 
@@ -100,8 +103,32 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
         }
     }
 
+    // Objetos: rombo de la huella y rombo interior centrado. Recorte por la caja del rombo.
+    for (const SceneObject& o : scene.objects) {
+        const auto n = static_cast<float>(o.size);
+        const Vec2 size = tile_size * n;
+        const Vec2 top_left =
+            scene.camera.world_to_screen(proj_.tile_top(o.origin.x, o.origin.y)) + Vec2{-proj_.half_width() * n, 0.0f};
+        if (top_left.x > scene.screen.x || top_left.y > scene.screen.y || top_left.x + size.x < 0.0f ||
+            top_left.y + size.y < 0.0f) {
+            continue;
+        }
+        if (o.base[3] != 0) {
+            out.add(top_left, size, diamond_, o.base);
+        }
+        const float scale = static_cast<float>(o.body_percent) / static_cast<float>(kPercent);
+        const Vec2 body = size * scale;
+        out.add(top_left + (size - body) * 0.5f, body, diamond_, o.body);
+        if (o.highlighted) {
+            out.add(top_left, size, diamond_, view_.hover_tile_color);
+        }
+        ++stats.objects_drawn;
+    }
+
     const Vec2 disc_size{static_cast<float>(disc_.width_px), static_cast<float>(disc_.height_px)};
     const Vec2 ring_size = disc_size * kRingScale;
+    const Vec2 owner_size = disc_size * kOwnerRingScale;
+    const Vec2 badge_size = disc_size * kBadgeScale;
     for (const Marker& m : scene.markers) {
         // Recorte: fuera de pantalla (con el margen del anillo) no se dibuja.
         if (m.screen_pos.x < -ring_size.x || m.screen_pos.y < -ring_size.y || m.screen_pos.x > scene.screen.x + ring_size.x ||
@@ -109,8 +136,16 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
             continue;
         }
         out.add(m.screen_pos - disc_size * 0.5f, disc_size, disc_, m.selected ? view_.marker_selected_color : m.color);
+        if (m.owner[3] != 0) {
+            out.add(m.screen_pos - owner_size * 0.5f, owner_size, ring_, m.owner);
+        }
         if (m.selected) {
             out.add(m.screen_pos - ring_size * 0.5f, ring_size, ring_, view_.marker_selected_color);
+        }
+        if (m.badge[3] != 0) {
+            // Encima del disco, algo a la derecha.
+            const Vec2 at = m.screen_pos + Vec2{disc_size.x * 0.5f, -disc_size.y * 0.5f};
+            out.add(at - badge_size * 0.5f, badge_size, disc_, m.badge);
         }
         ++stats.markers_drawn;
     }
