@@ -103,7 +103,7 @@ void MovementSystem::commit_grid_changes(entt::registry& registry) {
             ++stats_.paths_invalidated;
         }
     }
-    std::ranges::fill(dirty_sectors_, 0);
+    std::ranges::fill(dirty_sectors_, std::uint8_t{0});
     grid_dirty_ = false;
 }
 
