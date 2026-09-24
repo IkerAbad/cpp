@@ -6,6 +6,7 @@
 // detectar divergencias entre repeticiones, plataformas y clientes lockstep.
 
 #include <cstdint>
+#include <span>
 
 #include "sim/fixed.hpp"
 
@@ -22,6 +23,13 @@ public:
     constexpr void add_u32(std::uint32_t v) noexcept { add_u64(v); }
     constexpr void add_i32(std::int32_t v) noexcept { add_u64(static_cast<std::uint32_t>(v)); }
     constexpr void add_fixed(Fixed v) noexcept { add_i32(v.raw()); }
+    constexpr void add_bytes(std::span<const std::uint8_t> bytes) noexcept {
+        add_u64(bytes.size());
+        for (const std::uint8_t b : bytes) {
+            hash_ ^= b;
+            hash_ *= kPrime;
+        }
+    }
 
     [[nodiscard]] constexpr std::uint64_t value() const noexcept { return hash_; }
 

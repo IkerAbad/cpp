@@ -1,0 +1,41 @@
+# Tipos de terreno. El identificador de cada tipo es su posición en esta lista
+# (0, 1, 2...), de modo que reordenar la lista cambia los mapas generados y el
+# hash de regresión. Máximo 256 tipos (1 byte por casilla).
+#
+# color: RGB provisional (0-255) para los marcadores planos, hasta que haya arte.
+# passable: si las unidades terrestres pueden entrar (lo usará la búsqueda de caminos en M2).
+
+[[terrain]]
+name = "agua_profunda"
+passable = false
+color = [28, 62, 128]
+
+[[terrain]]
+name = "agua"
+passable = false
+color = [44, 96, 168]
+
+[[terrain]]
+name = "arena"
+passable = true
+color = [206, 186, 128]
+
+[[terrain]]
+name = "pradera"
+passable = true
+color = [96, 150, 72]
+
+[[terrain]]
+name = "bosque"
+passable = true
+color = [48, 102, 52]
+
+[[terrain]]
+name = "colinas"
+passable = true
+color = [132, 118, 86]
+
+[[terrain]]
+name = "roca"
+passable = false
+color = [120, 120, 124]

@@ -19,6 +19,10 @@
       "name": "imgui",
       "features": [ "sdl3-binding", "sdlgpu3-binding" ]
     },
+    {
+      "name": "directx-dxc",
+      "$comment": "Compilador de shaders HLSL -> SPIR-V/DXIL usado en tiempo de build (cmake/Shaders.cmake)."
+    },
     "entt",
     "spdlog",
     "tomlplusplus",

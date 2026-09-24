@@ -10,13 +10,13 @@ int main(int argc, char** argv) {
     if (!options) {
         return 2;
     }
-    const auto config = rts::game::load_engine_config(options->config_path);
-    if (!config) {
-        spdlog::error("Configuración: {}", config.error());
+    const auto data = rts::game::load_game_data(options->data_dir);
+    if (!data) {
+        spdlog::error("Datos: {}", data.error());
         return 1;
     }
     if (options->headless) {
-        return rts::game::run_headless(*config, options->headless_ticks);
+        return rts::game::run_headless(*data, options->headless_ticks);
     }
-    return rts::game::run_windowed(*config);
+    return rts::game::run_windowed(*data, options->max_frames);
 }
