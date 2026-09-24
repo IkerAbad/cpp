@@ -1,0 +1,24 @@
+# Configuración de arranque del motor.
+# Convención de data/: solo enteros. Una magnitud fraccionaria se escribe en una
+# unidad menor que figura en el nombre de la clave (_milli = milésimas).
+# Todas las duraciones de la simulación van en ticks (20 ticks = 1 segundo).
+
+[window]
+title = "RTS (nombre provisional)"
+width = 1600
+height = 900
+vsync = true
+
+[loop]
+# Ticks de simulación máximos por fotograma. Con 5 ticks (250 ms de juego), un
+# fotograma de más de 250 ms descarta el retraso en lugar de encadenar fotogramas
+# cada vez más lentos (espiral de la muerte).
+max_ticks_per_frame = 5
+
+[demo]
+# Demostración de M0: puntos que rebotan, para ver la interpolación entre ticks.
+seed = 20260924
+point_count = 500
+arena_tiles = 64
+# 150 milésimas de casilla por tick = 3 casillas por segundo.
+max_speed_milli_tiles_per_tick = 150

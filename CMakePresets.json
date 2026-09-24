@@ -1,0 +1,88 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "RTS_WERROR": "ON"
+      }
+    },
+    {
+      "name": "linux",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "cacheVariables": { "VCPKG_TARGET_TRIPLET": "x64-linux" }
+    },
+    {
+      "name": "windows",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "architecture": { "value": "x64", "strategy": "external" },
+      "cacheVariables": { "VCPKG_TARGET_TRIPLET": "x64-windows-static-md" }
+    },
+    { "name": "debug", "hidden": true, "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
+    { "name": "release", "hidden": true, "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" } },
+
+    {
+      "name": "linux-clang",
+      "hidden": true,
+      "inherits": "linux",
+      "cacheVariables": { "CMAKE_C_COMPILER": "clang-20", "CMAKE_CXX_COMPILER": "clang++-20" }
+    },
+    {
+      "name": "linux-gcc",
+      "hidden": true,
+      "inherits": "linux",
+      "cacheVariables": { "CMAKE_C_COMPILER": "gcc-14", "CMAKE_CXX_COMPILER": "g++-14" }
+    },
+    {
+      "name": "windows-msvc",
+      "hidden": true,
+      "inherits": "windows",
+      "cacheVariables": { "CMAKE_C_COMPILER": "cl", "CMAKE_CXX_COMPILER": "cl" }
+    },
+    {
+      "name": "windows-clang-cl",
+      "hidden": true,
+      "inherits": "windows",
+      "cacheVariables": { "CMAKE_C_COMPILER": "clang-cl", "CMAKE_CXX_COMPILER": "clang-cl" }
+    },
+
+    { "name": "linux-clang-debug", "displayName": "Linux Clang 20 Debug", "inherits": ["linux-clang", "debug"] },
+    { "name": "linux-clang-release", "displayName": "Linux Clang 20 RelWithDebInfo", "inherits": ["linux-clang", "release"] },
+    { "name": "linux-gcc-debug", "displayName": "Linux GCC 14 Debug", "inherits": ["linux-gcc", "debug"] },
+    { "name": "linux-gcc-release", "displayName": "Linux GCC 14 RelWithDebInfo", "inherits": ["linux-gcc", "release"] },
+    { "name": "windows-msvc-debug", "displayName": "Windows MSVC Debug", "inherits": ["windows-msvc", "debug"] },
+    { "name": "windows-msvc-release", "displayName": "Windows MSVC RelWithDebInfo", "inherits": ["windows-msvc", "release"] },
+    { "name": "windows-clang-cl-debug", "displayName": "Windows clang-cl Debug", "inherits": ["windows-clang-cl", "debug"] },
+    { "name": "windows-clang-cl-release", "displayName": "Windows clang-cl RelWithDebInfo", "inherits": ["windows-clang-cl", "release"] }
+  ],
+  "buildPresets": [
+    { "name": "linux-clang-debug", "configurePreset": "linux-clang-debug" },
+    { "name": "linux-clang-release", "configurePreset": "linux-clang-release" },
+    { "name": "linux-gcc-debug", "configurePreset": "linux-gcc-debug" },
+    { "name": "linux-gcc-release", "configurePreset": "linux-gcc-release" },
+    { "name": "windows-msvc-debug", "configurePreset": "windows-msvc-debug" },
+    { "name": "windows-msvc-release", "configurePreset": "windows-msvc-release" },
+    { "name": "windows-clang-cl-debug", "configurePreset": "windows-clang-cl-debug" },
+    { "name": "windows-clang-cl-release", "configurePreset": "windows-clang-cl-release" }
+  ],
+  "testPresets": [
+    { "name": "base", "hidden": true, "output": { "outputOnFailure": true } },
+    { "name": "linux-clang-debug", "inherits": "base", "configurePreset": "linux-clang-debug" },
+    { "name": "linux-clang-release", "inherits": "base", "configurePreset": "linux-clang-release" },
+    { "name": "linux-gcc-debug", "inherits": "base", "configurePreset": "linux-gcc-debug" },
+    { "name": "linux-gcc-release", "inherits": "base", "configurePreset": "linux-gcc-release" },
+    { "name": "windows-msvc-debug", "inherits": "base", "configurePreset": "windows-msvc-debug" },
+    { "name": "windows-msvc-release", "inherits": "base", "configurePreset": "windows-msvc-release" },
+    { "name": "windows-clang-cl-debug", "inherits": "base", "configurePreset": "windows-clang-cl-debug" },
+    { "name": "windows-clang-cl-release", "inherits": "base", "configurePreset": "windows-clang-cl-release" }
+  ]
+}

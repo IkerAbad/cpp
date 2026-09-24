@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-clang,      os: ubuntu-24.04,   preset: linux-clang-debug }
+          - { name: linux-gcc,        os: ubuntu-24.04,   preset: linux-gcc-debug }
+          - { name: windows-msvc,     os: windows-2025,   preset: windows-msvc-debug }
+          - { name: windows-clang-cl, os: windows-2025,   preset: windows-clang-cl-debug }
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias del sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # Clang 18 (el de serie en 24.04) define __cpp_concepts = 201907L y libstdc++
+          # solo expone std::expected con >= 202002L: hace falta Clang >= 19.
+          # clang-20 y g++-14 vienen de los repositorios oficiales de Ubuntu 24.04.
+          sudo apt-get install -y ninja-build clang-20 g++-14 pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
+            libdbus-1-dev libibus-1.0-dev
+
+      - name: Entorno de MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: vcpkg en el commit del baseline
+        run: |
+          baseline=$(python -c "import json; print(json.load(open('vcpkg.json'))['builtin-baseline'])")
+          git clone --filter=tree:0 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$baseline"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            "$VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          else
+            "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+          fi
+
+      - name: Caché binaria de vcpkg
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ matrix.name }}-
+
+      - name: Configurar
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Compilar
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Pruebas
+        run: ctest --preset ${{ matrix.preset }}
+
+      - name: Hash de estado (10 minutos de juego sin ventana)
+        run: |
+          exe="build/${{ matrix.preset }}/src/rts"
+          [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
+          "$exe" --headless --ticks 12000 | tee headless.log
+          grep -o 'state_hash=[0-9a-f]*' headless.log > hash-${{ matrix.name }}.txt
+          cat hash-${{ matrix.name }}.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hash-${{ matrix.name }}
+          path: hash-${{ matrix.name }}.txt
+
+  determinism:
+    name: Mismo hash en todas las plataformas
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hash-*
+          merge-multiple: true
+      - name: Comparar
+        run: |
+          for f in hash-*.txt; do echo "$f: $(cat "$f")"; done
+          distinct=$(cat hash-*.txt | sort -u | wc -l)
+          if [ "$distinct" -ne 1 ]; then
+            echo "::error::La simulación diverge entre plataformas ($distinct hashes distintos)"
+            exit 1
+          fi

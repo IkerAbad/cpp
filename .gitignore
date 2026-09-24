@@ -1,0 +1,9 @@
+/build/
+/out/
+/vcpkg_installed/
+/.vs/
+/.vscode/
+/.idea/
+*.user
+compile_commands.json
+imgui.ini

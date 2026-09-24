@@ -1,0 +1,22 @@
+find_package(doctest CONFIG REQUIRED)
+
+add_executable(rts_tests
+    test_main.cpp
+    test_fixed.cpp
+    test_rng.cpp
+    test_fixed_step.cpp
+    test_config.cpp
+    test_sim_regression.cpp)
+target_link_libraries(rts_tests PRIVATE rts_game_core rts_sim doctest::doctest)
+target_compile_definitions(rts_tests PRIVATE RTS_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
+rts_set_warnings(rts_tests)
+
+add_test(NAME unit COMMAND rts_tests)
+
+# Regla dura: src/sim/ sin coma flotante, sin reloj real, sin E/S, sin SDL.
+add_test(NAME sim_purity
+    COMMAND ${CMAKE_COMMAND} -DSIM_DIR=${PROJECT_SOURCE_DIR}/src/sim
+            -P ${PROJECT_SOURCE_DIR}/cmake/CheckSimPurity.cmake)
+
+# Humo: el ejecutable arranca, lee data/ y simula un minuto de juego sin ventana.
+add_test(NAME headless_smoke COMMAND rts --headless --ticks 1200)
