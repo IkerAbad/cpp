@@ -81,7 +81,7 @@ TEST_CASE("Snapshot: comparte el mapa sin copiarlo") {
     world.write_snapshot(a);
     world.step();
     world.write_snapshot(b);
-    REQUIRE(a.map != nullptr);
+    REQUIRE(a.map.get() != nullptr);  // get(): doctest no sabe imprimir shared_ptr con la STL de MSVC
     CHECK(a.map.get() == b.map.get());
     CHECK(a.map.get() == &world.map());
 }
