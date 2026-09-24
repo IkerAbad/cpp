@@ -4,7 +4,11 @@
   "version-semver": "0.0.1",
   "builtin-baseline": "dc1232a6e05dcc49703091e83743e3b4df9b9b7c",
   "dependencies": [
-    "sdl3",
+    {
+      "name": "sdl3",
+      "$comment": "El backend Vulkan de SDL_GPU solo se compila con la feature 'vulkan'; sin ella, en Linux no hay ningún backend GPU (en Windows quedaría solo D3D12).",
+      "features": [ "vulkan" ]
+    },
     {
       "name": "dbus",
       "$comment": "Solo el manifiesto raíz puede desactivar la feature por defecto 'systemd' de dbus (la pide sdl3[ibus]); sin esto se arrastran libsystemd, meson, python y autotools.",
