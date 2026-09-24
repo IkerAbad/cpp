@@ -13,6 +13,7 @@ include(Shaders)
 
 # --- Simulación pura -----------------------------------------------------------
 add_library(rts_sim STATIC
+    sim/economy.cpp
     sim/map_gen.cpp
     sim/movement.cpp
     sim/path/flow_field.cpp

@@ -1,32 +1,90 @@
-# Guion de órdenes para el modo --headless. La CI lo ejecuta en los cuatro compiladores
-# y exige el mismo hash de estado: cubre HPA*, campos de flujo y evitación local.
+# Guion de órdenes para el modo --headless. La CI lo ejecuta con los cuatro
+# compiladores y exige el mismo hash de estado: cubre el ciclo de los aldeanos, la
+# construcción, las colas de producción, la actualización incremental del
+# pathfinding al talar y construir, y el movimiento.
 #
-# Cada orden mueve las unidades [first, first + count) (en orden de creación) a target
-# al inicio del tick indicado.
+# action:
+#   mover     -> las unidades [first, first + count) del jugador (orden de creación) a target
+#   recoger   -> esas unidades al nodo del recurso más cercano a ellas
+#   construir -> colocar building cerca del primer edificio del jugador; lo construyen ellas
+#   entrenar  -> encolar count unidades de tipo unit en el primer edificio building del jugador
 
-# Todas juntas hacia el noreste: grupo grande -> campo de flujo.
+# construir: el sitio se busca en anillos alrededor del primer edificio del jugador,
+# dejando gap_tiles casillas libres entre ambos, hasta search_radius_tiles.
+[build_site]
+gap_tiles = 2
+search_radius_tiles = 24
+
 [[order]]
-tick = 20
+tick = 1
+action = "recoger"
+player = 0
 first = 0
-count = 400
-target = [150, 100]
+count = 3
+resource = "madera"
 
-# Se parten en dos mitades que se cruzan de frente: evitación local.
 [[order]]
-tick = 700
+tick = 1
+action = "recoger"
+player = 0
+first = 3
+count = 2
+resource = "comida"
+
+[[order]]
+tick = 1
+action = "entrenar"
+player = 0
+building = "centro_urbano"
+unit = "aldeano"
+count = 3
+
+[[order]]
+tick = 1
+action = "recoger"
+player = 1
 first = 0
-count = 200
-target = [100, 150]
+count = 2
+resource = "oro"
 
 [[order]]
-tick = 700
-first = 200
-count = 200
-target = [160, 110]
+tick = 1
+action = "recoger"
+player = 1
+first = 2
+count = 3
+resource = "madera"
 
-# Cuatro unidades sueltas (grupo pequeño -> HPA* individual) a la otra punta del mapa.
 [[order]]
-tick = 1400
+tick = 1
+action = "entrenar"
+player = 1
+building = "centro_urbano"
+unit = "aldeano"
+count = 2
+
+# Casa: +5 de población. Construye un aldeano de comida.
+[[order]]
+tick = 600
+action = "construir"
+player = 0
+first = 3
+count = 1
+building = "casa"
+
+[[order]]
+tick = 900
+action = "construir"
+player = 1
+first = 2
+count = 2
+building = "aserradero"
+
+# El jugador 1 manda a sus mineros de oro a dar un paseo largo (HPA*).
+[[order]]
+tick = 1500
+action = "mover"
+player = 1
 first = 0
-count = 4
-target = [30, 220]
+count = 2
+target = [128, 128]

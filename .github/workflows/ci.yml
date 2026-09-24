@@ -119,8 +119,8 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1600x900x24" "build/${{ matrix.preset }}/src/rts" --frames 120
 
       # 2 minutos de juego: cubre todas las órdenes de data/scenarios/headless.toml
-      # (la última, en el tick 1400). En Debug, 12 000 ticks con 400 unidades en
-      # movimiento costaban ~3 minutos por trabajo.
+      # (la última, en el tick 1500): recogida, construcción, colas de producción y
+      # los cambios de ocupación que rehacen el pathfinding.
       - name: Hash de estado (2 minutos de juego sin ventana)
         run: |
           exe="build/${{ matrix.preset }}/src/rts"

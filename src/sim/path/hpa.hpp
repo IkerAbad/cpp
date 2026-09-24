@@ -6,9 +6,14 @@
 // Dentro de cada sector se precalculan las distancias entre sus nodos. Una consulta
 // larga es un A* sobre ese grafo pequeño; el camino fino se refina por tramos, cada
 // uno acotado a uno o dos sectores.
+//
+// Cuando la ocupación cambia (M3: edificios, árboles talados), rebuild() rehace el
+// grafo reutilizando las aristas internas de los sectores intactos. El resultado es
+// idéntico, nodo a nodo y arista a arista, al de construirlo desde cero.
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include "sim/path/grid.hpp"
@@ -23,6 +28,13 @@ struct HpaParams {
 class HpaGraph {
 public:
     HpaGraph(const PassGrid& grid, const HpaParams& params, GridSearch& search);
+
+    // Rehace el grafo tras cambios de transitabilidad. dirty_sectors (un byte por
+    // sector) marca los sectores con alguna casilla cambiada. Los portales se vuelven a
+    // detectar en todos los bordes (barato: solo recorre bordes); los Dijkstra internos
+    // se repiten solo en los sectores sucios y en aquellos cuyo conjunto de nodos
+    // cambió. Devuelve cuántos sectores recalcularon sus aristas internas.
+    std::int32_t rebuild(const PassGrid& grid, std::span<const std::uint8_t> dirty_sectors, GridSearch& search);
 
     // Puntos de paso desde start (excluido) hasta goal (incluido): casillas de portal
     // intermedias y el destino. nullopt si goal no es alcanzable desde start.
@@ -44,6 +56,10 @@ public:
     [[nodiscard]] std::size_t node_count() const noexcept { return nodes_.size(); }
     [[nodiscard]] std::size_t edge_count() const noexcept { return edge_to_.size(); }
     [[nodiscard]] TileCoord node_tile(std::size_t n) const noexcept { return nodes_[n].tile; }
+    [[nodiscard]] std::size_t sector_count() const noexcept { return sector_nodes_.size(); }
+
+    // Comparación estructural exacta (pruebas: incremental frente a desde cero).
+    [[nodiscard]] bool same_graph(const HpaGraph& other) const noexcept;
 
 private:
     struct Node {
@@ -52,6 +68,13 @@ private:
     };
     struct TempEdge {
         std::uint32_t node;
+        std::int32_t cost;
+    };
+    // Arista interna de un sector en índices locales (posición en sector_nodes_[s]):
+    // no depende de la numeración global, así que sobrevive a un rebuild.
+    struct IntraEdge {
+        std::uint32_t from;
+        std::uint32_t to;
         std::int32_t cost;
     };
 
@@ -66,6 +89,7 @@ private:
     std::vector<Node> nodes_;
     std::vector<std::int32_t> tile_to_node_;               // -1 si la casilla no es nodo
     std::vector<std::vector<std::uint32_t>> sector_nodes_;
+    std::vector<std::vector<IntraEdge>> sector_intra_;
     // Aristas en formato CSR: las de n están en [edge_begin_[n], edge_begin_[n + 1]).
     std::vector<std::uint32_t> edge_begin_;
     std::vector<std::uint32_t> edge_to_;

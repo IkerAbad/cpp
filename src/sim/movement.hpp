@@ -25,6 +25,9 @@ struct MovementTickStats {
     std::int32_t paths_pending = 0;
     std::int32_t flow_fields_built = 0;
     std::int32_t moving_units = 0;
+    // Cambios de ocupación aplicados en este tick (M3).
+    std::int32_t sectors_rebuilt = 0;
+    std::int32_t paths_invalidated = 0;
 };
 
 class MovementSystem {
@@ -34,8 +37,20 @@ public:
 
     // Pone a cero las estadísticas del tick; se llama antes de aplicar las órdenes.
     void begin_tick() noexcept { stats_ = MovementTickStats{}; }
-    void apply(entt::registry& registry, const Command& command, std::uint32_t order_id, Tick tick);
+    // Mover unidades a una casilla: órdenes del jugador y desplazamientos internos
+    // (un aldeano que va al árbol). Las unidades ya validadas por quien llama.
+    void order_move(entt::registry& registry, std::span<const entt::entity> units, TileCoord target,
+                    std::uint32_t order_id, Tick tick);
+    static void stop(entt::registry& registry, std::span<const entt::entity> units);
     void update(entt::registry& registry, Tick tick);
+
+    // Ocupación por objetos estáticos. Los cambios se acumulan y commit_grid_changes()
+    // los aplica todos juntos: componentes conexas, sectores HPA* afectados, campos de
+    // flujo cuyo pasillo tocan y caminos en curso que ahora atraviesan una casilla
+    // bloqueada (se replanifican).
+    void set_blocked(TileCoord c, bool blocked);
+    [[nodiscard]] bool grid_dirty() const noexcept { return grid_dirty_; }
+    void commit_grid_changes(entt::registry& registry);
 
     [[nodiscard]] const PassGrid& grid() const noexcept { return grid_; }
     [[nodiscard]] const HpaGraph& hpa() const noexcept { return hpa_; }
@@ -48,6 +63,7 @@ public:
 private:
     struct CachedField {
         std::unique_ptr<FlowField> field;
+        std::vector<std::uint8_t> corridor;  // sectores permitidos: para rehacerlo si cambia el mapa
         std::uint32_t order_id = 0;
         Tick last_used = 0;
     };
@@ -95,6 +111,8 @@ private:
     GridSearch search_;
     HpaGraph hpa_;
     std::vector<CachedField> fields_;
+    std::vector<std::uint8_t> dirty_sectors_;
+    bool grid_dirty_ = false;
     std::vector<entt::entity> path_queue_;
     std::size_t queue_head_ = 0;
     Scratch s_;

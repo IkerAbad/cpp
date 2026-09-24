@@ -6,14 +6,21 @@
 
 #include "game/config.hpp"
 
+using rts::game::BuildingCatalog;
+using rts::game::Catalogs;
 using rts::game::load_game_data;
+using rts::game::NodeCatalog;
+using rts::game::parse_building_catalog;
 using rts::game::parse_engine_config;
-using rts::game::parse_terrain_catalog;
+using rts::game::parse_node_catalog;
 using rts::game::parse_scenario;
+using rts::game::parse_terrain_catalog;
 using rts::game::parse_unit_catalog;
+using rts::game::ScenarioAction;
 using rts::game::TerrainCatalog;
 using rts::game::UnitCatalog;
 using rts::sim::Fixed;
+using rts::sim::Resource;
 
 namespace {
 
@@ -35,6 +42,62 @@ name = "lancero"
 radius_milli_tiles = 300
 speed_milli_tiles_per_tick = 60
 color = [10, 20, 30]
+cost = { comida = 60, oro = 20 }
+train_ticks = 400
+population = 1
+worker = false
+carry_capacity = 0
+
+[[unit]]
+name = "peon"
+radius_milli_tiles = 250
+speed_milli_tiles_per_tick = 50
+color = [1, 2, 3]
+cost = { comida = 50 }
+train_ticks = 500
+population = 1
+worker = true
+carry_capacity = 10
+)";
+
+constexpr const char* kNodes = R"(
+[[node]]
+name = "pino"
+resource = "madera"
+amount = 100
+size_tiles = 1
+color = [0, 90, 0]
+
+[[node]]
+name = "veta"
+resource = "oro"
+amount = 800
+size_tiles = 2
+color = [200, 200, 0]
+)";
+
+constexpr const char* kBuildings = R"(
+[[building]]
+name = "fuerte"
+size_tiles = 3
+cost = { madera = 275, piedra = 100 }
+build_ticks = 3000
+hp = 2400
+accepts = ["comida", "madera", "piedra", "oro"]
+population = 5
+trains = ["peon"]
+color = [9, 9, 9]
+
+[[building]]
+name = "choza"
+size_tiles = 2
+cost = { madera = 30 }
+build_ticks = 500
+hp = 550
+accepts = []
+population = 5
+trains = []
+color = [8, 8, 8]
 )";
 
 constexpr const char* kEngine = R"(
@@ -62,11 +125,49 @@ max_elevation = 30000
 terrain = "llanura"
 max_elevation = 65536
 
+[[player]]
+start = [10, 10]
+color = [0, 0, 255]
+
+[[player]]
+start = [50, 20]
+color = [255, 0, 0]
+
 [demo]
 seed = 1
 unit = "lancero"
+player = 0
 count = 10
 area_tiles = 16
+
+[economy]
+gather_ticks = { comida = 50, madera = 55, piedra = 70, oro = 65 }
+interact_range_milli_tiles = 500
+retarget_radius_tiles = 10
+approach_attempts = 3
+gatherers_per_tile = 2
+queue_capacity = 5
+max_population = 200
+spawn_search_radius_tiles = 4
+
+[setup]
+seed = 3
+start_search_radius_tiles = 20
+min_start_region_tiles = 100
+start_building = "fuerte"
+start_unit = "peon"
+start_units = 4
+start_stock = { comida = 200, madera = 150 }
+forest_terrain = "llanura"
+tree = "pino"
+tree_density_permille = 100
+clear_radius_tiles = 6
+
+[[setup.near_start]]
+node = "veta"
+count = 1
+min_distance_tiles = 6
+max_distance_tiles = 9
 
 [movement]
 sector_size_tiles = 16
@@ -95,6 +196,12 @@ debug_overlay_color = [4, 5, 6, 255]
 marker_selected_color = [7, 8, 9, 255]
 selection_rect_color = [10, 11, 12, 48]
 hover_tile_color = [13, 14, 15, 56]
+building_body_percent = 70
+node_body_percent = 80
+construction_shade_percent = 45
+ghost_valid_color = [0, 255, 0, 100]
+ghost_invalid_color = [255, 0, 0, 100]
+resource_colors = { comida = [1, 0, 0, 255], madera = [2, 0, 0, 255], piedra = [3, 0, 0, 255], oro = [4, 0, 0, 255] }
 
 [camera]
 scroll_keys_px_per_s = 1000
@@ -116,6 +223,33 @@ UnitCatalog units() {
     auto c = parse_unit_catalog(kUnits);
     REQUIRE(c.has_value());
     return *c;
+}
+
+NodeCatalog nodes() {
+    auto c = parse_node_catalog(kNodes);
+    REQUIRE(c.has_value());
+    return *c;
+}
+
+BuildingCatalog buildings(const UnitCatalog& u) {
+    auto c = parse_building_catalog(kBuildings, u);
+    REQUIRE(c.has_value());
+    return *c;
+}
+
+// Catálogos de prueba con vida propia (Catalogs guarda referencias).
+struct TestCatalogs {
+    TerrainCatalog terrain = catalog();
+    UnitCatalog unit_catalog = units();
+    NodeCatalog node_catalog = nodes();
+    BuildingCatalog building_catalog = buildings(unit_catalog);
+
+    [[nodiscard]] Catalogs get() const { return {terrain, unit_catalog, building_catalog, node_catalog}; }
+};
+
+auto parse_engine(const std::string& text) {
+    const TestCatalogs c;
+    return parse_engine_config(text, c.get());
 }
 
 std::string replaced(std::string text, const std::string& from, const std::string& to) {
@@ -145,7 +279,7 @@ TEST_CASE("Terrenos: nombres repetidos y colores fuera de rango se rechazan") {
 }
 
 TEST_CASE("Configuración: un fichero válido se lee entero") {
-    const auto cfg = parse_engine_config(kEngine, catalog(), units());
+    const auto cfg = parse_engine(kEngine);
     REQUIRE(cfg.has_value());
     CHECK(cfg->window.title == "prueba");
     CHECK_FALSE(cfg->window.vsync);
@@ -156,7 +290,7 @@ TEST_CASE("Configuración: un fichero válido se lee entero") {
     CHECK(cfg->world.demo.unit_type == 0);
     CHECK(cfg->world.demo.count == 10);
     CHECK(cfg->world.passable_by_terrain == std::vector<std::uint8_t>{0, 1});
-    REQUIRE(cfg->world.unit_types.size() == 1);
+    REQUIRE(cfg->world.unit_types.size() == 2);
     CHECK(cfg->world.unit_types[0].speed == Fixed::from_ratio(6, 100));
     CHECK(cfg->world.movement.hpa.sector_size == 16);
     CHECK(cfg->world.movement.neighbor_radius == Fixed::from_int(2));
@@ -166,42 +300,40 @@ TEST_CASE("Configuración: un fichero válido se lee entero") {
 }
 
 TEST_CASE("Configuración: una clave ausente da un error que la nombra") {
-    const auto cfg = parse_engine_config(replaced(kEngine, "count = 10", "otra_clave = 10"), catalog(), units());
+    const auto cfg = parse_engine(replaced(kEngine, "count = 10", "otra_clave = 10"));
     REQUIRE_FALSE(cfg.has_value());
     CHECK(cfg.error().find("demo.count") != std::string::npos);
 }
 
 TEST_CASE("Configuración: las bandas del mapa se validan") {
     SUBCASE("terreno desconocido") {
-        const auto cfg = parse_engine_config(replaced(kEngine, "\"llanura\"", "\"lava\""), catalog(), units());
+        const auto cfg = parse_engine(replaced(kEngine, "\"llanura\"", "\"lava\""));
         REQUIRE_FALSE(cfg.has_value());
         CHECK(cfg.error().find("map.bands[1].terrain") != std::string::npos);
     }
     SUBCASE("no crecientes") {
-        const auto cfg = parse_engine_config(replaced(kEngine, "max_elevation = 30000", "max_elevation = 65536"),
-                                             catalog(), units());
+        const auto cfg = parse_engine(replaced(kEngine, "max_elevation = 30000", "max_elevation = 65536"));
         CHECK_FALSE(cfg.has_value());
     }
     SUBCASE("la última no cubre todo el rango") {
-        const auto cfg = parse_engine_config(replaced(kEngine, "max_elevation = 65536", "max_elevation = 60000"),
-                                             catalog(), units());
+        const auto cfg = parse_engine(replaced(kEngine, "max_elevation = 65536", "max_elevation = 60000"));
         REQUIRE_FALSE(cfg.has_value());
         CHECK(cfg.error().find("65536") != std::string::npos);
     }
 }
 
 TEST_CASE("Configuración: la proyección exige ancho = 2 x alto") {
-    const auto cfg = parse_engine_config(replaced(kEngine, "tile_height_px = 32", "tile_height_px = 30"), catalog(), units());
+    const auto cfg = parse_engine(replaced(kEngine, "tile_height_px = 32", "tile_height_px = 30"));
     REQUIRE_FALSE(cfg.has_value());
     CHECK(cfg.error().find("2:1") != std::string::npos);
 }
 
 TEST_CASE("Configuración: un decimal donde se espera un entero se rechaza") {
-    CHECK_FALSE(parse_engine_config(replaced(kEngine, "= 250", "= 0.25"), catalog(), units()).has_value());
+    CHECK_FALSE(parse_engine(replaced(kEngine, "= 250", "= 0.25")).has_value());
 }
 
 TEST_CASE("Configuración: TOML mal formado da error, no excepción") {
-    CHECK_FALSE(parse_engine_config("[window\ntitle = ", catalog(), units()).has_value());
+    CHECK_FALSE(parse_engine("[window\ntitle = ").has_value());
     CHECK_FALSE(parse_terrain_catalog("[[terrain]\n").has_value());
 }
 
@@ -212,7 +344,7 @@ TEST_CASE("Configuración: los datos del repositorio son válidos") {
 
 TEST_CASE("Unidades: el catálogo convierte milésimas a Fixed y rechaza radios mayores de media casilla") {
     const UnitCatalog c = units();
-    REQUIRE(c.types.size() == 1);
+    REQUIRE(c.types.size() == 2);
     CHECK(c.types[0].type.radius == Fixed::from_ratio(3, 10));
     CHECK(c.find("lancero") == 0);
     CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "radius_milli_tiles = 300", "radius_milli_tiles = 600"))
@@ -220,30 +352,108 @@ TEST_CASE("Unidades: el catálogo convierte milésimas a Fixed y rechaza radios 
 }
 
 TEST_CASE("Configuración: la demo debe nombrar un tipo de unidad existente") {
-    const auto cfg = parse_engine_config(replaced(kEngine, "\"lancero\"", "\"dragón\""), catalog(), units());
+    const auto cfg = parse_engine(replaced(kEngine, "\"lancero\"", "\"dragón\""));
     REQUIRE_FALSE(cfg.has_value());
     CHECK(cfg.error().find("demo.unit") != std::string::npos);
 }
 
-TEST_CASE("Guion: órdenes en orden de tick y con destino válido") {
+TEST_CASE("Guion: acciones con sus claves, en orden de tick") {
     const char* ok = R"(
+[build_site]
+gap_tiles = 2
+search_radius_tiles = 20
+
 [[order]]
 tick = 5
+action = "mover"
+player = 0
 first = 0
 count = 3
 target = [10, 20]
 
 [[order]]
 tick = 9
+action = "recoger"
+player = 1
 first = 3
 count = 1
-target = [300, 1]
+resource = "oro"
+
+[[order]]
+tick = 9
+action = "entrenar"
+player = 1
+building = "fuerte"
+unit = "peon"
+count = 2
 )";
-    const auto orders = parse_scenario(ok);
-    REQUIRE(orders.has_value());
-    REQUIRE(orders->size() == 2);
-    CHECK((*orders)[1].target.x == 300);
-    CHECK((*orders)[0].count == 3);
-    CHECK_FALSE(parse_scenario(replaced(ok, "tick = 9", "tick = 2")).has_value());
-    CHECK_FALSE(parse_scenario(replaced(ok, "[300, 1]", "[300]")).has_value());
+    const TestCatalogs c;
+    const auto sc = parse_scenario(ok, c.get());
+    REQUIRE(sc.has_value());
+    REQUIRE(sc->orders.size() == 3);
+    CHECK(sc->build_gap_tiles == 2);
+    CHECK(sc->orders[0].target.x == 10);
+    CHECK(sc->orders[1].action == ScenarioAction::Gather);
+    CHECK(sc->orders[1].resource == Resource::Gold);
+    CHECK(sc->orders[2].unit == 1);
+    CHECK(sc->orders[2].count == 2);
+    CHECK_FALSE(parse_scenario(replaced(ok, "tick = 9", "tick = 2"), c.get()).has_value());
+    CHECK_FALSE(parse_scenario(replaced(ok, "[10, 20]", "[10]"), c.get()).has_value());
+    CHECK_FALSE(parse_scenario(replaced(ok, "\"recoger\"", "\"volar\""), c.get()).has_value());
+    CHECK_FALSE(parse_scenario(replaced(ok, "\"oro\"", "\"plata\""), c.get()).has_value());
+    CHECK_FALSE(parse_scenario(replaced(ok, "unit = \"peon\"", "unit = \"grifo\""), c.get()).has_value());
+}
+
+TEST_CASE("Economía: costes, almacenes y producción se leen de los catálogos") {
+    const TestCatalogs c;
+    const auto& peon = c.unit_catalog.types[1].type;
+    CHECK(peon.worker);
+    CHECK(peon.carry_capacity == 10);
+    CHECK(peon.cost[rts::sim::resource_index(Resource::Food)] == 50);
+    CHECK(c.unit_catalog.types[0].type.cost[rts::sim::resource_index(Resource::Gold)] == 20);
+    const auto& fuerte = c.building_catalog.types[0].type;
+    CHECK(fuerte.accepts == 0x0F);
+    CHECK(fuerte.trains == std::vector<rts::sim::UnitTypeId>{1});
+    CHECK(c.building_catalog.types[1].type.accepts == 0);
+    CHECK(c.node_catalog.types[1].type.kind == Resource::Gold);
+    CHECK(c.node_catalog.types[1].type.size == 2);
+
+    // Erratas: recurso desconocido en un coste, unidad producida inexistente, un
+    // aldeano que no puede llevar nada.
+    CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "comida = 60", "comdia = 60")).has_value());
+    CHECK_FALSE(parse_building_catalog(replaced(kBuildings, "[\"peon\"]", "[\"grifo\"]"), c.unit_catalog).has_value());
+    CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "carry_capacity = 10", "carry_capacity = 0")).has_value());
+    CHECK_FALSE(parse_node_catalog(replaced(kNodes, "\"madera\"", "\"hierro\"")).has_value());
+}
+
+TEST_CASE("Configuración: jugadores, economía y preparación") {
+    const auto cfg = parse_engine(kEngine);
+    REQUIRE(cfg.has_value());
+    const auto& w = cfg->world;
+    REQUIRE(w.setup.starts.size() == 2);
+    CHECK(w.setup.starts[1].x == 50);
+    CHECK(cfg->player_colors[1][0] == 255);
+    CHECK(w.economy.gather_ticks[rts::sim::resource_index(Resource::Stone)] == 70);
+    CHECK(w.economy.interact_range == Fixed::from_ratio(1, 2));
+    CHECK(w.setup.start_building == 0);
+    CHECK(w.setup.start_unit == 1);
+    CHECK(w.setup.start_stock[rts::sim::resource_index(Resource::Wood)] == 150);
+    CHECK(w.setup.start_stock[rts::sim::resource_index(Resource::Gold)] == 0);
+    REQUIRE(w.setup.near_start.size() == 1);
+    CHECK(w.setup.near_start[0].type == 1);
+    CHECK(w.building_types.size() == 2);
+    CHECK(cfg->view.resource_colors[rts::sim::resource_index(Resource::Stone)][0] == 3);
+    CHECK(w.node_types.size() == 2);
+
+    SUBCASE("inicio fuera del mapa") {
+        CHECK_FALSE(parse_engine(replaced(kEngine, "[50, 20]", "[50, 40]")).has_value());
+    }
+    SUBCASE("tiempo de recogida nulo") {
+        CHECK_FALSE(parse_engine(replaced(kEngine, "piedra = 70", "piedra = 0")).has_value());
+    }
+    SUBCASE("edificio inicial desconocido") {
+        const auto bad = parse_engine(replaced(kEngine, "\"fuerte\"", "\"castillo\""));
+        REQUIRE_FALSE(bad.has_value());
+        CHECK(bad.error().find("setup.start_building") != std::string::npos);
+    }
 }

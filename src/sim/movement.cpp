@@ -50,6 +50,61 @@ MovementSystem::MovementSystem(const TileMap& map, std::span<const std::uint8_t>
     assert(params.max_neighbors > 0);
     assert(params.time_horizon_ticks > 0);
     fields_.resize(static_cast<std::size_t>(std::max(params.flow_field_cache_size, 1)));
+    dirty_sectors_.assign(hpa_.sector_count(), 0);
+}
+
+void MovementSystem::set_blocked(TileCoord c, bool blocked) {
+    if (grid_.blocked(c) == blocked) {
+        return;
+    }
+    grid_.set_blocked(c, blocked);
+    dirty_sectors_[static_cast<std::size_t>(hpa_.sector_of(c))] = 1;
+    grid_dirty_ = true;
+}
+
+void MovementSystem::commit_grid_changes(entt::registry& registry) {
+    if (!grid_dirty_) {
+        return;
+    }
+    grid_.relabel_components();
+    stats_.sectors_rebuilt += hpa_.rebuild(grid_, dirty_sectors_, search_);
+
+    // Campos de flujo cuyo pasillo toca un sector cambiado: el mismo Dijkstra, otra vez.
+    for (CachedField& cf : fields_) {
+        if (!cf.field) {
+            continue;
+        }
+        bool touched = false;
+        for (std::size_t sct = 0; sct < cf.corridor.size() && !touched; ++sct) {
+            touched = cf.corridor[sct] != 0 && dirty_sectors_[sct] != 0;
+        }
+        if (touched) {
+            const TileCoord goal = cf.field->goal();
+            cf.field = std::make_unique<FlowField>(grid_, goal, SectorMask{cf.corridor, hpa_.sector_size(), hpa_.sectors_w()},
+                                                   search_);
+            ++stats_.flow_fields_built;
+        }
+    }
+
+    // Caminos en curso que ahora pisan una casilla bloqueada: a replanificar.
+    for (const auto [e, follow] : registry.view<PathFollow>().each()) {
+        if (follow.waiting) {
+            continue;
+        }
+        bool blocked = false;
+        for (std::size_t i = follow.next_tile; i < follow.segment.size() && !blocked; ++i) {
+            blocked = !grid_.passable(follow.segment[i]);
+        }
+        for (std::size_t i = follow.next_waypoint; i < follow.waypoints.size() && !blocked; ++i) {
+            blocked = !grid_.passable(follow.waypoints[i]);
+        }
+        if (blocked) {
+            enqueue_path(e, follow);
+            ++stats_.paths_invalidated;
+        }
+    }
+    std::ranges::fill(dirty_sectors_, std::uint8_t{0});
+    grid_dirty_ = false;
 }
 
 const FlowField* MovementSystem::flow_field_of(const MoveGoal& goal) const noexcept {
@@ -66,23 +121,16 @@ void MovementSystem::enqueue_path(entt::entity e, PathFollow& follow) {
     path_queue_.push_back(e);
 }
 
-void MovementSystem::apply(entt::registry& registry, const Command& command, std::uint32_t order_id, Tick tick) {
-    std::vector<entt::entity> units;
-    for (const std::uint32_t id : command.units) {
-        const auto e = static_cast<entt::entity>(id);
-        if (registry.valid(e) && registry.all_of<Unit, Position>(e)) {
-            units.push_back(e);
-        }
+void MovementSystem::stop(entt::registry& registry, std::span<const entt::entity> units) {
+    for (const entt::entity e : units) {
+        registry.remove<MoveGoal, PathFollow>(e);
     }
-    if (command.type == CommandType::Stop) {
-        for (const entt::entity e : units) {
-            registry.remove<MoveGoal, PathFollow>(e);
-        }
-        return;
-    }
+}
 
-    const TileCoord target{std::clamp(command.target.x, 0, grid_.width() - 1),
-                           std::clamp(command.target.y, 0, grid_.height() - 1)};
+void MovementSystem::order_move(entt::registry& registry, std::span<const entt::entity> units, TileCoord target_in,
+                                std::uint32_t order_id, Tick tick) {
+    const TileCoord target{std::clamp(target_in.x, 0, grid_.width() - 1),
+                           std::clamp(target_in.y, 0, grid_.height() - 1)};
     struct Resolved {
         entt::entity e;
         TileCoord goal;
@@ -237,6 +285,7 @@ std::int32_t MovementSystem::build_flow_field(entt::registry& registry, std::spa
     }
     fields_[slot].field =
         std::make_unique<FlowField>(grid_, goal, SectorMask{corridor, hpa_.sector_size(), sw}, search_);
+    fields_[slot].corridor = std::move(corridor);
     fields_[slot].order_id = order_id;
     fields_[slot].last_used = tick;
     ++stats_.flow_fields_built;

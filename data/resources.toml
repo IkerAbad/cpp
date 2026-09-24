@@ -1,0 +1,32 @@
+# Tipos de nodo de recurso. El identificador de cada tipo es su posición en la lista.
+# resource: comida, madera, piedra u oro. amount: unidades que contiene al empezar.
+# size_tiles: lado de la huella en casillas; el nodo bloquea esas casillas hasta que
+# se agota. color: RGB provisional.
+
+[[node]]
+name = "arbol"
+resource = "madera"
+amount = 100
+size_tiles = 1
+color = [16, 50, 22]
+
+[[node]]
+name = "arbusto_bayas"
+resource = "comida"
+amount = 125
+size_tiles = 1
+color = [168, 52, 92]
+
+[[node]]
+name = "mina_piedra"
+resource = "piedra"
+amount = 350
+size_tiles = 2
+color = [168, 168, 172]
+
+[[node]]
+name = "mina_oro"
+resource = "oro"
+amount = 800
+size_tiles = 2
+color = [232, 192, 56]

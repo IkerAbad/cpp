@@ -36,10 +36,13 @@ WorldParams bench_params(std::int32_t units) {
     p.map.elevation_levels = 8;
     p.map.bands = {{20'000, 0}, {45'000, 1}, {rts::sim::kElevationRange, 2}};
     p.passable_by_terrain = {0, 1, 1};
-    p.unit_types = {{Fixed::from_ratio(3, 10), Fixed::from_ratio(6, 100)}};
+    rts::sim::UnitType soldier;
+    soldier.radius = Fixed::from_ratio(3, 10);
+    soldier.speed = Fixed::from_ratio(6, 100);
+    p.unit_types = {soldier};
     auto& m = p.movement;
     m.hpa = {16, 8};
-    m.path_node_budget_per_tick = 20'000;
+    m.path_node_budget_per_tick = 60'000;
     m.flow_field_min_group = 8;
     m.flow_field_cache_size = 4;
     m.retarget_radius_tiles = 16;

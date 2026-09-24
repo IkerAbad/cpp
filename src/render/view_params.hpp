@@ -24,6 +24,15 @@ struct ViewParams {
     Rgba marker_selected_color{};
     Rgba selection_rect_color{};  // alfa < 255: relleno translúcido
     Rgba hover_tile_color{};
+
+    // Objetos estáticos (M3): lado del rombo interior respecto a la huella, brillo de un
+    // edificio en obra y colores del fantasma de colocación y de cada recurso.
+    std::int32_t building_body_percent = 0;
+    std::int32_t node_body_percent = 0;
+    std::int32_t construction_shade_percent = 0;
+    Rgba ghost_valid_color{};
+    Rgba ghost_invalid_color{};
+    std::array<Rgba, 4> resource_colors{};  // por sim::Resource
 };
 
 }  // namespace rts::render

@@ -46,6 +46,9 @@ inline constexpr std::array<Direction, 8> kDirections{{
     return kStraightCost * hi + (kDiagonalCost - kStraightCost) * lo;
 }
 
+// Transitabilidad = terreno transitable y sin objeto estático encima (edificio, árbol,
+// mina). La capa de bloqueo vive aquí y no en el TileMap: el mapa del terreno no cambia
+// durante la partida y los snapshots lo comparten sin copiarlo.
 class PassGrid {
 public:
     // passable_by_terrain[id] indica si el terreno id es transitable.
@@ -64,6 +67,16 @@ public:
                 static_cast<std::int32_t>(i / static_cast<std::size_t>(width_))};
     }
     [[nodiscard]] bool passable(TileCoord c) const noexcept { return contains(c) && pass_[index(c)] != 0; }
+    // Solo el terreno, sin objetos: dónde se puede colocar algo.
+    [[nodiscard]] bool terrain_passable(TileCoord c) const noexcept {
+        return contains(c) && terrain_pass_[index(c)] != 0;
+    }
+    [[nodiscard]] bool blocked(TileCoord c) const noexcept { return contains(c) && blocked_[index(c)] != 0; }
+
+    // Marca o libera una casilla ocupada por un objeto estático. Las componentes quedan
+    // desfasadas hasta relabel_components(): los cambios de un tick se agrupan.
+    void set_blocked(TileCoord c, bool blocked) noexcept;
+    void relabel_components() { label_components(); }
 
     // ¿Se puede ir de c a c + d en un paso? (incluye la regla de no atajar esquinas)
     [[nodiscard]] bool can_step(TileCoord c, const Direction& d) const noexcept;
@@ -71,6 +84,10 @@ public:
     // Componente conexa de la casilla (0 = no transitable). Dos casillas son mutuamente
     // alcanzables si y solo si comparten componente.
     [[nodiscard]] std::uint32_t component(TileCoord c) const noexcept { return passable(c) ? comp_[index(c)] : 0; }
+    // Casillas de una componente (0 si no existe).
+    [[nodiscard]] std::uint32_t component_size(std::uint32_t component) const noexcept {
+        return component < comp_size_.size() ? comp_size_[component] : 0;
+    }
 
     // Casilla transitable más cercana a target (BFS en anillos) dentro de la componente
     // pedida. nullopt si no hay ninguna en un radio de max_radius casillas.
@@ -82,8 +99,11 @@ private:
 
     std::int32_t width_;
     std::int32_t height_;
-    std::vector<std::uint8_t> pass_;
+    std::vector<std::uint8_t> terrain_pass_;
+    std::vector<std::uint8_t> blocked_;
+    std::vector<std::uint8_t> pass_;  // terrain_pass_ && !blocked_
     std::vector<std::uint32_t> comp_;
+    std::vector<std::uint32_t> comp_size_;  // por componente; [0] sin uso
 };
 
 // Rectángulo de casillas [x0, x1) x [y0, y1) al que se restringe una búsqueda.

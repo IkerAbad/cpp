@@ -27,13 +27,22 @@ struct HeapGreater {
 
 PassGrid::PassGrid(const TileMap& map, std::span<const std::uint8_t> passable_by_terrain)
     : width_(map.width()), height_(map.height()) {
-    pass_.resize(static_cast<std::size_t>(map.tile_count()));
+    terrain_pass_.resize(static_cast<std::size_t>(map.tile_count()));
     const auto terrain = map.terrain_layer();
-    for (std::size_t i = 0; i < pass_.size(); ++i) {
+    for (std::size_t i = 0; i < terrain_pass_.size(); ++i) {
         assert(terrain[i] < passable_by_terrain.size());
-        pass_[i] = passable_by_terrain[terrain[i]] != 0 ? 1 : 0;
+        terrain_pass_[i] = passable_by_terrain[terrain[i]] != 0 ? 1 : 0;
     }
+    blocked_.assign(terrain_pass_.size(), 0);
+    pass_ = terrain_pass_;
     label_components();
+}
+
+void PassGrid::set_blocked(TileCoord c, bool blocked) noexcept {
+    assert(contains(c));
+    const std::size_t i = index(c);
+    blocked_[i] = blocked ? 1 : 0;
+    pass_[i] = terrain_pass_[i] != 0 && !blocked ? 1 : 0;
 }
 
 bool PassGrid::can_step(TileCoord c, const Direction& d) const noexcept {
@@ -49,6 +58,7 @@ bool PassGrid::can_step(TileCoord c, const Direction& d) const noexcept {
 
 void PassGrid::label_components() {
     comp_.assign(pass_.size(), 0);
+    comp_size_.assign(1, 0);
     std::uint32_t next = 1;
     std::vector<std::size_t> stack;
     for (std::size_t start = 0; start < pass_.size(); ++start) {
@@ -56,10 +66,12 @@ void PassGrid::label_components() {
             continue;
         }
         comp_[start] = next;
+        comp_size_.push_back(0);
         stack.push_back(start);
         while (!stack.empty()) {
             const std::size_t i = stack.back();
             stack.pop_back();
+            ++comp_size_[next];
             const TileCoord c = coord(i);
             for (const Direction& d : kDirections) {
                 if (!can_step(c, d)) {
