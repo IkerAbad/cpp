@@ -66,15 +66,40 @@ jobs:
             "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
           fi
 
-      - name: Caché binaria de vcpkg
-        uses: actions/cache@v4
+      # La caché se restaura antes de configurar y se guarda justo después, aunque
+      # la compilación falle luego: vcpkg instala las dependencias en la
+      # configuración. La clave incluye un resumen de los paquetes presentes, así
+      # que solo se guarda de nuevo cuando vcpkg ha compilado algo.
+      - name: Restaurar caché binaria de vcpkg
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}
-          restore-keys: vcpkg-${{ matrix.name }}-
+          key: vcpkg-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}-
+          restore-keys: |
+            vcpkg-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}-
+            vcpkg-${{ matrix.name }}-
 
       - name: Configurar
+        id: configure
         run: cmake --preset ${{ matrix.preset }}
+
+      - name: Clave de la caché según su contenido
+        id: cache-key
+        if: always() && steps.configure.outcome != 'skipped'
+        run: |
+          # Python y no find/sort: en Windows, System32 trae find.exe y sort.exe.
+          digest=$(python -c "import hashlib, pathlib, sys; names = sorted(p.name for p in pathlib.Path(sys.argv[1]).rglob('*.zip')); print(hashlib.sha256(chr(10).join(names).encode()).hexdigest()[:16])" "$VCPKG_DEFAULT_BINARY_CACHE")
+          echo "key=vcpkg-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}-$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Guardar caché binaria de vcpkg
+        if: >-
+          always() && steps.cache-key.outputs.key != '' &&
+          steps.cache-key.outputs.key != steps.vcpkg-cache.outputs.cache-matched-key
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: ${{ steps.cache-key.outputs.key }}
 
       - name: Compilar
         run: cmake --build --preset ${{ matrix.preset }}
