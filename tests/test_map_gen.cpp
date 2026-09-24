@@ -1,5 +1,7 @@
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 
 #include <doctest/doctest.h>
 

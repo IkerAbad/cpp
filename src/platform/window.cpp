@@ -1,6 +1,7 @@
 #include "platform/window.hpp"
 
 #include <format>
+#include <utility>
 
 #include <SDL3/SDL.h>
 
