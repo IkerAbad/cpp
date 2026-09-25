@@ -6,7 +6,10 @@
 // arqueros) que avanzan uno contra otro con ataque-movimiento: adquisición de
 // blancos, persecución, proyectiles, muertes y niveles a la vez.
 //
-// Uso: rts_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1]
+// Modo IA (--ai-data <carpeta>): la partida por defecto de esa carpeta de datos con
+// todos los jugadores controlados por la IA (economía, obras, oleadas y batallas).
+//
+// Uso: rts_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1] [--ai-data <carpeta>]
 // Mide el tiempo de cada tick y termina con código 1 si el máximo supera X ms
 // (criterio de M2: 50 ms, el presupuesto de un tick a 20 Hz).
 
@@ -16,9 +19,12 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
+#include <optional>
 #include <string_view>
 #include <vector>
 
+#include "game/config.hpp"
 #include "sim/world.hpp"
 
 namespace {
@@ -168,8 +174,13 @@ int main(int argc, char** argv) {
     std::int64_t ticks = 1200;
     std::int64_t max_ms = 50;
     std::int64_t combat = 0;
+    std::string_view ai_data;
     for (int i = 1; i + 1 < argc; i += 2) {
         const std::string_view key = argv[i];
+        if (key == "--ai-data") {
+            ai_data = argv[i + 1];
+            continue;
+        }
         std::int64_t* target = key == "--units"    ? &units
                                : key == "--ticks"  ? &ticks
                                : key == "--max-ms" ? &max_ms
@@ -178,7 +189,8 @@ int main(int argc, char** argv) {
         const bool ok = target == &combat ? (argv[i + 1] == std::string_view("0") || argv[i + 1] == std::string_view("1"))
                                           : target != nullptr && parse_arg(argv[i + 1], *target);
         if (!ok) {
-            std::fprintf(stderr, "Uso: rts_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1]\n");
+            std::fprintf(stderr,
+                         "Uso: rts_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1] [--ai-data <carpeta>]\n");
             return 2;
         }
         if (target == &combat) {
@@ -188,8 +200,22 @@ int main(int argc, char** argv) {
 
     using Clock = std::chrono::steady_clock;
     const auto setup_start = Clock::now();
-    World world = combat != 0 ? make_battle(units) : World(bench_params(static_cast<std::int32_t>(units)));
-    if (combat == 0) {
+    std::optional<rts::game::GameData> data;
+    if (!ai_data.empty()) {
+        auto loaded = rts::game::load_game_data(std::filesystem::path(ai_data));
+        if (!loaded) {
+            std::fprintf(stderr, "%s\n", loaded.error().c_str());
+            return 2;
+        }
+        data = std::move(*loaded);
+        data->engine.world.ai_players.clear();
+        for (std::size_t p = 0; p < data->engine.world.setup.starts.size(); ++p) {
+            data->engine.world.ai_players.push_back(static_cast<rts::sim::PlayerId>(p));
+        }
+    }
+    World world = data ? World(data->engine.world)
+                       : (combat != 0 ? make_battle(units) : World(bench_params(static_cast<std::int32_t>(units))));
+    if (!data && combat == 0) {
         issue_script(world);
     }
     const double setup_ms = std::chrono::duration<double, std::milli>(Clock::now() - setup_start).count();

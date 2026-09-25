@@ -11,10 +11,11 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M1 | Mapa isométrico por casillas, cámara, selección por rectángulo | hecho, en revisión |
 | M2 | Unidades, HPA*, campos de flujo, evitación local, banco de 1000/2000 unidades | hecho |
 | M3 | Economía: 4 recursos, aldeanos, construcción, colas de producción | hecho |
-| M4 | Combate con proyectiles esquivables, experiencia por unidad y héroes | **en curso** |
+| M4 | Combate con proyectiles esquivables, experiencia por unidad y héroes | hecho |
+| M7 (adelantado) | IA básica que juega con las mismas reglas que un humano; victoria y derrota | **en curso** |
 | M5 | Repeticiones deterministas | — |
 | M6 | Logística | — |
-| M7 | IA | — |
+| M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | — |
 | M8 | Multijugador lockstep | — |
 
 ## Requisitos
@@ -206,6 +207,19 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 - **Muerte.** La entidad se destruye. Un edificio libera su huella con la actualización incremental de M3 (prueba: el grafo queda igual que uno construido desde cero).
 - **Presentación.** Barras de vida, proyectiles en vuelo, anillo dorado de héroe, nivel y experiencia en el panel.
 
+### IA básica (adelanto de M7)
+
+- **Dentro de la simulación.** Es determinista, corre igual en todas las máquinas y en red no habrá que enviar sus órdenes. Solo lee el estado y emite las mismas órdenes que un humano, que se validan igual.
+- **Sin trampas.** No recibe recursos ni ventajas; paga lo mismo que el jugador (prueba: sus existencias nunca bajan de cero). Las dificultades futuras saldrán de jugar mejor, no de hacer trampas.
+- **Qué hace** (una vez por segundo, `[ai]` en `engine.toml`):
+  - Entrena aldeanos hasta su objetivo y los reparte entre recursos según porcentajes, solo entre los que quedan en el mapa.
+  - Construye casas antes de quedarse sin plazas, el cuartel a partir de cierto número de aldeanos, granjas cuando no le queda comida natural cerca y almacenes junto a recursos lejanos.
+  - Entrena en el cuartel la primera unidad de su ciclo que pueda pagar.
+  - Ataca con ataque-movimiento cuando reúne una oleada (cada una mayor) y defiende su base: saca el ejército y refugia a los aldeanos amenazados.
+- **Granjas.** Un edificio que, terminado, da comida a su dueño hasta agotarse; la comida natural no dura toda la partida.
+- **Victoria y derrota.** Pierde quien se queda sin unidades ni edificios después de haberlos tenido. La pantalla muestra el resultado.
+- **Configuración.** En `engine.toml`, cada jugador lleva `controller = "humano"` o `"ia"`; por defecto juegas tú (jugador 0) contra la IA.
+
 ### Convenciones de `data/`
 
 - Solo enteros. Una magnitud fraccionaria se escribe en una unidad menor que figura en el nombre de la clave: `max_speed_milli_tiles_per_tick = 150` significa 0,150 casillas por tick. Así la carga no depende del redondeo decimal→binario de cada plataforma.
@@ -229,12 +243,13 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 | `unit` | Punto fijo, RNG contra los vectores de referencia de los autores, reloj de paso fijo, configuración, generación de mapas, proyección y recorte (contra fuerza bruta en 200 cámaras), cámara, selección, atlas, escena, caminos y movimiento, economía, regresión por hash |
 | `unit`: economía | Tiempo exacto de recogida (ciclo de 121 ticks), conservación (existencias + carga + nodos = constante en cada tick), agotamiento que libera la casilla, cola (cobro, reembolso, capacidad, otro jugador), pausa por población, 1 frente a 3 constructores, colocación inválida sin cobro, replanificación sin pisar casillas bloqueadas, HPA\* incremental idéntico al construido desde cero, preparación de partida |
 | `unit`: combate | Fórmula de daño (armaduras, bonus, mínimo 1, porcentaje de nivel), duelo simétrico con muerte en el mismo tick, proyectil que acierta a un blanco quieto y falla a uno que se mueve, niveles y héroe con aura, posturas, ataque-movimiento, edificio destruido que libera casillas, determinismo tick a tick |
-| `unit`: regresión | Hashes tras 1200 ticks de movimiento con 500 unidades, 1500 ticks de una partida económica de dos jugadores y 600 ticks de una batalla de 30 contra 30 |
+| `unit`: IA | Contra un rival quieto crece, construye cuartel y granjas, ataca y lo derrota en 11 minutos sin gastar lo que no tiene; dos IA juegan la misma partida tick a tick; derrota al quedarse sin nada |
+| `unit`: regresión | Hashes tras 1200 ticks de movimiento con 500 unidades, 1500 ticks de una partida económica de dos jugadores y 600 ticks de una batalla de 30 contra 30 y 3000 ticks de una partida IA contra IA |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
-| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades, en movimiento y en batalla: falla si algún tick supera 50 ms |
+| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms |
 
 Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el cambio de diseño es intencionado, se actualiza `kExpectedHash` en el mismo commit y se justifica en el mensaje.
 
@@ -267,6 +282,7 @@ Con más presupuesto, el tick del aluvión de 400 órdenes (el 800) resuelve má
 | Partida por defecto: mapa + preparación (6792 árboles, minas, edificios) + HPA\* | ~80 ms, una vez |
 | Partida por defecto: tick de simulación + snapshot con 6790 objetos | 0,157 ms (el snapshot, 0,087 ms) |
 | `state_hash()` de la partida por defecto (una vez por fotograma en el panel) | 0,38 ms |
+| IA contra IA, 30 minutos de la partida por defecto | 0,15 ms/tick de media, 12,6 ms el peor tick |
 
 ## Licencia
 

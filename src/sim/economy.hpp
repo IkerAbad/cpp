@@ -46,6 +46,9 @@ struct BuildingType {
     std::uint8_t accepts = 0;      // almacén: bit resource_index(r) si admite el recurso r
     std::int32_t population = 0;   // plazas de población que aporta terminado
     std::vector<UnitTypeId> trains;
+    // Granja: al terminarse se convierte en un nodo de comida de su dueño con esta
+    // cantidad (0 = no es granja). Se agota y desaparece como cualquier nodo.
+    std::int32_t farm_food = 0;
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {
@@ -120,6 +123,8 @@ struct PlayerState {
     Stock stock{};
     std::int32_t population = 0;
     std::int32_t population_cap = 0;
+    bool started = false;   // ha tenido alguna unidad o edificio
+    bool defeated = false;  // los perdió todos después de tenerlos
 };
 
 struct EconomyTickStats {
@@ -165,6 +170,8 @@ public:
     [[nodiscard]] bool can_place(const entt::registry& registry, const PassGrid& grid, std::int32_t size,
                                  TileCoord origin) const;
     [[nodiscard]] entt::entity occupant(TileCoord c) const noexcept;
+    // Nodo explotable por el jugador: sin dueño (natural) o suyo (granja).
+    [[nodiscard]] static bool can_gather(const entt::registry& registry, entt::entity node, PlayerId player);
 
     // Población y tope de cada jugador; update() lo recalcula al empezar cada tick.
     void recount_population(const entt::registry& registry);
@@ -199,8 +206,8 @@ private:
     void start_gather(Worker& w, entt::entity node, const Footprint& f, Resource kind) const;
     [[nodiscard]] bool has_room(const entt::registry& registry, entt::entity node) const;
     [[nodiscard]] std::optional<entt::entity> find_node_near(const entt::registry& registry, const PassGrid& grid,
-                                                             Resource kind, TileCoord center, std::uint32_t component,
-                                                             entt::entity exclude) const;
+                                                             PlayerId player, Resource kind, TileCoord center,
+                                                             std::uint32_t component, entt::entity exclude) const;
     [[nodiscard]] std::optional<entt::entity> nearest_dropoff(const entt::registry& registry, PlayerId player,
                                                               Resource kind, TileCoord from) const;
     void deplete(entt::registry& registry, MovementSystem& movement, entt::entity node);

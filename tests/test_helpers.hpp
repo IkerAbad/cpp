@@ -52,6 +52,8 @@ inline constexpr sim::ArmorClassId kClassBuilding = 3;
 inline constexpr sim::BuildingTypeId kCenter = 0;
 inline constexpr sim::BuildingTypeId kHouse = 1;
 inline constexpr sim::BuildingTypeId kLumberCamp = 2;
+inline constexpr sim::BuildingTypeId kBarracks = 3;
+inline constexpr sim::BuildingTypeId kFarm = 4;
 inline constexpr sim::NodeTypeId kTree = 0;
 inline constexpr sim::NodeTypeId kGoldMine = 1;
 inline constexpr sim::NodeTypeId kBerries = 2;
@@ -132,7 +134,23 @@ inline std::vector<sim::BuildingType> test_building_types() {
     camp.hp = 600;
     camp.accepts = sim::resource_bit(sim::Resource::Wood);
     camp.armor_class = kClassBuilding;
-    return {center, house, camp};
+    sim::BuildingType barracks;
+    barracks.size = 3;
+    barracks.cost = stock(0, 150, 0, 0);
+    barracks.build_ticks = 400;
+    barracks.hp = 800;
+    barracks.armor_melee = 2;
+    barracks.armor_pierce = 6;
+    barracks.armor_class = kClassBuilding;
+    barracks.trains = {kSoldier, kArcher};
+    sim::BuildingType farm;
+    farm.size = 2;
+    farm.cost = stock(0, 60, 0, 0);
+    farm.build_ticks = 150;
+    farm.hp = 200;
+    farm.armor_class = kClassBuilding;
+    farm.farm_food = 200;
+    return {center, house, camp, barracks, farm};
 }
 
 inline std::vector<sim::ResourceNodeType> test_node_types() {
@@ -170,6 +188,31 @@ inline sim::CombatParams test_combat_params() {
     return c;
 }
 
+inline sim::AiParams test_ai_params() {
+    sim::AiParams a;
+    a.think_interval_ticks = 20;
+    a.villager_target = 15;
+    a.gather_percent = {40, 35, 10, 15};
+    a.house_margin = 3;
+    a.barracks_at_villagers = 8;
+    a.dropoff_distance_tiles = 12;
+    a.dropoff_min_gatherers = 3;
+    a.builders = 2;
+    a.gatherers_per_farm = 2;
+    a.build_gap_tiles = 1;
+    a.build_search_radius_tiles = 24;
+    a.first_wave = 4;
+    a.wave_growth = 2;
+    a.defend_radius_tiles = 14;
+    a.worker_type = kVillager;
+    a.army = {kSoldier, kArcher};
+    a.house = kHouse;
+    a.barracks = kBarracks;
+    a.farm = kFarm;
+    a.dropoff = {kCenter, kLumberCamp, kCenter, kCenter};
+    return a;
+}
+
 inline sim::WorldParams test_world_params(std::int32_t units = 1000, std::int32_t area = 64) {
     sim::WorldParams p;
     p.map = test_map_params();
@@ -179,6 +222,7 @@ inline sim::WorldParams test_world_params(std::int32_t units = 1000, std::int32_
     p.node_types = test_node_types();
     p.economy = test_economy_params();
     p.combat = test_combat_params();
+    p.ai = test_ai_params();
     p.movement = test_movement_params();
     p.demo.seed = 0x5EED'2026'0924ULL;
     p.demo.unit_type = 0;

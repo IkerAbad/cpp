@@ -301,7 +301,7 @@ TEST_CASE("Regresión: hash de una batalla de 30 contra 30 tras 600 ticks") {
     for (int t = 0; t < 600; ++t) {
         world.step();
     }
-    constexpr std::uint64_t kExpectedHash = 0x4014739e1572ee62ULL;
+    constexpr std::uint64_t kExpectedHash = 0x939ac3483605b1a2ULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }

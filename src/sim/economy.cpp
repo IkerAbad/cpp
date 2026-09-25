@@ -298,7 +298,7 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             return;
 
         case CommandType::Gather: {
-            if (!has_object || !registry.all_of<ResourceNode, Footprint>(object)) {
+            if (!has_object || !can_gather(registry, object, player)) {
                 return;
             }
             const Resource kind = registry.get<ResourceNode>(object).kind;
@@ -315,7 +315,8 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
                 if (!has_room(registry, object)) {
                     const Position& p = registry.get<Position>(e);
                     const std::uint32_t comp = movement.grid().component(tile_of({p.x, p.y}));
-                    target = find_node_near(registry, movement.grid(), kind, f.origin, comp, object).value_or(object);
+                    target = find_node_near(registry, movement.grid(), player, kind, f.origin, comp, object)
+                                 .value_or(object);
                 }
                 start_gather(*w, target, registry.get<Footprint>(target), kind);
             }
@@ -430,8 +431,19 @@ void EconomySystem::recount_population(const entt::registry& registry) {
             players_[buildings.get<const Owner>(e).player].population_cap += catalog_.buildings[b.type].population;
         }
     }
-    for (PlayerState& p : players_) {
+    // Derrota: un jugador que tuvo algo y ya no tiene unidades ni edificios.
+    std::vector<std::uint8_t> present(players_.size(), 0);
+    for (const entt::entity e : units) {
+        present[units.get<const Owner>(e).player] = 1;
+    }
+    for (const entt::entity e : buildings) {
+        present[buildings.get<const Owner>(e).player] = 1;
+    }
+    for (std::size_t i = 0; i < players_.size(); ++i) {
+        PlayerState& p = players_[i];
         p.population_cap = std::min(p.population_cap, params_.max_population);
+        p.started = p.started || present[i] != 0;
+        p.defeated = p.started && present[i] == 0;
     }
 }
 
@@ -521,10 +533,11 @@ void EconomySystem::step_gather(entt::registry& registry, MovementSystem& moveme
     }
     const Position& pos = registry.get<Position>(e);
     const std::uint32_t component = movement.grid().component(tile_of({pos.x, pos.y}));
-    if (!registry.valid(w.node) || !registry.all_of<ResourceNode>(w.node)) {
+    const PlayerId me = registry.get<Owner>(e).player;
+    if (!can_gather(registry, w.node, me)) {
         // Agotado (por él o por otro): otro nodo del mismo recurso cerca del anterior.
         const auto next =
-            find_node_near(registry, movement.grid(), w.gather_kind, w.gather_area, component, entt::null);
+            find_node_near(registry, movement.grid(), me, w.gather_kind, w.gather_area, component, entt::null);
         if (!next) {
             if (w.carried > 0) {
                 go_deliver();
@@ -544,7 +557,8 @@ void EconomySystem::step_gather(entt::registry& registry, MovementSystem& moveme
         case Approach::Failed: {
             // Inalcanzable (rodeado de otros aldeanos o aislado): otro nodo cercano.
             const auto other = ++w.retargets <= params_.approach_attempts
-                                   ? find_node_near(registry, movement.grid(), w.gather_kind, f.origin, component, w.node)
+                                   ? find_node_near(registry, movement.grid(), me, w.gather_kind, f.origin,
+                                                    component, w.node)
                                    : std::nullopt;
             if (!other) {
                 if (w.carried > 0) {
@@ -658,12 +672,23 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
     health.hp = std::min(health.max_hp, health.hp + static_cast<std::int32_t>(after - before));
     if (b.progress >= bt.build_ticks) {
         b.complete = true;
+        if (bt.farm_food > 0) {
+            registry.emplace<ResourceNode>(w.building, NodeTypeId{0}, Resource::Food, bt.farm_food);
+        }
     }
 }
 
+bool EconomySystem::can_gather(const entt::registry& registry, entt::entity node, PlayerId player) {
+    if (!registry.valid(node) || !registry.all_of<ResourceNode, Footprint>(node)) {
+        return false;
+    }
+    const Owner* owner = registry.try_get<Owner>(node);
+    return owner == nullptr || owner->player == player;
+}
+
 std::optional<entt::entity> EconomySystem::find_node_near(const entt::registry& registry, const PassGrid& grid,
-                                                          Resource kind, TileCoord center, std::uint32_t component,
-                                                          entt::entity exclude) const {
+                                                          PlayerId player, Resource kind, TileCoord center,
+                                                          std::uint32_t component, entt::entity exclude) const {
     if (center.x < 0 || component == 0) {
         return std::nullopt;
     }
@@ -688,7 +713,7 @@ std::optional<entt::entity> EconomySystem::find_node_near(const entt::registry& 
                 return;
             }
             const ResourceNode* rn = registry.try_get<ResourceNode>(o);
-            if (rn == nullptr || rn->kind != kind) {
+            if (rn == nullptr || rn->kind != kind || !can_gather(registry, o, player)) {
                 return;
             }
             const std::int32_t d = octile_distance(center, c);
@@ -783,6 +808,8 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
         }
         h.add_i32(p.population);
         h.add_i32(p.population_cap);
+        h.add_u32(p.started ? 1U : 0U);
+        h.add_u32(p.defeated ? 1U : 0U);
     }
     // La ocupación de la rejilla se deriva de las huellas: basta con hashear estas.
     for (const auto [e, o] : registry.view<const Owner>().each()) {

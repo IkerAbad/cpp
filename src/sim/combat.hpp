@@ -114,6 +114,9 @@ private:
     void mark_auras(const entt::registry& registry);
     [[nodiscard]] bool is_enemy_target(const entt::registry& registry, entt::entity target, PlayerId me) const;
     [[nodiscard]] entt::entity acquire(std::size_t i, Fixed sight) const;
+    // Sin unidades enemigas a la vista: el edificio enemigo más cercano dentro de ella.
+    [[nodiscard]] entt::entity acquire_building(const entt::registry& registry, const EconomySystem& economy,
+                                                std::size_t i, std::int32_t sight_tiles) const;
     [[nodiscard]] bool in_range(const entt::registry& registry, FVec2 pos, Fixed radius, Fixed range,
                                 entt::entity target) const;
     [[nodiscard]] FVec2 aim_point(const entt::registry& registry, entt::entity target) const;

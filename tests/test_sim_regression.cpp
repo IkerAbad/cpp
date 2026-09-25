@@ -46,7 +46,7 @@ TEST_CASE("Regresión: hash de estado tras 1 200 ticks con 500 unidades en movim
     // cubre 1000 y 2000 unidades en Release.
     World world(test_world_params(500, 64));
     run_script(world);
-    constexpr std::uint64_t kExpectedHash = 0xd04f2d7be32af921ULL;
+    constexpr std::uint64_t kExpectedHash = 0x3d9691fc59ca0400ULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }
@@ -168,7 +168,7 @@ TEST_CASE("Regresión: hash de estado de una partida económica de 1 500 ticks")
     // Las dos casas se construyen (tope 10) y cada jugador entrena sus 3 aldeanos.
     CHECK(snap.players[0].population_cap == 10);
     CHECK(snap.players[1].population == 8);
-    constexpr std::uint64_t kExpectedHash = 0x1159293821ac1e26ULL;
+    constexpr std::uint64_t kExpectedHash = 0xc5aa554b5080359aULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }

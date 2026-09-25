@@ -244,6 +244,31 @@ entt::entity CombatSystem::acquire(std::size_t i, Fixed sight) const {
     return best < s_.entity.size() ? s_.entity[best] : entt::entity{entt::null};
 }
 
+entt::entity CombatSystem::acquire_building(const entt::registry& registry, const EconomySystem& economy,
+                                            std::size_t i, std::int32_t sight_tiles) const {
+    const TileCoord t = tile_of(s_.pos[i]);
+    const Fixed sight = Fixed::from_int(sight_tiles);
+    const std::int64_t sight_sq = mul_wide(sight, sight);
+    entt::entity best = entt::null;
+    std::int64_t best_d = std::numeric_limits<std::int64_t>::max();
+    // Recorrido fijo por filas: a igual distancia gana el primero encontrado.
+    for (std::int32_t y = t.y - sight_tiles; y <= t.y + sight_tiles; ++y) {
+        for (std::int32_t x = t.x - sight_tiles; x <= t.x + sight_tiles; ++x) {
+            const entt::entity o = economy.occupant({x, y});
+            if (o == entt::null || o == best || !registry.all_of<Building, Owner, Health>(o) ||
+                registry.get<Owner>(o).player == s_.owner[i]) {
+                continue;
+            }
+            const std::int64_t d = distance_sq_to(registry.get<Footprint>(o), s_.pos[i]);
+            if (d <= sight_sq && d < best_d) {
+                best_d = d;
+                best = o;
+            }
+        }
+    }
+    return best;
+}
+
 bool CombatSystem::in_range(const entt::registry& registry, FVec2 pos, Fixed radius, Fixed range,
                             entt::entity target) const {
     if (const Unit* u = registry.try_get<Unit>(target)) {
@@ -328,7 +353,10 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                 idle = false;
             }
             if (idle) {
-                const entt::entity t = acquire(i, sight);
+                entt::entity t = acquire(i, sight);
+                if (t == entt::null) {
+                    t = acquire_building(registry, economy, i, st.sight_tiles);
+                }
                 if (t != entt::null) {
                     c.target = t;
                     c.explicit_target = false;

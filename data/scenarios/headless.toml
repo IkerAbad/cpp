@@ -40,31 +40,6 @@ unit = "aldeano"
 count = 3
 
 [[order]]
-tick = 1
-action = "recoger"
-player = 1
-first = 0
-count = 2
-resource = "oro"
-
-[[order]]
-tick = 1
-action = "recoger"
-player = 1
-first = 2
-count = 3
-resource = "madera"
-
-[[order]]
-tick = 1
-action = "entrenar"
-player = 1
-building = "centro_urbano"
-unit = "aldeano"
-count = 2
-
-# Casa: +5 de población. Construye un aldeano de comida.
-[[order]]
 tick = 600
 action = "construir"
 player = 0
@@ -72,19 +47,12 @@ first = 3
 count = 1
 building = "casa"
 
-[[order]]
-tick = 900
-action = "construir"
-player = 1
-first = 2
-count = 2
-building = "aserradero"
 
-# El jugador 1 manda a sus mineros de oro a dar un paseo largo (HPA*).
+# Dos aldeanos a dar un paseo largo (HPA*) mientras la IA juega su partida.
 [[order]]
 tick = 1500
 action = "mover"
-player = 1
+player = 0
 first = 0
 count = 2
 target = [128, 128]

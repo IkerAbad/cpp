@@ -110,6 +110,7 @@ population = 5
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["peon"]
+farm_food = 0
 color = [9, 9, 9]
 
 [[building]]
@@ -123,6 +124,7 @@ population = 5
 armor = { cuerpo = 1 }
 class = "edificio"
 trains = []
+farm_food = 0
 color = [8, 8, 8]
 )";
 
@@ -154,10 +156,12 @@ max_elevation = 65536
 [[player]]
 start = [10, 10]
 color = [0, 0, 255]
+controller = "humano"
 
 [[player]]
 start = [50, 20]
 color = [255, 0, 0]
+controller = "ia"
 
 [demo]
 seed = 1
@@ -190,6 +194,28 @@ armor_every_levels = 3
 hero_aura_radius_milli_tiles = 4000
 hero_aura_attack_percent = 15
 hero_names = ["Brunilda", "Tello"]
+
+[ai]
+think_interval_ticks = 20
+villager_target = 25
+gather_percent = { comida = 40, madera = 35, oro = 15, piedra = 10 }
+house_margin = 3
+barracks_at_villagers = 10
+dropoff_distance_tiles = 12
+dropoff_min_gatherers = 3
+builders = 2
+gatherers_per_farm = 2
+build_gap_tiles = 1
+build_search_radius_tiles = 24
+first_wave = 6
+wave_growth = 4
+defend_radius_tiles = 14
+worker = "peon"
+army = ["lancero"]
+house = "choza"
+barracks = "fuerte"
+farm = "choza"
+dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte" }
 
 [setup]
 seed = 3
@@ -510,6 +536,16 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
     CHECK(w.combat.hero_name_count == 2);
     CHECK(w.combat.building_reach == Fixed::from_ratio(3, 5));
     CHECK(cfg->hero_names[1] == "Tello");
+    CHECK(w.ai_players == std::vector<rts::sim::PlayerId>{1});
+    CHECK(w.ai.worker_type == 1);
+    CHECK(w.ai.house == 1);
+    CHECK(w.ai.gather_percent[rts::sim::resource_index(Resource::Food)] == 40);
+    SUBCASE("reparto que no suma 100") {
+        CHECK_FALSE(parse_engine(replaced(kEngine, "comida = 40, madera = 35, oro = 15", "comida = 40, madera = 35, oro = 16")).has_value());
+    }
+    SUBCASE("controlador desconocido") {
+        CHECK_FALSE(parse_engine(replaced(kEngine, "controller = \"ia\"", "controller = \"robot\"")).has_value());
+    }
     SUBCASE("umbrales no crecientes") {
         CHECK_FALSE(parse_engine(replaced(kEngine, "[30, 70, 120]", "[30, 30, 120]")).has_value());
     }
@@ -522,7 +558,7 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
         CHECK_FALSE(parse_engine(replaced(kEngine, "piedra = 70", "piedra = 0")).has_value());
     }
     SUBCASE("edificio inicial desconocido") {
-        const auto bad = parse_engine(replaced(kEngine, "\"fuerte\"", "\"castillo\""));
+        const auto bad = parse_engine(replaced(kEngine, "start_building = \"fuerte\"", "start_building = \"castillo\""));
         REQUIRE_FALSE(bad.has_value());
         CHECK(bad.error().find("setup.start_building") != std::string::npos);
     }

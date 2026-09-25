@@ -506,6 +506,7 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.armor_melee = armor[0];
         info.type.armor_pierce = armor[1];
         info.type.armor_class = br.get_named("class", ClassNames{units}, "units.toml (classes)");
+        info.type.farm_food = br.get_i32("farm_food", 0, kMaxAmount);
         for (const std::string& key : br.get_string_list("accepts")) {
             const auto res = find_resource(key);
             if (!res) {
@@ -659,6 +660,12 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         }
         cfg.world.setup.starts.push_back(start);
         cfg.player_colors.push_back(pr.get_color<3>("color"));
+        const std::string controller = pr.get_string("controller");
+        if (controller == "ia") {
+            cfg.world.ai_players.push_back(static_cast<sim::PlayerId>(i));
+        } else if (controller != "humano" && !pr.failed()) {
+            pr.fail(std::format("'{}' = \"{}\": debe ser \"humano\" o \"ia\"", pr.full("controller"), controller));
+        }
     });
 
     sim::DemoParams& demo = cfg.world.demo;
@@ -701,6 +708,44 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cb.hero_aura_attack_percent = r.get_i32("combat.hero_aura_attack_percent", 0, 1000);
     cfg.hero_names = r.get_string_list("combat.hero_names");
     cb.hero_name_count = static_cast<std::int32_t>(cfg.hero_names.size());
+
+    sim::AiParams& ai = cfg.world.ai;
+    ai.think_interval_ticks = r.get_i32("ai.think_interval_ticks", 1, 1000);
+    ai.villager_target = r.get_i32("ai.villager_target", 0, 1000);
+    const sim::Stock gather_pct = r.get_stock("ai.gather_percent");
+    std::int32_t pct_sum = 0;
+    for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
+        ai.gather_percent[i] = gather_pct[i];
+        pct_sum += gather_pct[i];
+    }
+    if (!error && pct_sum != 100) {
+        r.fail(std::format("'ai.gather_percent' debe sumar 100 (suma {})", pct_sum));
+    }
+    ai.house_margin = r.get_i32("ai.house_margin", 0, 100);
+    ai.barracks_at_villagers = r.get_i32("ai.barracks_at_villagers", 0, 1000);
+    ai.dropoff_distance_tiles = r.get_i32("ai.dropoff_distance_tiles", 1, 256);
+    ai.dropoff_min_gatherers = r.get_i32("ai.dropoff_min_gatherers", 1, 1000);
+    ai.builders = r.get_i32("ai.builders", 1, 100);
+    ai.gatherers_per_farm = r.get_i32("ai.gatherers_per_farm", 1, 64);
+    ai.build_gap_tiles = r.get_i32("ai.build_gap_tiles", 0, 8);
+    ai.build_search_radius_tiles = r.get_i32("ai.build_search_radius_tiles", 1, 128);
+    ai.first_wave = r.get_i32("ai.first_wave", 1, 10'000);
+    ai.wave_growth = r.get_i32("ai.wave_growth", 0, 10'000);
+    ai.defend_radius_tiles = r.get_i32("ai.defend_radius_tiles", 1, 256);
+    ai.worker_type = r.get_named("ai.worker", units, "units.toml");
+    for (const std::string& name : r.get_string_list("ai.army")) {
+        if (const auto id = units.find(name)) {
+            ai.army.push_back(*id);
+        } else if (!error) {
+            r.fail(std::format("'ai.army' contiene \"{}\", que no está en units.toml", name));
+        }
+    }
+    ai.house = r.get_named("ai.house", catalogs.buildings, "buildings.toml");
+    ai.barracks = r.get_named("ai.barracks", catalogs.buildings, "buildings.toml");
+    ai.farm = r.get_named("ai.farm", catalogs.buildings, "buildings.toml");
+    for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
+        ai.dropoff[i] = r.get_named(std::format("ai.dropoff.{}", kResourceKeys[i]), catalogs.buildings, "buildings.toml");
+    }
 
     sim::SetupParams& setup = cfg.world.setup;
     setup.seed = r.get_u64("setup.seed");

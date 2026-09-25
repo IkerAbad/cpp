@@ -10,6 +10,7 @@
 
 #include <entt/entity/registry.hpp>
 
+#include "sim/ai.hpp"
 #include "sim/combat.hpp"
 #include "sim/economy.hpp"
 #include "sim/fixed.hpp"
@@ -71,6 +72,8 @@ struct WorldParams {
     MovementParams movement;
     EconomyParams economy;
     CombatParams combat;
+    AiParams ai;
+    std::vector<PlayerId> ai_players;  // jugadores que controla la IA
     SetupParams setup;
     DemoParams demo;
 };
@@ -137,6 +140,7 @@ public:
     [[nodiscard]] const MovementSystem& movement() const noexcept { return movement_; }
     [[nodiscard]] const EconomySystem& economy() const noexcept { return economy_; }
     [[nodiscard]] const CombatSystem& combat() const noexcept { return combat_; }
+    [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
     void write_snapshot(Snapshot& out) const;
@@ -163,9 +167,11 @@ private:
     MovementSystem movement_;
     EconomySystem economy_;
     CombatSystem combat_;
+    AiSystem ai_;
     entt::registry registry_;
     Xoshiro256pp rng_;
     std::vector<Command> pending_;
+    std::vector<Command> ai_orders_;
     std::uint32_t next_order_id_ = 1;
     Tick tick_ = 0;
 };

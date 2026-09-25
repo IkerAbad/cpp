@@ -5,6 +5,8 @@
 # accepts: recursos que se pueden descargar aquí (almacén).
 # population: plazas de población que aporta cuando está terminado.
 # trains: unidades que produce (nombres de units.toml).
+# farm_food: si es mayor que 0, es una granja: al terminarse la cultiva su dueño y da
+#   esa comida; al agotarse desaparece (hay que construir otra).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
 # color: RGB provisional; el dueño se indica con el color del jugador.
 #
@@ -21,6 +23,7 @@ population = 5
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["aldeano"]
+farm_food = 0
 color = [196, 176, 140]
 
 [[building]]
@@ -34,6 +37,7 @@ population = 5
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+farm_food = 0
 color = [176, 132, 96]
 
 [[building]]
@@ -47,6 +51,7 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+farm_food = 0
 color = [120, 92, 60]
 
 [[building]]
@@ -60,6 +65,7 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+farm_food = 0
 color = [132, 132, 140]
 
 [[building]]
@@ -73,6 +79,7 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+farm_food = 0
 color = [206, 184, 110]
 
 [[building]]
@@ -86,4 +93,19 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["milicia", "lancero", "arquero", "explorador"]
+farm_food = 0
 color = [150, 70, 60]
+
+[[building]]
+name = "granja"
+size_tiles = 2
+cost = { madera = 60 }
+build_ticks = 300
+hp = 200
+accepts = []
+population = 0
+armor = { cuerpo = 0, proyectil = 0 }
+class = "edificio"
+trains = []
+farm_food = 250
+color = [214, 190, 92]

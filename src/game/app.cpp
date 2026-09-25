@@ -680,6 +680,7 @@ private:
 
         draw_resource_bar(display);
         draw_selection_panel(display);
+        draw_outcome(display);
 
         // Arriba a la derecha, anclado por su esquina superior derecha.
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
@@ -705,6 +706,39 @@ private:
         } else {
             ImGui::TextDisabled("Pasa el ratón sobre el mapa");
         }
+        ImGui::End();
+    }
+
+    // Victoria o derrota: el jugador local sin unidades ni edificios pierde; si todos los
+    // demás que llegaron a tener algo lo han perdido todo, gana.
+    void draw_outcome(const ImVec2& display) {
+        if (curr_.players.size() <= kLocalPlayer) {
+            return;
+        }
+        bool won = false;
+        const bool lost = curr_.players[kLocalPlayer].defeated;
+        if (!lost) {
+            bool any_rival = false;
+            bool all_defeated = true;
+            for (std::size_t p = 0; p < curr_.players.size(); ++p) {
+                if (p == kLocalPlayer || !curr_.players[p].started) {
+                    continue;
+                }
+                any_rival = true;
+                all_defeated = all_defeated && curr_.players[p].defeated;
+            }
+            won = any_rival && all_defeated;
+        }
+        if (!won && !lost) {
+            return;
+        }
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.35f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::Begin("Resultado", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
+        constexpr float kOutcomeScale = 3.0f;  // letra del cartel: tres veces la normal
+        ImGui::SetWindowFontScale(kOutcomeScale);
+        ImGui::TextColored(won ? ImVec4{0.4f, 1.0f, 0.4f, 1.0f} : ImVec4{1.0f, 0.35f, 0.3f, 1.0f}, "%s",
+                           won ? "¡Victoria!" : "Derrota");
         ImGui::End();
     }
 

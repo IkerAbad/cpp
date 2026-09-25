@@ -59,6 +59,7 @@ World::World(const WorldParams& params)
       economy_(map_->width(), map_->height(), params.economy,
                {params.unit_types, params.building_types, params.node_types}, player_count(params)),
       combat_(map_->width(), map_->height(), params.combat, params.unit_types, params.building_types),
+      ai_(params.ai, params.ai_players),
       rng_(params.demo.seed) {
     setup_game(params.setup);
     spawn_demo_units(params.demo);
@@ -243,6 +244,13 @@ void World::step() {
     movement_.begin_tick();
     // Cambios de ocupación hechos fuera de un tick (preparación de escenarios, pruebas).
     movement_.commit_grid_changes(registry_);
+    // La IA decide sobre el estado del principio del tick; sus órdenes van detrás de las
+    // de los jugadores humanos y siguen el mismo camino (se validan igual).
+    ai_orders_.clear();
+    ai_.think(registry_, economy_, movement_.grid(), tick_, ai_orders_);
+    for (Command& c : ai_orders_) {
+        pending_.push_back(std::move(c));
+    }
     // Órdenes de este tick (o atrasadas), en orden de llegada. stable_partition conserva
     // el orden relativo de las que se quedan para ticks futuros.
     const auto rest = std::ranges::stable_partition(pending_, [this](const Command& c) { return c.tick <= tick_; });
@@ -331,6 +339,7 @@ std::uint64_t World::state_hash() const {
     }
     economy_.hash_into(h, registry_);
     combat_.hash_into(h, registry_);
+    ai_.hash_into(h);
     return h.value();
 }
 
@@ -370,11 +379,9 @@ void World::write_snapshot(Snapshot& out) const {
         o.id = entt::to_integral(e);
         o.origin = f.origin;
         o.size = f.size;
-        if (const ResourceNode* n = registry_.try_get<ResourceNode>(e)) {
-            o.kind = ObjectKind::Resource;
-            o.type = n->type;
-            o.amount = n->amount;
-        } else if (const Building* b = registry_.try_get<Building>(e)) {
+        // Un edificio puede ser también un nodo (granja terminada): se presenta como
+        // edificio y su cantidad restante va en amount.
+        if (const Building* b = registry_.try_get<Building>(e)) {
             o.kind = ObjectKind::Building;
             o.type = b->type;
             o.owner = registry_.get<Owner>(e).player;
@@ -385,6 +392,13 @@ void World::write_snapshot(Snapshot& out) const {
                 o.queue = q->items;
                 o.queue_progress = q->progress;
             }
+            if (const ResourceNode* n = registry_.try_get<ResourceNode>(e)) {
+                o.amount = n->amount;
+            }
+        } else if (const ResourceNode* n = registry_.try_get<ResourceNode>(e)) {
+            o.kind = ObjectKind::Resource;
+            o.type = n->type;
+            o.amount = n->amount;
         }
         out.objects.push_back(std::move(o));
     }

@@ -57,13 +57,16 @@ max_elevation = 65536
 
 # Jugadores, en orden de PlayerId. start: centro deseado del edificio inicial (se
 # busca el sitio válido más cercano). color: RGB del dueño en marcadores y edificios.
+# controller: "humano" (el jugador local es el 0) o "ia".
 [[player]]
 start = [72, 72]
 color = [70, 130, 235]
+controller = "humano"
 
 [[player]]
 start = [184, 184]
 color = [225, 70, 60]
+controller = "ia"
 
 [demo]
 # Unidades sueltas de prueba (las usan el banco y las pruebas de movimiento): count
@@ -120,6 +123,38 @@ hero_aura_radius_milli_tiles = 4000
 hero_aura_attack_percent = 15
 # Nombres propios de los héroes, en el orden en que aparecen (se reutilizan al acabarse).
 hero_names = ["Brunilda", "Rodrigo el Tenaz", "Urraca", "Sancho Barbanegra", "Elvira de la Torre", "Tello", "Jimena", "Nuño el Callado"]
+
+[ai]
+# IA básica: juega con las mismas reglas y costes que un humano (sin trampas).
+# Decide una vez por segundo.
+think_interval_ticks = 20
+villager_target = 25
+# Reparto deseado de los aldeanos que recogen (suma 100).
+gather_percent = { comida = 40, madera = 35, oro = 15, piedra = 10 }
+# Casa nueva cuando le quedan 3 plazas o menos de población.
+house_margin = 3
+barracks_at_villagers = 10
+# Almacén junto a un recurso que ya explotan 3 aldeanos si el más cercano está a más de 12 casillas.
+dropoff_distance_tiles = 12
+dropoff_min_gatherers = 3
+builders = 2
+# Una granja por cada 2 aldeanos que deban recoger comida.
+gatherers_per_farm = 2
+# Una casilla libre alrededor de cada edificio para no cerrar pasillos.
+build_gap_tiles = 1
+build_search_radius_tiles = 24
+# Primer ataque con 6 unidades; cada oleada, 4 más.
+first_wave = 6
+wave_growth = 4
+# Enemigos a 14 casillas o menos de su base: defensa.
+defend_radius_tiles = 14
+worker = "aldeano"
+army = ["milicia", "lancero", "arquero"]
+house = "casa"
+barracks = "cuartel"
+# Granja cuando no queda comida natural cerca de la base.
+farm = "granja"
+dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero" }
 
 [setup]
 seed = 20260924

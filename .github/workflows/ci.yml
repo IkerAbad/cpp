@@ -135,7 +135,7 @@ jobs:
           path: hash-${{ matrix.name }}.txt
 
   bench:
-    name: Banco de rendimiento (Release, 1000 y 2000 unidades, movimiento y batalla)
+    name: Banco de rendimiento (Release, movimiento, batalla e IA contra IA)
     runs-on: ubuntu-24.04
     env:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
@@ -194,6 +194,10 @@ jobs:
 
       - name: Batalla de 2000 unidades
         run: build/linux-clang-release/bench/rts_bench --units 2000 --ticks 1200 --max-ms 50 --combat 1
+
+      # 30 minutos de partida por defecto con la IA en todos los jugadores.
+      - name: IA contra IA, 30 minutos
+        run: build/linux-clang-release/bench/rts_bench --ticks 36000 --max-ms 50 --ai-data data
 
   determinism:
     name: Mismo hash en todas las plataformas

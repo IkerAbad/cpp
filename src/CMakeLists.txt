@@ -13,6 +13,7 @@ include(Shaders)
 
 # --- Simulación pura -----------------------------------------------------------
 add_library(rts_sim STATIC
+    sim/ai.cpp
     sim/combat.cpp
     sim/economy.cpp
     sim/map_gen.cpp
