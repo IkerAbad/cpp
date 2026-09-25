@@ -333,7 +333,7 @@ TEST_CASE("Economía: tres constructores terminan en un tercio del tiempo que un
             world.step();
             ++ticks;
         }
-        CHECK(world.registry().get<Building>(ent(*house)).hp == 500);
+        CHECK(world.registry().get<rts::sim::Health>(ent(*house)).hp == 500);
         world.step();  // la población se recuenta al empezar cada tick
         CHECK(world.player_state(0).population_cap == 5);
         return ticks;

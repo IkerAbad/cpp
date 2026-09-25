@@ -95,6 +95,32 @@ max_population = 200
 # Anillos alrededor de un edificio donde busca sitio la unidad recién producida.
 spawn_search_radius_tiles = 4
 
+[combat]
+# Cada unidad busca blanco cada 10 ticks (0,5 s), repartidas por id.
+acquire_interval_ticks = 10
+# Se recalcula la persecución si el blanco se alejó 2 casillas o más.
+repath_tiles = 2
+# Si una persecución acaba 3 veces sin alcanzar a un blanco quieto, se abandona.
+chase_attempts = 3
+# Contra edificios, 0,6 casillas de alcance extra: el que llega a una casilla vecina de
+# la huella se para cerca de su centro (hasta ~0,75 casillas del borde).
+building_reach_milli_tiles = 600
+# Un proyectil acierta a una unidad si cae a menos de su radio + 0,15 casillas.
+projectile_hit_radius_milli_tiles = 150
+# Experiencia: 1 por punto de daño hecho, más 20 por cada baja en la que participe.
+xp_kill_bonus = 20
+# 12 niveles, como en Tzar; el último convierte a la unidad en héroe.
+level_thresholds = [30, 70, 120, 180, 260, 360, 480, 620, 780, 960, 1160, 1400]
+# Cada nivel: +8 % de vida y +6 % de ataque sobre la base; +1 de armadura cada 3 niveles.
+hp_percent_per_level = 8
+attack_percent_per_level = 6
+armor_every_levels = 3
+# Aura de héroe: +15 % de ataque a las unidades propias a menos de 4 casillas (no se acumula).
+hero_aura_radius_milli_tiles = 4000
+hero_aura_attack_percent = 15
+# Nombres propios de los héroes, en el orden en que aparecen (se reutilizan al acabarse).
+hero_names = ["Brunilda", "Rodrigo el Tenaz", "Urraca", "Sancho Barbanegra", "Elvira de la Torre", "Tello", "Jimena", "Nuño el Callado"]
+
 [setup]
 seed = 20260924
 # Radio de búsqueda del sitio del edificio inicial y tamaño mínimo de su región de
@@ -199,6 +225,16 @@ ghost_valid_color = [120, 255, 140, 120]
 ghost_invalid_color = [255, 80, 80, 120]
 # Punto sobre un aldeano que lleva algo, según el recurso.
 resource_colors = { comida = [232, 96, 120, 255], madera = [150, 104, 60, 255], piedra = [200, 200, 205, 255], oro = [250, 212, 64, 255] }
+# Barras de vida (unidades heridas o seleccionadas, edificios dañados): 20x3 píxeles,
+# en rojo por debajo del 35 %.
+health_bar_width_px = 20
+health_bar_height_px = 3
+health_low_permille = 350
+health_back_color = [20, 20, 20, 200]
+health_color = [90, 220, 90, 255]
+health_low_color = [230, 70, 50, 255]
+projectile_color = [245, 240, 220, 255]
+hero_color = [255, 200, 40, 255]
 
 [camera]
 scroll_keys_px_per_s = 1200

@@ -49,6 +49,10 @@ bool Window::shift_held() const noexcept {
     return (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
 }
 
+bool Window::ctrl_held() const noexcept {
+    return (SDL_GetModState() & SDL_KMOD_CTRL) != 0;
+}
+
 MouseState Window::mouse() const noexcept {
     MouseState m;
     SDL_GetMouseState(&m.x, &m.y);

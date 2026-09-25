@@ -190,6 +190,49 @@ public:
         return id.value_or(0);
     }
 
+    // { cuerpo = n, proyectil = m }: las ausentes valen 0.
+    std::array<std::int32_t, 2> get_melee_pierce(std::string_view path) {
+        std::array<std::int32_t, 2> out{};
+        const toml::table* t = table_.at_path(path).as_table();
+        if (t == nullptr) {
+            fail(std::format("falta la tabla '{}' (p. ej. {{ cuerpo = 5, proyectil = 0 }})", full(path)));
+            return out;
+        }
+        for (const auto& [key, node] : *t) {
+            const auto v = node.value<std::int64_t>();
+            const std::size_t i = key.str() == "cuerpo" ? 0 : key.str() == "proyectil" ? 1 : 2;
+            if (i == 2) {
+                fail(std::format("'{}.{}': las claves son cuerpo y proyectil", full(path), key.str()));
+                return out;
+            }
+            if (!v || *v < 0 || *v > kMaxAmount) {
+                fail(std::format("'{}.{}' debe ser un entero en [0, {}]", full(path), key.str(), kMaxAmount));
+                return out;
+            }
+            out[i] = static_cast<std::int32_t>(*v);
+        }
+        return out;
+    }
+
+    // Lista de enteros estrictamente crecientes y positivos.
+    std::vector<std::int32_t> get_increasing_list(std::string_view path, std::size_t max_size) {
+        const toml::array* arr = table_.at_path(path).as_array();
+        std::vector<std::int32_t> out;
+        if (arr == nullptr || arr->size() > max_size) {
+            fail(std::format("'{}' debe ser una lista de hasta {} enteros", full(path), max_size));
+            return out;
+        }
+        for (std::size_t i = 0; i < arr->size(); ++i) {
+            const auto v = (*arr)[i].value<std::int64_t>();
+            if (!v || *v <= (out.empty() ? 0 : out.back()) || *v > kMaxAmount) {
+                fail(std::format("'{}[{}]' debe ser un entero mayor que el anterior (y que 0)", full(path), i));
+                return {};
+            }
+            out.push_back(static_cast<std::int32_t>(*v));
+        }
+        return out;
+    }
+
     [[nodiscard]] bool failed() const noexcept { return error_.has_value(); }
 
     void fail(std::string message) {
@@ -273,6 +316,14 @@ std::optional<std::uint8_t> find_by_name(const Types& types, std::string_view na
 }
 
 // Recorre [[array_name]] y llama a read(reader, índice) con un lector con prefijo.
+// Adaptador para resolver nombres de clase de armadura con Reader::get_named.
+struct ClassNames {
+    const UnitCatalog& units;
+    [[nodiscard]] std::optional<sim::ArmorClassId> find(std::string_view name) const {
+        return units.find_class(name);
+    }
+};
+
 template <typename Read>
 void for_each_table(const toml::array* list, std::string_view source, std::string_view array_name,
                     std::optional<std::string>& error, Read&& read) {
@@ -316,6 +367,15 @@ std::optional<sim::UnitTypeId> UnitCatalog::find(std::string_view name) const {
     return find_by_name(types, name);
 }
 
+std::optional<sim::ArmorClassId> UnitCatalog::find_class(std::string_view name) const {
+    for (std::size_t i = 0; i < classes.size(); ++i) {
+        if (classes[i] == name) {
+            return static_cast<sim::ArmorClassId>(i);
+        }
+    }
+    return std::nullopt;
+}
+
 std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml_text, std::string_view source_name) {
     auto root = parse_toml(toml_text, source_name);
     if (!root) {
@@ -324,6 +384,10 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
     std::optional<std::string> error;
     Reader r(*root, source_name, "", error);
     UnitCatalog catalog;
+    catalog.classes = r.get_string_list("classes");
+    if (!error && (catalog.classes.empty() || catalog.classes.size() > sim::kMaxArmorClasses)) {
+        r.fail(std::format("'classes' debe tener entre 1 y {} clases de armadura", sim::kMaxArmorClasses));
+    }
     const toml::array* types = r.get_table_array("unit");
     if (types != nullptr && types->size() > static_cast<std::size_t>(kByteMax) + 1) {
         r.fail(std::format("hay {} tipos de unidad y el máximo es {}", types->size(), kByteMax + 1));
@@ -345,6 +409,35 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             // Un aldeano debe poder llevar algo; los demás no llevan nada.
             info.type.carry_capacity =
                 ur.get_i32("carry_capacity", info.type.worker ? 1 : 0, info.type.worker ? kMaxAmount : 0);
+            sim::CombatStats& cs = info.type.combat;
+            cs.hp = ur.get_i32("hp", 1, kMaxAmount);
+            const auto attack = ur.get_melee_pierce("attack");
+            const auto armor = ur.get_melee_pierce("armor");
+            cs.attack_melee = attack[0];
+            cs.attack_pierce = attack[1];
+            cs.armor_melee = armor[0];
+            cs.armor_pierce = armor[1];
+            cs.armor_class = ur.get_named("class", ClassNames{catalog}, "units.toml (classes)");
+            if (const toml::table* bonus = (*types)[i].as_table()->at_path("bonus").as_table()) {
+                for (const auto& [key, node] : *bonus) {
+                    const auto cls = catalog.find_class(key.str());
+                    const auto v = node.value<std::int64_t>();
+                    if (!cls || !v || *v < 0 || *v > kMaxAmount) {
+                        ur.fail(std::format("'{}.{}' debe nombrar una clase de 'classes' con un entero >= 0",
+                                            ur.full("bonus"), key.str()));
+                        break;
+                    }
+                    cs.bonus[*cls] = static_cast<std::int32_t>(*v);
+                }
+            } else {
+                ur.fail(std::format("falta la tabla '{}' (puede ser {{}})", ur.full("bonus")));
+            }
+            cs.range = sim::Fixed::from_ratio(ur.get_i32("range_milli_tiles", 0, 32 * kMilli), kMilli);
+            cs.reload_ticks = ur.get_i32("reload_ticks", 1, kMaxTicks);
+            cs.sight_tiles = ur.get_i32("sight_tiles", 0, 32);
+            cs.projectile_speed =
+                sim::Fixed::from_ratio(ur.get_i32("projectile_speed_milli_tiles_per_tick", 0, 4 * kMilli), kMilli);
+            cs.auto_attack = ur.get_bool("auto_attack");
             if (!error && catalog.find(info.name)) {
                 ur.fail(std::format("nombre de unidad repetido: \"{}\"", info.name));
             }
@@ -409,6 +502,10 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.build_ticks = br.get_i32("build_ticks", 1, kMaxTicks);
         info.type.hp = br.get_i32("hp", 1, kMaxAmount);
         info.type.population = br.get_i32("population", 0, 1000);
+        const auto armor = br.get_melee_pierce("armor");
+        info.type.armor_melee = armor[0];
+        info.type.armor_pierce = armor[1];
+        info.type.armor_class = br.get_named("class", ClassNames{units}, "units.toml (classes)");
         for (const std::string& key : br.get_string_list("accepts")) {
             const auto res = find_resource(key);
             if (!res) {
@@ -587,6 +684,24 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     eco.max_population = r.get_i32("economy.max_population", 1, 100'000);
     eco.spawn_search_radius = r.get_i32("economy.spawn_search_radius_tiles", 1, 32);
 
+    sim::CombatParams& cb = cfg.world.combat;
+    cb.acquire_interval_ticks = r.get_i32("combat.acquire_interval_ticks", 1, 1000);
+    cb.repath_tiles = r.get_i32("combat.repath_tiles", 1, 64);
+    cb.chase_attempts = r.get_i32("combat.chase_attempts", 1, 64);
+    cb.building_reach = sim::Fixed::from_ratio(r.get_i32("combat.building_reach_milli_tiles", 0, 4 * kMilli), kMilli);
+    cb.projectile_hit_radius =
+        sim::Fixed::from_ratio(r.get_i32("combat.projectile_hit_radius_milli_tiles", 0, kMilli), kMilli);
+    cb.xp_kill_bonus = r.get_i32("combat.xp_kill_bonus", 0, kMaxAmount);
+    cb.level_thresholds = r.get_increasing_list("combat.level_thresholds", 64);
+    cb.hp_percent_per_level = r.get_i32("combat.hp_percent_per_level", 0, 1000);
+    cb.attack_percent_per_level = r.get_i32("combat.attack_percent_per_level", 0, 1000);
+    cb.armor_every_levels = r.get_i32("combat.armor_every_levels", 0, 64);
+    cb.hero_aura_radius =
+        sim::Fixed::from_ratio(r.get_i32("combat.hero_aura_radius_milli_tiles", 0, 32 * kMilli), kMilli);
+    cb.hero_aura_attack_percent = r.get_i32("combat.hero_aura_attack_percent", 0, 1000);
+    cfg.hero_names = r.get_string_list("combat.hero_names");
+    cb.hero_name_count = static_cast<std::int32_t>(cfg.hero_names.size());
+
     sim::SetupParams& setup = cfg.world.setup;
     setup.seed = r.get_u64("setup.seed");
     setup.start_search_radius = r.get_i32("setup.start_search_radius_tiles", 0, 1024);
@@ -644,6 +759,14 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
         cfg.view.resource_colors[i] = r.get_color<4>(std::format("view.resource_colors.{}", kResourceKeys[i]));
     }
+    cfg.view.health_bar_width_px = r.get_i32("view.health_bar_width_px", 1, 256);
+    cfg.view.health_bar_height_px = r.get_i32("view.health_bar_height_px", 1, 64);
+    cfg.view.health_low_permille = r.get_i32("view.health_low_permille", 0, kMilli);
+    cfg.view.health_back_color = r.get_color<4>("view.health_back_color");
+    cfg.view.health_color = r.get_color<4>("view.health_color");
+    cfg.view.health_low_color = r.get_color<4>("view.health_low_color");
+    cfg.view.projectile_color = r.get_color<4>("view.projectile_color");
+    cfg.view.hero_color = r.get_color<4>("view.hero_color");
 
     cfg.camera.scroll_keys_px_per_s = r.get_i32("camera.scroll_keys_px_per_s", 0, 100'000);
     cfg.camera.scroll_edge_px_per_s = r.get_i32("camera.scroll_edge_px_per_s", 0, 100'000);

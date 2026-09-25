@@ -52,6 +52,7 @@ public:
 
     [[nodiscard]] ScrollKeys scroll_keys() const noexcept;
     [[nodiscard]] bool shift_held() const noexcept;
+    [[nodiscard]] bool ctrl_held() const noexcept;
     [[nodiscard]] MouseState mouse() const noexcept;
 
 private:

@@ -40,6 +40,9 @@ struct BuildingType {
     Stock cost{};
     std::int32_t build_ticks = 0;  // ticks de trabajo de un aldeano; n aldeanos, n veces más rápido
     std::int32_t hp = 0;
+    std::int32_t armor_melee = 0;
+    std::int32_t armor_pierce = 0;
+    ArmorClassId armor_class = 0;
     std::uint8_t accepts = 0;      // almacén: bit resource_index(r) si admite el recurso r
     std::int32_t population = 0;   // plazas de población que aporta terminado
     std::vector<UnitTypeId> trains;
@@ -87,8 +90,7 @@ struct ResourceNode {
 
 struct Building {
     BuildingTypeId type = 0;
-    std::int32_t progress = 0;  // ticks de trabajo acumulados
-    std::int32_t hp = 0;
+    std::int32_t progress = 0;  // ticks de trabajo acumulados (la vida va en Health)
     bool complete = false;
     std::uint32_t spawned = 0;  // unidades producidas: reparte las casillas de salida
 };
@@ -150,6 +152,8 @@ public:
     entt::entity spawn_unit(entt::registry& registry, PlayerId player, UnitTypeId type, FVec2 pos) const;
     std::optional<entt::entity> place_building(entt::registry& registry, MovementSystem& movement, PlayerId player,
                                                BuildingTypeId type, TileCoord origin, bool complete);
+    // Destrucción de un edificio (combate): libera su huella en la rejilla.
+    void remove_building(entt::registry& registry, MovementSystem& movement, entt::entity building);
     std::optional<entt::entity> place_node(entt::registry& registry, MovementSystem& movement, NodeTypeId type,
                                            TileCoord origin);
     // Casilla libre alrededor de una huella, repartida por index entre las del primer

@@ -37,6 +37,8 @@ color = [0, 200, 0]
 )";
 
 constexpr const char* kUnits = R"(
+classes = ["infanteria", "edificio"]
+
 [[unit]]
 name = "lancero"
 radius_milli_tiles = 300
@@ -47,6 +49,16 @@ train_ticks = 400
 population = 1
 worker = false
 carry_capacity = 0
+hp = 40
+attack = { cuerpo = 5 }
+armor = { proyectil = 1 }
+class = "infanteria"
+bonus = { edificio = 2 }
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 6
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = true
 
 [[unit]]
 name = "peon"
@@ -58,6 +70,16 @@ train_ticks = 500
 population = 1
 worker = true
 carry_capacity = 10
+hp = 40
+attack = { cuerpo = 5 }
+armor = { proyectil = 1 }
+class = "infanteria"
+bonus = { edificio = 2 }
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 6
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = false
 )";
 
 constexpr const char* kNodes = R"(
@@ -85,6 +107,8 @@ build_ticks = 3000
 hp = 2400
 accepts = ["comida", "madera", "piedra", "oro"]
 population = 5
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
 trains = ["peon"]
 color = [9, 9, 9]
 
@@ -96,6 +120,8 @@ build_ticks = 500
 hp = 550
 accepts = []
 population = 5
+armor = { cuerpo = 1 }
+class = "edificio"
 trains = []
 color = [8, 8, 8]
 )";
@@ -150,6 +176,21 @@ queue_capacity = 5
 max_population = 200
 spawn_search_radius_tiles = 4
 
+[combat]
+acquire_interval_ticks = 10
+repath_tiles = 2
+chase_attempts = 3
+building_reach_milli_tiles = 600
+projectile_hit_radius_milli_tiles = 150
+xp_kill_bonus = 20
+level_thresholds = [30, 70, 120]
+hp_percent_per_level = 8
+attack_percent_per_level = 6
+armor_every_levels = 3
+hero_aura_radius_milli_tiles = 4000
+hero_aura_attack_percent = 15
+hero_names = ["Brunilda", "Tello"]
+
 [setup]
 seed = 3
 start_search_radius_tiles = 20
@@ -202,6 +243,16 @@ construction_shade_percent = 45
 ghost_valid_color = [0, 255, 0, 100]
 ghost_invalid_color = [255, 0, 0, 100]
 resource_colors = { comida = [1, 0, 0, 255], madera = [2, 0, 0, 255], piedra = [3, 0, 0, 255], oro = [4, 0, 0, 255] }
+# Barras de vida (unidades heridas o seleccionadas, edificios dañados): 20x3 píxeles,
+# en rojo por debajo del 35 %.
+health_bar_width_px = 20
+health_bar_height_px = 3
+health_low_permille = 350
+health_back_color = [20, 20, 20, 200]
+health_color = [90, 220, 90, 255]
+health_low_color = [230, 70, 50, 255]
+projectile_color = [245, 240, 220, 255]
+hero_color = [255, 200, 40, 255]
 
 [camera]
 scroll_keys_px_per_s = 1000
@@ -424,6 +475,18 @@ TEST_CASE("Economía: costes, almacenes y producción se leen de los catálogos"
     CHECK_FALSE(parse_building_catalog(replaced(kBuildings, "[\"peon\"]", "[\"grifo\"]"), c.unit_catalog).has_value());
     CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "carry_capacity = 10", "carry_capacity = 0")).has_value());
     CHECK_FALSE(parse_node_catalog(replaced(kNodes, "\"madera\"", "\"hierro\"")).has_value());
+    // Combate: clase desconocida, bonus contra una clase inexistente, clave de ataque rara.
+    CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "class = \"infanteria\"", "class = \"dragon\"")).has_value());
+    CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "bonus = { edificio = 2 }", "bonus = { barco = 2 }")).has_value());
+    CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "attack = { cuerpo = 5 }", "attack = { fuego = 5 }")).has_value());
+    const auto& lancero = c.unit_catalog.types[0].type.combat;
+    CHECK(lancero.hp == 40);
+    CHECK(lancero.attack_melee == 5);
+    CHECK(lancero.armor_pierce == 1);
+    CHECK(lancero.bonus[1] == 2);
+    CHECK(lancero.range == Fixed::from_ratio(15, 100));
+    CHECK(c.building_catalog.types[0].type.armor_pierce == 8);
+    CHECK(c.building_catalog.types[0].type.armor_class == 1);
 }
 
 TEST_CASE("Configuración: jugadores, economía y preparación") {
@@ -443,6 +506,13 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
     CHECK(w.setup.near_start[0].type == 1);
     CHECK(w.building_types.size() == 2);
     CHECK(cfg->view.resource_colors[rts::sim::resource_index(Resource::Stone)][0] == 3);
+    CHECK(w.combat.level_thresholds == std::vector<std::int32_t>{30, 70, 120});
+    CHECK(w.combat.hero_name_count == 2);
+    CHECK(w.combat.building_reach == Fixed::from_ratio(3, 5));
+    CHECK(cfg->hero_names[1] == "Tello");
+    SUBCASE("umbrales no crecientes") {
+        CHECK_FALSE(parse_engine(replaced(kEngine, "[30, 70, 120]", "[30, 30, 120]")).has_value());
+    }
     CHECK(w.node_types.size() == 2);
 
     SUBCASE("inicio fuera del mapa") {

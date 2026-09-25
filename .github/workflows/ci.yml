@@ -135,7 +135,7 @@ jobs:
           path: hash-${{ matrix.name }}.txt
 
   bench:
-    name: Banco de rendimiento (Release, 1000 y 2000 unidades)
+    name: Banco de rendimiento (Release, 1000 y 2000 unidades, movimiento y batalla)
     runs-on: ubuntu-24.04
     env:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
@@ -186,6 +186,14 @@ jobs:
 
       - name: 2000 unidades
         run: build/linux-clang-release/bench/rts_bench --units 2000 --ticks 1200 --max-ms 50
+
+      # Criterio de M4: batalla de dos ejércitos (500 contra 500 y 1000 contra 1000) en
+      # ataque-movimiento, con el mismo umbral de 50 ms por tick.
+      - name: Batalla de 1000 unidades
+        run: build/linux-clang-release/bench/rts_bench --units 1000 --ticks 1200 --max-ms 50 --combat 1
+
+      - name: Batalla de 2000 unidades
+        run: build/linux-clang-release/bench/rts_bench --units 2000 --ticks 1200 --max-ms 50 --combat 1
 
   determinism:
     name: Mismo hash en todas las plataformas

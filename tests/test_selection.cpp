@@ -35,6 +35,16 @@ TEST_CASE("Selección: el rectángulo selecciona lo que contiene, en cualquier d
     CHECK_FALSE(sel.dragging());
 }
 
+TEST_CASE("Selección: las unidades que desaparecen (muertas) salen de la selección") {
+    Selection sel(kSel);
+    sel.begin_drag({200.0f, 200.0f});
+    sel.update_drag({90.0f, 90.0f});
+    sel.end_drag({90.0f, 90.0f}, false, kEntities);
+    const std::vector<ScreenEntity> alive{kEntities[0], kEntities[3]};
+    sel.retain(alive);
+    CHECK(sel.selected() == std::vector<std::uint32_t>{1, 4});
+}
+
 TEST_CASE("Selección: un arrastre menor que el umbral es un clic sobre la más cercana") {
     Selection sel(kSel);
     sel.begin_drag({103.0f, 101.0f});

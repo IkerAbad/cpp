@@ -5,6 +5,7 @@
 # accepts: recursos que se pueden descargar aquí (almacén).
 # population: plazas de población que aporta cuando está terminado.
 # trains: unidades que produce (nombres de units.toml).
+# armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
 # color: RGB provisional; el dueño se indica con el color del jugador.
 #
 # Valores de diseño propios, a ajustar jugando.
@@ -17,6 +18,8 @@ build_ticks = 3000
 hp = 2400
 accepts = ["comida", "madera", "piedra", "oro"]
 population = 5
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
 trains = ["aldeano"]
 color = [196, 176, 140]
 
@@ -28,6 +31,8 @@ build_ticks = 500
 hp = 550
 accepts = []
 population = 5
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
 trains = []
 color = [176, 132, 96]
 
@@ -39,6 +44,8 @@ build_ticks = 700
 hp = 600
 accepts = ["madera"]
 population = 0
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
 trains = []
 color = [120, 92, 60]
 
@@ -50,6 +57,8 @@ build_ticks = 700
 hp = 600
 accepts = ["piedra", "oro"]
 population = 0
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
 trains = []
 color = [132, 132, 140]
 
@@ -61,6 +70,8 @@ build_ticks = 700
 hp = 600
 accepts = ["comida"]
 population = 0
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
 trains = []
 color = [206, 184, 110]
 
@@ -72,5 +83,7 @@ build_ticks = 1000
 hp = 1200
 accepts = []
 population = 0
-trains = ["milicia", "explorador"]
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
+trains = ["milicia", "lancero", "arquero", "explorador"]
 color = [150, 70, 60]

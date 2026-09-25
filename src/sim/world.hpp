@@ -10,6 +10,7 @@
 
 #include <entt/entity/registry.hpp>
 
+#include "sim/combat.hpp"
 #include "sim/economy.hpp"
 #include "sim/fixed.hpp"
 #include "sim/map_gen.hpp"
@@ -69,6 +70,7 @@ struct WorldParams {
     std::vector<ResourceNodeType> node_types;        // por NodeTypeId
     MovementParams movement;
     EconomyParams economy;
+    CombatParams combat;
     SetupParams setup;
     DemoParams demo;
 };
@@ -81,6 +83,12 @@ struct SnapshotEntity {
     WorkerTask task = WorkerTask::Idle;
     Resource carry_kind = Resource::Food;
     std::int32_t carried = 0;
+    std::int32_t hp = 0;
+    std::int32_t max_hp = 0;
+    std::int32_t level = 0;
+    std::int32_t xp = 0;
+    std::int32_t hero_name = -1;  // índice en la lista de nombres de héroe; -1 = no es héroe
+    Stance stance = Stance::Aggressive;
 };
 
 enum class ObjectKind : std::uint8_t { Building, Resource };
@@ -111,6 +119,7 @@ struct Snapshot {
     std::vector<SnapshotEntity> entities;
     std::vector<SnapshotObject> objects;
     std::vector<PlayerState> players;
+    std::vector<Position> projectiles;
 };
 
 class World {
@@ -127,6 +136,7 @@ public:
     [[nodiscard]] const TileMap& map() const noexcept { return *map_; }
     [[nodiscard]] const MovementSystem& movement() const noexcept { return movement_; }
     [[nodiscard]] const EconomySystem& economy() const noexcept { return economy_; }
+    [[nodiscard]] const CombatSystem& combat() const noexcept { return combat_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
     void write_snapshot(Snapshot& out) const;
@@ -152,6 +162,7 @@ private:
     std::shared_ptr<TileMap> map_;
     MovementSystem movement_;
     EconomySystem economy_;
+    CombatSystem combat_;
     entt::registry registry_;
     Xoshiro256pp rng_;
     std::vector<Command> pending_;

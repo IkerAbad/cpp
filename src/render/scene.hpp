@@ -23,6 +23,8 @@ struct Marker {
     Rgba color{};     // color propio (tipo de unidad); seleccionado usa marker_selected_color
     Rgba owner{};     // anillo fino del color del jugador; alfa 0 = sin anillo
     Rgba badge{};     // punto pequeño encima (p. ej. lo que lleva un aldeano); alfa 0 = nada
+    std::int32_t health_permille = -1;  // barra de vida encima; -1 = sin barra
+    bool hero = false;                  // anillo de héroe
 };
 
 // Objeto estático en el suelo (edificio o nodo de recurso): un rombo del tamaño de su
@@ -34,6 +36,7 @@ struct SceneObject {
     Rgba body{};                      // rombo interior
     std::int32_t body_percent = 100;  // lado del rombo interior respecto a la huella
     bool highlighted = false;         // seleccionado: se cubre con hover_tile_color
+    std::int32_t health_permille = -1;  // barra de vida sobre el centro; -1 = sin barra
 };
 
 // Casilla teñida para superposiciones de depuración (sectores, campo de flujo).
@@ -57,6 +60,7 @@ struct Scene {
     std::optional<sim::TileCoord> hovered_tile;
     std::span<const TileTint> tile_tints;  // se dibujan sobre el terreno, bajo los marcadores
     std::span<const Vec2> path_points;     // puntos de ruta en pantalla
+    std::span<const Vec2> projectiles;     // proyectiles en vuelo, en pantalla
 };
 
 struct SceneStats {
@@ -77,6 +81,7 @@ public:
 
 private:
     void refresh_tile_colors(const sim::TileMap& map);
+    void add_health_bar(Vec2 center_top, std::int32_t permille, SpriteBatch& out) const;
 
     ViewParams view_;
     IsoProjection proj_;

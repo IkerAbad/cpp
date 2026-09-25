@@ -74,6 +74,16 @@ Rgba SceneBuilder::tile_color(const sim::TileMap& map, sim::TileCoord c) {
                         static_cast<std::size_t>(c.x)];
 }
 
+void SceneBuilder::add_health_bar(Vec2 center_top, std::int32_t permille, SpriteBatch& out) const {
+    constexpr std::int32_t kPermille = 1000;
+    const Vec2 size{static_cast<float>(view_.health_bar_width_px), static_cast<float>(view_.health_bar_height_px)};
+    const Vec2 top_left = center_top - Vec2{size.x * 0.5f, size.y};
+    out.add(top_left, size, solid_, view_.health_back_color);
+    const float fraction = static_cast<float>(std::clamp(permille, 0, kPermille)) / static_cast<float>(kPermille);
+    out.add(top_left, {size.x * fraction, size.y}, solid_,
+            permille < view_.health_low_permille ? view_.health_low_color : view_.health_color);
+}
+
 SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
     SceneStats stats;
     const Vec2 tile_size{static_cast<float>(view_.tile_width_px), static_cast<float>(view_.tile_height_px)};
@@ -122,6 +132,9 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
         if (o.highlighted) {
             out.add(top_left, size, diamond_, view_.hover_tile_color);
         }
+        if (o.health_permille >= 0) {
+            add_health_bar(top_left + Vec2{size.x * 0.5f, size.y * 0.5f}, o.health_permille, out);
+        }
         ++stats.objects_drawn;
     }
 
@@ -139,6 +152,9 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
         if (m.owner[3] != 0) {
             out.add(m.screen_pos - owner_size * 0.5f, owner_size, ring_, m.owner);
         }
+        if (m.hero) {
+            out.add(m.screen_pos - ring_size * 0.5f, ring_size, ring_, view_.hero_color);
+        }
         if (m.selected) {
             out.add(m.screen_pos - ring_size * 0.5f, ring_size, ring_, view_.marker_selected_color);
         }
@@ -147,7 +163,16 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
             const Vec2 at = m.screen_pos + Vec2{disc_size.x * 0.5f, -disc_size.y * 0.5f};
             out.add(at - badge_size * 0.5f, badge_size, disc_, m.badge);
         }
+        if (m.health_permille >= 0) {
+            add_health_bar(m.screen_pos - Vec2{0.0f, ring_size.y * 0.5f}, m.health_permille, out);
+        }
         ++stats.markers_drawn;
+    }
+
+    // Proyectiles: puntos a un cuarto del disco.
+    const Vec2 shot_size = disc_size * 0.25f;
+    for (const Vec2& p : scene.projectiles) {
+        out.add(p - shot_size * 0.5f, shot_size, disc_, view_.projectile_color);
     }
 
     // Puntos de ruta: discos a la mitad de tamaño.

@@ -58,6 +58,7 @@ World::World(const WorldParams& params)
       movement_(*map_, params.passable_by_terrain, params.movement),
       economy_(map_->width(), map_->height(), params.economy,
                {params.unit_types, params.building_types, params.node_types}, player_count(params)),
+      combat_(map_->width(), map_->height(), params.combat, params.unit_types, params.building_types),
       rng_(params.demo.seed) {
     setup_game(params.setup);
     spawn_demo_units(params.demo);
@@ -230,6 +231,7 @@ void World::apply_command(const Command& command) {
         }
     }
     economy_.apply(registry_, movement_, command, units, next_order_id_, tick_);
+    combat_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     if (command.type == CommandType::Move) {
         movement_.order_move(registry_, units, command.target, next_order_id_++, tick_);
     } else if (command.type == CommandType::Stop) {
@@ -250,7 +252,8 @@ void World::step() {
     pending_.erase(pending_.begin(), rest.begin());
 
     economy_.update(registry_, movement_, next_order_id_, tick_);
-    // Edificios colocados y nodos agotados en este tick: rejilla, HPA* y caminos.
+    combat_.update(registry_, movement_, economy_, next_order_id_, tick_);
+    // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
     movement_.commit_grid_changes(registry_);
     movement_.update(registry_, tick_);
     ++tick_;
@@ -327,6 +330,7 @@ std::uint64_t World::state_hash() const {
         }
     }
     economy_.hash_into(h, registry_);
+    combat_.hash_into(h, registry_);
     return h.value();
 }
 
@@ -348,6 +352,16 @@ void World::write_snapshot(Snapshot& out) const {
             s.carry_kind = w->carry_kind;
             s.carried = w->carried;
         }
+        if (const Health* hp = registry_.try_get<Health>(e)) {
+            s.hp = hp->hp;
+            s.max_hp = hp->max_hp;
+        }
+        if (const Combatant* c = registry_.try_get<Combatant>(e)) {
+            s.level = c->level;
+            s.xp = c->xp;
+            s.hero_name = c->hero_name;
+            s.stance = c->stance;
+        }
         out.entities.push_back(s);
     });
     out.objects.clear();
@@ -364,7 +378,7 @@ void World::write_snapshot(Snapshot& out) const {
             o.kind = ObjectKind::Building;
             o.type = b->type;
             o.owner = registry_.get<Owner>(e).player;
-            o.hp = b->hp;
+            o.hp = registry_.get<Health>(e).hp;
             o.progress = b->progress;
             o.complete = b->complete;
             if (const ProductionQueue* q = registry_.try_get<ProductionQueue>(e)) {
@@ -375,6 +389,10 @@ void World::write_snapshot(Snapshot& out) const {
         out.objects.push_back(std::move(o));
     }
     out.players.assign(economy_.players().begin(), economy_.players().end());
+    out.projectiles.clear();
+    for (const auto [e, p] : registry_.view<const Projectile>().each()) {
+        out.projectiles.push_back({p.pos.x, p.pos.y});
+    }
 }
 
 }  // namespace rts::sim

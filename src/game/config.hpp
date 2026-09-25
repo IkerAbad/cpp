@@ -42,8 +42,11 @@ struct UnitInfo {
 struct UnitCatalog {
     // El índice en el vector es el UnitTypeId.
     std::vector<UnitInfo> types;
+    // Clases de armadura ("classes" en units.toml); el índice es el ArmorClassId.
+    std::vector<std::string> classes;
 
     [[nodiscard]] std::optional<sim::UnitTypeId> find(std::string_view name) const;
+    [[nodiscard]] std::optional<sim::ArmorClassId> find_class(std::string_view name) const;
 };
 
 // --- Recursos ------------------------------------------------------------------
@@ -141,6 +144,7 @@ struct EngineConfig {
     CameraConfig camera;
     SelectionConfig selection;
     std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
+    std::vector<std::string> hero_names;                     // por índice de CombatParams
 };
 
 // Los errores son textos legibles que nombran el fichero y la clave que falla.

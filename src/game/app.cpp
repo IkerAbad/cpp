@@ -46,6 +46,7 @@ constexpr std::uint8_t kOpaque = 255;
 // Jugador humano de esta máquina. En LAN (M8) lo asignará la sala de espera.
 constexpr sim::PlayerId kLocalPlayer = 0;
 constexpr std::int32_t kPercent = 100;
+constexpr std::int32_t kPermille = 1000;
 
 render::Rgba opaque(const std::array<std::uint8_t, 3>& rgb) noexcept {
     return {rgb[0], rgb[1], rgb[2], kOpaque};
@@ -413,8 +414,30 @@ private:
         return c;
     }
 
-    // Clic derecho: recoger si hay un recurso, construir o descargar si es un edificio
-    // propio, mover en cualquier otro caso.
+    // Unidad enemiga más cercana al cursor dentro del radio de clic (posiciones del
+    // último fotograma, lo que el jugador veía).
+    [[nodiscard]] std::optional<std::uint32_t> enemy_unit_at(render::Vec2 screen_pos) const {
+        const auto radius = static_cast<float>(data_.engine.selection.click_radius_px);
+        std::optional<std::uint32_t> best;
+        float best_d = radius * radius;
+        for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
+            const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
+            if (se.owner == kLocalPlayer) {
+                continue;
+            }
+            const render::Vec2 d = screen_entities_[i].pos - screen_pos;
+            const float dist = d.x * d.x + d.y * d.y;
+            if (dist <= best_d) {
+                best_d = dist;
+                best = se.id;
+            }
+        }
+        return best;
+    }
+
+    // Clic derecho: atacar a un enemigo; recoger si hay un recurso; construir o
+    // descargar si es un edificio propio; mover en cualquier otro caso. Con Ctrl,
+    // ataque-movimiento: ir al destino peleando con lo que se encuentre.
     void issue_context_order(render::Vec2 screen_pos) {
         if (selection_.selected().empty()) {
             return;
@@ -422,7 +445,16 @@ private:
         const sim::TileCoord tile = tile_at(screen_pos);
         const sim::SnapshotObject* o = object_under(tile);
         sim::Command c = local_command(sim::CommandType::Move);
-        if (o != nullptr && o->kind == sim::ObjectKind::Resource) {
+        if (window_.ctrl_held()) {
+            c.type = sim::CommandType::AttackMove;
+            c.target = tile;
+        } else if (const auto enemy = enemy_unit_at(screen_pos)) {
+            c.type = sim::CommandType::Attack;
+            c.object = *enemy;
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner != kLocalPlayer) {
+            c.type = sim::CommandType::Attack;
+            c.object = o->id;
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Resource) {
             c.type = sim::CommandType::Gather;
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
@@ -638,7 +670,11 @@ private:
         ImGui::Checkbox("Campo de flujo", &show_flow_);
         ImGui::Separator();
         ImGui::TextDisabled("Arrastre: rectángulo · Mayús: añadir · Esc: limpiar");
-        ImGui::TextDisabled("Clic derecho: mover, recoger (recurso), construir o descargar (edificio propio)");
+        ImGui::TextDisabled("Clic derecho: mover, atacar (enemigo), recoger (recurso), construir o descargar");
+        ImGui::TextDisabled("Ctrl + clic derecho: ataque-movimiento");
+        const sim::CombatTickStats& cb = world_.combat().last_stats();
+        ImGui::Text("Combate: %d golpes, %d proyectiles (%d aciertos, %d fallos), %d bajas en el último tick",
+                    cb.melee_hits, cb.projectiles_fired, cb.projectiles_hit, cb.projectiles_missed, cb.kills);
         ImGui::TextDisabled("Flechas/WASD o borde de ventana: desplazar");
         ImGui::End();
 
@@ -717,6 +753,29 @@ private:
                 }
             }
             ImGui::Text("%zu unidades seleccionadas (%d aldeanos)", selection_.selected().size(), workers);
+            if (selection_.selected().size() == 1) {
+                const auto it = std::ranges::find(curr_.entities, selection_.selected().front(), &sim::SnapshotEntity::id);
+                if (it != curr_.entities.end()) {
+                    const UnitInfo& u = data_.units.types[it->type];
+                    ImGui::Text("%s · vida %d/%d · nivel %d (%d de experiencia)", u.name.c_str(), it->hp, it->max_hp,
+                                it->level, it->xp);
+                    if (it->hero_name >= 0 && !data_.engine.hero_names.empty()) {
+                        const auto n = static_cast<std::size_t>(it->hero_name) % data_.engine.hero_names.size();
+                        ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, "Héroe: %s", data_.engine.hero_names[n].c_str());
+                    }
+                }
+            }
+            if (ImGui::Button("Agresiva")) {
+                sim::Command c = local_command(sim::CommandType::SetStance);
+                c.kind = static_cast<std::uint8_t>(sim::Stance::Aggressive);
+                world_.issue(std::move(c));
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Mantener posición")) {
+                sim::Command c = local_command(sim::CommandType::SetStance);
+                c.kind = static_cast<std::uint8_t>(sim::Stance::HoldGround);
+                world_.issue(std::move(c));
+            }
             if (workers > 0) {
                 ImGui::SeparatorText("Construir");
                 for (std::size_t b = 0; b < data_.buildings.types.size(); ++b) {
@@ -807,6 +866,10 @@ private:
                 }
                 so.body_percent = view.building_body_percent;
                 so.highlighted = selected_building_ == o.id;
+                const std::int32_t max_hp = data_.buildings.types[o.type].type.hp;
+                if (o.complete && max_hp > 0 && o.hp < max_hp) {
+                    so.health_permille = o.hp * kPermille / max_hp;
+                }
             }
             objects_.push_back(so);
         }
@@ -825,6 +888,7 @@ private:
 
     void present() {
         build_screen_entities();
+        selection_.retain(own_screen_entities_);
         renderer_.begin_frame();
 
         markers_.clear();
@@ -841,6 +905,10 @@ private:
             if (se.carried > 0) {
                 m.badge = data_.engine.view.resource_colors[sim::resource_index(se.carry_kind)];
             }
+            if (se.max_hp > 0 && (se.hp < se.max_hp || m.selected)) {
+                m.health_permille = se.hp * kPermille / se.max_hp;
+            }
+            m.hero = se.hero_name >= 0;
             markers_.push_back(m);
         }
         build_overlays();
@@ -857,6 +925,12 @@ private:
         scene.hovered_tile = hover;
         scene.tile_tints = tints_;
         scene.path_points = path_points_;
+        projectile_points_.clear();
+        for (const sim::Position& p : curr_.projectiles) {
+            const render::Vec2 t{fixed_to_float(p.x), fixed_to_float(p.y)};
+            projectile_points_.push_back(camera_.world_to_screen(proj_.tile_to_world(t)));
+        }
+        scene.projectiles = projectile_points_;
         if (selection_.has_visible_rect()) {
             const ScreenRect r = selection_.drag_rect();
             scene.drag_rect = render::Rect{r.min, r.max};
@@ -890,6 +964,7 @@ private:
     std::optional<sim::BuildingTypeId> placing_;
     std::vector<render::TileTint> tints_;
     std::vector<render::Vec2> path_points_;
+    std::vector<render::Vec2> projectile_points_;
     bool show_portals_ = false;
     bool show_paths_ = true;
     bool show_flow_ = false;

@@ -8,7 +8,19 @@
 # worker: recoge recursos y construye; carry_capacity = unidades que lleva encima.
 # color: RGB provisional (0-255) hasta que haya arte.
 #
+# Combate (M4). Daño por golpe, estilo del género:
+#   max(1, max(0, ataque.cuerpo - armadura.cuerpo)
+#          + max(0, ataque.proyectil - armadura.proyectil) + bonus[clase del blanco])
+# hp: vida. class: clase de armadura (de "classes"). bonus: daño extra contra clases.
+# range_milli_tiles: alcance entre los bordes del atacante y el blanco.
+# reload_ticks: ticks entre golpes. sight_tiles: radio en el que busca blancos solo.
+# projectile_speed_milli_tiles_per_tick: 0 = cuerpo a cuerpo; si no, dispara un
+#   proyectil hacia donde está el blanco al disparar (se puede esquivar moviéndose).
+# auto_attack: si busca blancos solo (los aldeanos no).
+#
 # Valores de diseño propios, a ajustar jugando: no proceden de ningún juego.
+
+classes = ["aldeano", "infanteria", "arquero", "caballeria", "edificio"]
 
 [[unit]]
 name = "aldeano"
@@ -20,6 +32,16 @@ train_ticks = 500
 population = 1
 worker = true
 carry_capacity = 10
+hp = 25
+attack = { cuerpo = 3 }
+armor = { proyectil = 1 }
+class = "aldeano"
+bonus = {}
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 4
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = false
 
 [[unit]]
 name = "milicia"
@@ -31,6 +53,16 @@ train_ticks = 420
 population = 1
 worker = false
 carry_capacity = 0
+hp = 45
+attack = { cuerpo = 6 }
+armor = { cuerpo = 1, proyectil = 1 }
+class = "infanteria"
+bonus = { edificio = 2 }
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 6
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = true
 
 [[unit]]
 name = "explorador"
@@ -42,3 +74,55 @@ train_ticks = 600
 population = 1
 worker = false
 carry_capacity = 0
+hp = 45
+attack = { cuerpo = 3 }
+armor = { proyectil = 2 }
+class = "caballeria"
+bonus = {}
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 8
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = true
+
+[[unit]]
+name = "lancero"
+radius_milli_tiles = 300
+speed_milli_tiles_per_tick = 55
+color = [180, 190, 210]
+cost = { comida = 35, madera = 25 }
+train_ticks = 440
+population = 1
+worker = false
+carry_capacity = 0
+hp = 45
+attack = { cuerpo = 3 }
+armor = { proyectil = 1 }
+class = "infanteria"
+bonus = { caballeria = 15, edificio = 1 }
+range_milli_tiles = 250
+reload_ticks = 60
+sight_tiles = 6
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = true
+
+[[unit]]
+name = "arquero"
+radius_milli_tiles = 250
+speed_milli_tiles_per_tick = 55
+color = [120, 200, 120]
+cost = { madera = 25, oro = 45 }
+train_ticks = 700
+population = 1
+worker = false
+carry_capacity = 0
+hp = 30
+attack = { proyectil = 4 }
+armor = {}
+class = "arquero"
+bonus = { infanteria = 1 }
+range_milli_tiles = 4000
+reload_ticks = 40
+sight_tiles = 7
+projectile_speed_milli_tiles_per_tick = 350
+auto_attack = true

@@ -43,6 +43,12 @@ inline sim::MovementParams test_movement_params() {
 // Tipos de la economía de prueba.
 inline constexpr sim::UnitTypeId kSoldier = 0;
 inline constexpr sim::UnitTypeId kVillager = 1;
+inline constexpr sim::UnitTypeId kArcher = 2;
+// Clases de armadura de prueba.
+inline constexpr sim::ArmorClassId kClassVillager = 0;
+inline constexpr sim::ArmorClassId kClassInfantry = 1;
+inline constexpr sim::ArmorClassId kClassArcher = 2;
+inline constexpr sim::ArmorClassId kClassBuilding = 3;
 inline constexpr sim::BuildingTypeId kCenter = 0;
 inline constexpr sim::BuildingTypeId kHouse = 1;
 inline constexpr sim::BuildingTypeId kLumberCamp = 2;
@@ -60,6 +66,13 @@ inline std::vector<sim::UnitType> test_unit_types() {
     soldier.speed = sim::Fixed::from_ratio(6, 100);
     soldier.cost = stock(60, 0, 0, 20);
     soldier.train_ticks = 100;
+    soldier.combat.hp = 40;
+    soldier.combat.attack_melee = 5;
+    soldier.combat.armor_melee = 1;
+    soldier.combat.armor_class = kClassInfantry;
+    soldier.combat.range = sim::Fixed::from_ratio(15, 100);
+    soldier.combat.reload_ticks = 20;
+    soldier.combat.sight_tiles = 6;
     sim::UnitType villager;
     villager.radius = sim::Fixed::from_ratio(1, 4);
     villager.speed = sim::Fixed::from_ratio(5, 100);
@@ -67,7 +80,27 @@ inline std::vector<sim::UnitType> test_unit_types() {
     villager.train_ticks = 200;
     villager.worker = true;
     villager.carry_capacity = 10;
-    return {soldier, villager};
+    villager.combat.hp = 25;
+    villager.combat.attack_melee = 3;
+    villager.combat.armor_class = kClassVillager;
+    villager.combat.range = sim::Fixed::from_ratio(15, 100);
+    villager.combat.reload_ticks = 20;
+    villager.combat.sight_tiles = 4;
+    villager.combat.auto_attack = false;
+    sim::UnitType archer;
+    archer.radius = sim::Fixed::from_ratio(1, 4);
+    archer.speed = sim::Fixed::from_ratio(5, 100);
+    archer.cost = stock(0, 25, 0, 45);
+    archer.train_ticks = 150;
+    archer.combat.hp = 30;
+    archer.combat.attack_pierce = 4;
+    archer.combat.armor_class = kClassArcher;
+    archer.combat.bonus[kClassInfantry] = 1;
+    archer.combat.range = sim::Fixed::from_int(4);
+    archer.combat.reload_ticks = 20;
+    archer.combat.sight_tiles = 7;
+    archer.combat.projectile_speed = sim::Fixed::from_ratio(35, 100);
+    return {soldier, villager, archer};
 }
 
 inline std::vector<sim::BuildingType> test_building_types() {
@@ -80,18 +113,25 @@ inline std::vector<sim::BuildingType> test_building_types() {
     center.accepts = kAll;
     center.population = 5;
     center.trains = {kVillager, kSoldier};
+    center.armor_melee = 3;
+    center.armor_pierce = 8;
+    center.armor_class = kClassBuilding;
     sim::BuildingType house;
     house.size = 2;
     house.cost = stock(0, 30, 0, 0);
     house.build_ticks = 300;
     house.hp = 500;
     house.population = 5;
+    house.armor_melee = 3;
+    house.armor_pierce = 8;
+    house.armor_class = kClassBuilding;
     sim::BuildingType camp;
     camp.size = 2;
     camp.cost = stock(0, 100, 0, 0);
     camp.build_ticks = 400;
     camp.hp = 600;
     camp.accepts = sim::resource_bit(sim::Resource::Wood);
+    camp.armor_class = kClassBuilding;
     return {center, house, camp};
 }
 
@@ -112,6 +152,24 @@ inline sim::EconomyParams test_economy_params() {
     return e;
 }
 
+inline sim::CombatParams test_combat_params() {
+    sim::CombatParams c;
+    c.acquire_interval_ticks = 10;
+    c.repath_tiles = 2;
+    c.chase_attempts = 3;
+    c.building_reach = sim::Fixed::from_ratio(3, 5);
+    c.projectile_hit_radius = sim::Fixed::from_ratio(15, 100);
+    c.xp_kill_bonus = 20;
+    c.level_thresholds = {10, 20, 30};  // 3 niveles: el tercero es héroe
+    c.hp_percent_per_level = 10;
+    c.attack_percent_per_level = 10;
+    c.armor_every_levels = 2;
+    c.hero_aura_radius = sim::Fixed::from_int(4);
+    c.hero_aura_attack_percent = 20;
+    c.hero_name_count = 2;
+    return c;
+}
+
 inline sim::WorldParams test_world_params(std::int32_t units = 1000, std::int32_t area = 64) {
     sim::WorldParams p;
     p.map = test_map_params();
@@ -120,6 +178,7 @@ inline sim::WorldParams test_world_params(std::int32_t units = 1000, std::int32_
     p.building_types = test_building_types();
     p.node_types = test_node_types();
     p.economy = test_economy_params();
+    p.combat = test_combat_params();
     p.movement = test_movement_params();
     p.demo.seed = 0x5EED'2026'0924ULL;
     p.demo.unit_type = 0;

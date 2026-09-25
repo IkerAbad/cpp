@@ -9,9 +9,9 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 |------|-----------|--------|
 | M0 | Esqueleto: ventana, paso fijo, ImGui, CMake + vcpkg, CI Windows/Linux | hecho, en revisión |
 | M1 | Mapa isométrico por casillas, cámara, selección por rectángulo | hecho, en revisión |
-| M2 | Unidades, HPA*, campos de flujo, evitación local, banco de 1000/2000 unidades | hecho, en revisión |
-| M3 | Economía: 4 recursos, aldeanos, construcción, colas de producción | **en curso** |
-| M4 | Combate y experiencia | — |
+| M2 | Unidades, HPA*, campos de flujo, evitación local, banco de 1000/2000 unidades | hecho |
+| M3 | Economía: 4 recursos, aldeanos, construcción, colas de producción | hecho |
+| M4 | Combate con proyectiles esquivables, experiencia por unidad y héroes | **en curso** |
 | M5 | Repeticiones deterministas | — |
 | M6 | Logística | — |
 | M7 | IA | — |
@@ -63,6 +63,9 @@ Controles:
 | Construir o descargar | Clic derecho sobre un edificio propio: si está en obra, se construye; si es almacén, se descarga |
 | Colocar un edificio | Botón del panel «Selección» con aldeanos seleccionados; clic para colocar, Mayús + clic para varios, clic derecho o Esc para cancelar |
 | Producir unidades | Clic sobre un edificio propio y botones de su panel; «Cancelar la última» devuelve el coste entero |
+| Atacar | Clic derecho sobre una unidad o un edificio enemigo |
+| Ataque-movimiento | Ctrl + clic derecho sobre el destino: van peleando con lo que encuentren |
+| Postura | Botones «Agresiva» y «Mantener posición» del panel «Selección» |
 
 Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) y `RTS_BUILD_TESTS` (ON).
 
@@ -183,6 +186,26 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - Nada garantiza que un recurso no quede encerrado por el bosque.
   - La construcción es lineal; el género suele dar rendimientos decrecientes.
 
+### Combate (M4)
+
+- **Estadísticas por tipo** (`units.toml`): vida, ataque y armadura de cuerpo a cuerpo y de proyectil, clase de armadura, daño extra contra clases, alcance entre bordes, recarga, radio de visión y velocidad del proyectil. Los edificios tienen armadura y clase en `buildings.toml`.
+- **Daño por golpe**, estilo del género:
+  `max(1, max(0, cuerpo − armadura_cuerpo) + max(0, proyectil − armadura_proyectil) + bonus[clase])`.
+- **Resolución simultánea.** Todos los golpes de un tick se calculan sobre el estado del principio del tick, se suman y se aplican de una vez; las muertes, al final. Dos unidades iguales que se atacan mueren en el mismo tick (prueba incluida).
+- **Proyectiles esquivables.** Son entidades que vuelan hacia donde estaba el blanco al disparar. Al caer, dañan al blanco previsto si sigue ahí; si no, a la unidad enemiga más cercana en ese punto o al edificio enemigo de la casilla. Si no hay nadie, fallan. Una unidad que cruza la línea de tiro esquiva la flecha (prueba incluida).
+- **Blancos.**
+  - Orden de ataque explícita.
+  - Adquisición automática del enemigo más cercano dentro de la visión, cada `acquire_interval_ticks` repartidos por id, con una rejilla espacial propia del tick.
+  - Persecución que se recalcula si el blanco se aleja `repath_tiles`, y abandono tras `chase_attempts` llegadas sin alcanzarlo.
+  - Posturas: agresiva, o mantener posición (no persigue).
+  - Ataque-movimiento: un movimiento de grupo que se desvía para pelear y luego sigue.
+- **Experiencia al estilo Tzar.**
+  - 1 punto por punto de daño hecho, más `xp_kill_bonus` por baja.
+  - 12 niveles con umbrales en TOML. Cada nivel da un porcentaje de vida y de ataque, y armadura cada pocos niveles.
+  - En el último nivel la unidad se vuelve héroe: nombre propio y aura de ataque para los aliados cercanos. Las auras no se acumulan.
+- **Muerte.** La entidad se destruye. Un edificio libera su huella con la actualización incremental de M3 (prueba: el grafo queda igual que uno construido desde cero).
+- **Presentación.** Barras de vida, proyectiles en vuelo, anillo dorado de héroe, nivel y experiencia en el panel.
+
 ### Convenciones de `data/`
 
 - Solo enteros. Una magnitud fraccionaria se escribe en una unidad menor que figura en el nombre de la clave: `max_speed_milli_tiles_per_tick = 150` significa 0,150 casillas por tick. Así la carga no depende del redondeo decimal→binario de cada plataforma.
@@ -205,12 +228,13 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 |---|---|
 | `unit` | Punto fijo, RNG contra los vectores de referencia de los autores, reloj de paso fijo, configuración, generación de mapas, proyección y recorte (contra fuerza bruta en 200 cámaras), cámara, selección, atlas, escena, caminos y movimiento, economía, regresión por hash |
 | `unit`: economía | Tiempo exacto de recogida (ciclo de 121 ticks), conservación (existencias + carga + nodos = constante en cada tick), agotamiento que libera la casilla, cola (cobro, reembolso, capacidad, otro jugador), pausa por población, 1 frente a 3 constructores, colocación inválida sin cobro, replanificación sin pisar casillas bloqueadas, HPA\* incremental idéntico al construido desde cero, preparación de partida |
-| `unit`: regresión | Hash tras 1200 ticks de movimiento con 500 unidades y hash tras 1500 ticks de una partida económica de dos jugadores |
+| `unit`: combate | Fórmula de daño (armaduras, bonus, mínimo 1, porcentaje de nivel), duelo simétrico con muerte en el mismo tick, proyectil que acierta a un blanco quieto y falla a uno que se mueve, niveles y héroe con aura, posturas, ataque-movimiento, edificio destruido que libera casillas, determinismo tick a tick |
+| `unit`: regresión | Hashes tras 1200 ticks de movimiento con 500 unidades, 1500 ticks de una partida económica de dos jugadores y 600 ticks de una batalla de 30 contra 30 |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
-| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades: falla si algún tick supera 50 ms |
+| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades, en movimiento y en batalla: falla si algún tick supera 50 ms |
 
 Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el cambio de diseño es intencionado, se actualiza `kExpectedHash` en el mismo commit y se justifica en el mensaje.
 
@@ -224,6 +248,15 @@ Presupuesto del planificador: 60 000 nodos por tick desde M3. Los valores de M2 
 |---|---|---|---|---|
 | 1000 | 3,01 ms/tick (2,99) | 5,12 ms (6,39) | 18,0 ms (10,1) | ≤ 50 ms ✅ |
 | 2000 | 6,54 ms/tick (6,68) | 16,8 ms (10,8) | 19,1 ms (15,9) | ≤ 50 ms ✅ |
+
+Batalla (`--combat 1`): dos ejércitos (2/3 soldados, 1/3 arqueros) con los frentes a 40 casillas, en ataque-movimiento, 1200 ticks:
+
+| Unidades | Media | p99 | Máximo | Bajas / proyectiles |
+|---|---|---|---|---|
+| 1000 (500 contra 500) | 5,29 ms/tick | 10,4 ms | 12,5 ms | 242 / 2537 |
+| 2000 (1000 contra 1000) | 10,2 ms/tick | 18,2 ms | 30,2 ms | 642 / 4226 |
+
+El peor tick de la batalla grande lo marca el planificador (61 200 nodos: persecuciones que se recalculan a la vez).
 
 Con más presupuesto, el tick del aluvión de 400 órdenes (el 800) resuelve más caminos de golpe: el máximo sube 8 ms con 1000 unidades a cambio de vaciar antes la cola (1861 caminos esperando como mucho con 2000 unidades, frente a 1951).
 

@@ -174,6 +174,8 @@ entt::entity EconomySystem::spawn_unit(entt::registry& registry, PlayerId player
     registry.emplace<Velocity>(e);
     registry.emplace<Unit>(e, type, ut.radius, ut.speed);
     registry.emplace<Owner>(e, player);
+    registry.emplace<Health>(e, ut.combat.hp, ut.combat.hp);
+    registry.emplace<Combatant>(e);
     if (ut.worker) {
         registry.emplace<Worker>(e);
     }
@@ -198,8 +200,8 @@ std::optional<entt::entity> EconomySystem::place_building(entt::registry& regist
     b.type = type;
     b.complete = complete;
     b.progress = complete ? bt.build_ticks : 0;
-    b.hp = complete ? bt.hp : 1;  // los cimientos empiezan con 1 punto de vida
     registry.emplace<Building>(e, b);
+    registry.emplace<Health>(e, complete ? bt.hp : 1, bt.hp);  // los cimientos empiezan con 1
     if (!bt.trains.empty()) {
         registry.emplace<ProductionQueue>(e);
     }
@@ -281,8 +283,12 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
     };
 
     switch (command.type) {
+        case CommandType::SetStance:
+            return;
         case CommandType::Move:
         case CommandType::Stop:
+        case CommandType::Attack:
+        case CommandType::AttackMove:
             for (const entt::entity e : units) {
                 if (Worker* w = registry.try_get<Worker>(e)) {
                     w->task = WorkerTask::Idle;
@@ -644,12 +650,14 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
     // más rápido (lineal; el género suele dar rendimientos decrecientes).
     Building& b = registry.get<Building>(w.building);
     const BuildingType& bt = catalog_.buildings[b.type];
+    // La obra suma vida en proporción al trabajo (el daño recibido se conserva).
+    Health& health = registry.get<Health>(w.building);
+    const auto before = std::int64_t{bt.hp} * b.progress / std::max(bt.build_ticks, 1);
     ++b.progress;
-    b.hp = std::max<std::int32_t>(
-        1, static_cast<std::int32_t>(std::int64_t{bt.hp} * b.progress / std::max(bt.build_ticks, 1)));
+    const auto after = std::int64_t{bt.hp} * b.progress / std::max(bt.build_ticks, 1);
+    health.hp = std::min(health.max_hp, health.hp + static_cast<std::int32_t>(after - before));
     if (b.progress >= bt.build_ticks) {
         b.complete = true;
-        b.hp = bt.hp;
     }
 }
 
@@ -716,6 +724,11 @@ std::optional<entt::entity> EconomySystem::nearest_dropoff(const entt::registry&
         }
     }
     return best;
+}
+
+void EconomySystem::remove_building(entt::registry& registry, MovementSystem& movement, entt::entity building) {
+    release(movement, registry.get<Footprint>(building));
+    registry.destroy(building);
 }
 
 void EconomySystem::deplete(entt::registry& registry, MovementSystem& movement, entt::entity node) {
@@ -792,7 +805,6 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
         h.add_u32(entt::to_integral(e));
         h.add_u32(b.type);
         h.add_i32(b.progress);
-        h.add_i32(b.hp);
         h.add_u32(b.complete ? 1U : 0U);
         h.add_u32(b.spawned);
     }

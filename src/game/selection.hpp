@@ -43,6 +43,9 @@ public:
 
     void clear() noexcept { selected_.clear(); }
 
+    // Quita de la selección lo que ya no está en pantalla como propio (unidades muertas).
+    void retain(std::span<const ScreenEntity> alive);
+
     [[nodiscard]] bool dragging() const noexcept { return dragging_; }
     // Rectángulo del arrastre en curso, solo si ya superó el umbral de clic.
     [[nodiscard]] bool has_visible_rect() const noexcept;

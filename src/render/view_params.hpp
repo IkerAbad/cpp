@@ -33,6 +33,16 @@ struct ViewParams {
     Rgba ghost_valid_color{};
     Rgba ghost_invalid_color{};
     std::array<Rgba, 4> resource_colors{};  // por sim::Resource
+
+    // Combate (M4): barras de vida, proyectiles y anillo de héroe.
+    std::int32_t health_bar_width_px = 0;
+    std::int32_t health_bar_height_px = 0;
+    std::int32_t health_low_permille = 0;  // por debajo, la barra usa health_low_color
+    Rgba health_back_color{};
+    Rgba health_color{};
+    Rgba health_low_color{};
+    Rgba projectile_color{};
+    Rgba hero_color{};
 };
 
 }  // namespace rts::render
