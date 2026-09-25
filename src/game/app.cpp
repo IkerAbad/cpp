@@ -4,6 +4,7 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <format>
 #include <limits>
 #include <optional>
@@ -19,6 +20,7 @@
 
 #include "game/camera_control.hpp"
 #include "game/fixed_step.hpp"
+#include "game/replay.hpp"
 #include "game/selection.hpp"
 #include "platform/profile.hpp"
 #include "platform/window.hpp"
@@ -104,7 +106,8 @@ float fixed_to_float(sim::Fixed v) noexcept {
 }
 
 void print_usage() {
-    spdlog::info("Uso: rts [--data <carpeta>] [--frames <N>] | [--headless --ticks <N>]");
+    spdlog::info("Uso: rts [--data <carpeta>] [--frames <N>] | [--headless --ticks <N> [--record <fichero>]]");
+    spdlog::info("     rts --replay <fichero> [--frames <N>] | --verify-replay <fichero>");
 }
 
 bool parse_count(std::string_view value, std::int64_t& out) {
@@ -197,8 +200,9 @@ std::optional<sim::TileCoord> build_site(const GameData& data, const sim::World&
 }
 
 // Convierte las órdenes del guion en órdenes de la simulación, resueltas contra el
-// estado inicial del mundo.
-void issue_scenario(const GameData& data, sim::World& world) {
+// estado inicial del mundo, y las entrega a issue.
+template <typename Issue>
+void issue_scenario(const GameData& data, sim::World& world, Issue&& issue) {
     sim::Snapshot snap;
     world.write_snapshot(snap);
     for (const ScenarioOrder& o : data.headless_scenario.orders) {
@@ -247,13 +251,27 @@ void issue_scenario(const GameData& data, sim::World& world) {
                 c.kind = o.unit;
                 c.units.clear();
                 for (std::int32_t i = 0; i < o.count; ++i) {
-                    world.issue(c);
+                    issue(c);
                 }
                 continue;
             }
         }
-        world.issue(std::move(c));
+        issue(std::move(c));
     }
+}
+
+// replays/partida-2026-09-25_18-30-05.rtsrep, con la hora local de inicio (UTC si el
+// sistema no tiene zona horaria).
+std::filesystem::path auto_replay_path(const GameData& data) {
+    const auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+    std::string stamp;
+    try {
+        stamp = std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::zoned_time{std::chrono::current_zone(), now});
+    } catch (const std::exception&) {
+        stamp = std::format("{:%Y-%m-%d_%H-%M-%S}Z", now);
+    }
+    return std::filesystem::path(platform::executable_dir()) / data.engine.replay.directory /
+           std::format("partida-{}.rtsrep", stamp);
 }
 
 // Métricas del panel de depuración.
@@ -271,14 +289,25 @@ struct FrameStats {
 
 class WindowedGame {
 public:
-    WindowedGame(const GameData& data, platform::Window& window, render::Renderer& renderer)
+    // Con replay, reproduce esa repetición (sin órdenes); sin ella, partida nueva que
+    // se graba sola.
+    WindowedGame(const GameData& data, platform::Window& window, render::Renderer& renderer, const Replay* replay)
         : data_(data),
           window_(window),
           renderer_(renderer),
           world_(data.engine.world),
           proj_(data.engine.view),
-          clock_({kTickNs, data.engine.loop.max_ticks_per_frame}),
+          // A velocidad xN caben N veces más ticks por fotograma.
+          clock_({kTickNs, data.engine.loop.max_ticks_per_frame *
+                               (replay != nullptr ? data.engine.replay.speeds.back() : 1)}),
           selection_(data.engine.selection) {
+        if (replay != nullptr) {
+            player_.emplace(*replay);
+            replay_end_ = replay->end_tick;
+        } else {
+            recorder_.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
+            replay_path_ = auto_replay_path(data);
+        }
         world_.write_snapshot(curr_);
         prev_ = curr_;
         stats_.state_hash = world_.state_hash();
@@ -320,6 +349,13 @@ public:
         spdlog::info("{} fotogramas; medias móviles: escena {:.3f} ms, envío {:.3f} ms (con espera de vsync), "
                      "simulación {:.3f} ms/tick; {} sprites en el último",
                      frame, stats_.scene_ms, stats_.submit_ms, stats_.sim_ms_per_tick, renderer_.sprites_last_frame());
+        if (recorder_ && world_.tick() > 0) {
+            if (const auto saved = save_replay(replay_path_, recorder_->finish(world_)); saved) {
+                spdlog::info("Repetición guardada en {}", replay_path_.string());
+            } else {
+                spdlog::error("Repetición: {}", saved.error());
+            }
+        }
         return 0;
     }
 
@@ -357,6 +393,9 @@ private:
                     }
                     break;
                 case SDL_EVENT_KEY_DOWN:
+                    if (player_ && !renderer_.ui_wants_keyboard()) {
+                        replay_key(event.key.scancode);
+                    }
                     if (event.key.scancode == SDL_SCANCODE_ESCAPE && !renderer_.ui_wants_keyboard()) {
                         if (placing_) {
                             placing_.reset();
@@ -371,6 +410,25 @@ private:
             }
         }
         return true;
+    }
+
+    // Reproductor: espacio pausa; 1, 2, 3... eligen la velocidad de la lista de datos.
+    void replay_key(SDL_Scancode key) {
+        if (key == SDL_SCANCODE_SPACE) {
+            paused_ = !paused_;
+            return;
+        }
+        const auto index = static_cast<std::size_t>(key) - static_cast<std::size_t>(SDL_SCANCODE_1);
+        if (key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_9 && index < data_.engine.replay.speeds.size()) {
+            speed_index_ = index;
+        }
+    }
+
+    // Toda orden del jugador pasa por aquí: se graba. En una repetición no se aceptan.
+    void issue(sim::Command c) {
+        if (recorder_) {
+            recorder_->issue(world_, std::move(c));
+        }
     }
 
     [[nodiscard]] sim::TileCoord tile_at(render::Vec2 screen_pos) const {
@@ -463,7 +521,7 @@ private:
         } else {
             c.target = tile;
         }
-        world_.issue(std::move(c));
+        issue(std::move(c));
     }
 
     [[nodiscard]] sim::TileCoord ghost_origin(sim::TileCoord hover, sim::BuildingTypeId type) const {
@@ -478,7 +536,7 @@ private:
         sim::Command c = local_command(sim::CommandType::Place);
         c.kind = type;
         c.target = ghost_origin(tile_at(screen_pos), type);
-        world_.issue(std::move(c));
+        issue(std::move(c));
         if (!window_.shift_held()) {
             placing_.reset();
         }
@@ -545,12 +603,28 @@ private:
     }
 
     void simulate(std::int64_t frame_ns) {
-        const StepPlan plan = clock_.advance(frame_ns);
+        std::int64_t sim_ns = frame_ns;
+        if (player_) {
+            const bool stopped = paused_ || player_->finished(world_);
+            sim_ns = stopped ? 0 : frame_ns * data_.engine.replay.speeds[speed_index_];
+        }
+        const StepPlan plan = clock_.advance(sim_ns);
         const auto start = SteadyClock::now();
         for (std::int32_t i = 0; i < plan.ticks; ++i) {
             RTS_PROFILE_ZONE_NAMED("sim_tick");
+            if (player_ && player_->finished(world_)) {
+                break;
+            }
             std::swap(prev_, curr_);
+            if (player_) {
+                player_->before_step(world_);
+            }
             world_.step();
+            if (player_) {
+                player_->after_step(world_);
+            } else {
+                recorder_->after_step(world_);
+            }
             world_.write_snapshot(curr_);
         }
         if (plan.ticks > 0) {
@@ -681,6 +755,7 @@ private:
         draw_resource_bar(display);
         draw_selection_panel(display);
         draw_outcome(display);
+        draw_replay_panel(display);
 
         // Arriba a la derecha, anclado por su esquina superior derecha.
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
@@ -706,6 +781,42 @@ private:
         } else {
             ImGui::TextDisabled("Pasa el ratón sobre el mapa");
         }
+        ImGui::End();
+    }
+
+    // Reproductor: tiempo, pausa, velocidad y estado de la verificación en curso.
+    void draw_replay_panel(const ImVec2& display) {
+        if (!player_) {
+            return;
+        }
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y - kPanelMarginPx}, ImGuiCond_FirstUseEver, {0.5f, 1.0f});
+        ImGui::Begin("Repetición", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        const auto clock_text = [](sim::Tick t) {
+            const auto seconds = t / static_cast<sim::Tick>(sim::kTicksPerSecond);
+            constexpr sim::Tick kSecondsPerMinute = 60;
+            return std::format("{}:{:02}", seconds / kSecondsPerMinute, seconds % kSecondsPerMinute);
+        };
+        ImGui::Text("%s / %s", clock_text(world_.tick()).c_str(), clock_text(replay_end_).c_str());
+        ImGui::SameLine();
+        if (ImGui::Button(paused_ ? "Reanudar" : "Pausa")) {
+            paused_ = !paused_;
+        }
+        const auto& speeds = data_.engine.replay.speeds;
+        for (std::size_t i = 0; i < speeds.size(); ++i) {
+            ImGui::SameLine();
+            const std::string label = std::format("x{}", speeds[i]);
+            if (ImGui::RadioButton(label.c_str(), speed_index_ == i)) {
+                speed_index_ = i;
+            }
+        }
+        if (player_->diverged()) {
+            ImGui::TextColored({1.0f, 0.35f, 0.3f, 1.0f}, "Divergencia en el tick %u: la partida ya no es la grabada",
+                               player_->diverged_at());
+        } else {
+            ImGui::TextDisabled("%zu comprobaciones de hash correctas%s", player_->checkpoints_checked(),
+                                player_->finished(world_) ? " · fin" : "");
+        }
+        ImGui::TextDisabled("Espacio: pausa · 1-%zu: velocidad · sin órdenes", speeds.size());
         ImGui::End();
     }
 
@@ -802,13 +913,13 @@ private:
             if (ImGui::Button("Agresiva")) {
                 sim::Command c = local_command(sim::CommandType::SetStance);
                 c.kind = static_cast<std::uint8_t>(sim::Stance::Aggressive);
-                world_.issue(std::move(c));
+                issue(std::move(c));
             }
             ImGui::SameLine();
             if (ImGui::Button("Mantener posición")) {
                 sim::Command c = local_command(sim::CommandType::SetStance);
                 c.kind = static_cast<std::uint8_t>(sim::Stance::HoldGround);
-                world_.issue(std::move(c));
+                issue(std::move(c));
             }
             if (workers > 0) {
                 ImGui::SeparatorText("Construir");
@@ -865,7 +976,7 @@ private:
                 c.units.clear();
                 c.object = id;
                 c.kind = t;
-                world_.issue(std::move(c));
+                issue(std::move(c));
             }
             ImGui::EndDisabled();
         }
@@ -874,7 +985,7 @@ private:
             sim::Command c = local_command(sim::CommandType::CancelTrain);
             c.units.clear();
             c.object = id;
-            world_.issue(std::move(c));
+            issue(std::move(c));
         }
         ImGui::EndDisabled();
     }
@@ -999,6 +1110,12 @@ private:
     std::vector<render::TileTint> tints_;
     std::vector<render::Vec2> path_points_;
     std::vector<render::Vec2> projectile_points_;
+    std::optional<ReplayRecorder> recorder_;
+    std::filesystem::path replay_path_;
+    std::optional<ReplayPlayer> player_;
+    sim::Tick replay_end_ = 0;
+    bool paused_ = false;
+    std::size_t speed_index_ = 0;
     bool show_portals_ = false;
     bool show_paths_ = true;
     bool show_flow_ = false;
@@ -1018,6 +1135,12 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
             options.headless = true;
         } else if (arg == "--data" && has_value) {
             options.data_dir = argv[++i];
+        } else if (arg == "--record" && has_value) {
+            options.record = argv[++i];
+        } else if (arg == "--replay" && has_value) {
+            options.replay = argv[++i];
+        } else if (arg == "--verify-replay" && has_value) {
+            options.verify_replay = argv[++i];
         } else if ((arg == "--ticks" || arg == "--frames") && has_value) {
             const std::string_view value = argv[++i];
             std::int64_t& target = arg == "--ticks" ? options.headless_ticks : options.max_frames;
@@ -1034,15 +1157,28 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
     return options;
 }
 
-int run_headless(const GameData& data, std::int64_t ticks) {
+int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem::path& record) {
     const auto gen_start = SteadyClock::now();
     sim::World world(data.engine.world);
     const double gen_ms = elapsed_ms(gen_start);
-    issue_scenario(data, world);
+    std::optional<ReplayRecorder> recorder;
+    if (!record.empty()) {
+        recorder.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
+    }
+    issue_scenario(data, world, [&](sim::Command c) {
+        if (recorder) {
+            recorder->issue(world, std::move(c));
+        } else {
+            world.issue(std::move(c));
+        }
+    });
 
     const auto start = SteadyClock::now();
     for (std::int64_t i = 0; i < ticks; ++i) {
         world.step();
+        if (recorder) {
+            recorder->after_step(world);
+        }
     }
     const double total_ms = elapsed_ms(start);
     const double per_tick = ticks > 0 ? total_ms / static_cast<double>(ticks) : 0.0;
@@ -1059,10 +1195,43 @@ int run_headless(const GameData& data, std::int64_t ticks) {
     }
     // Formato estable: la CI lo compara entre plataformas.
     spdlog::info("state_hash={:016x}", world.state_hash());
+    if (recorder) {
+        if (const auto saved = save_replay(record, recorder->finish(world)); !saved) {
+            spdlog::error("Repetición: {}", saved.error());
+            return 1;
+        }
+        spdlog::info("Repetición guardada en {}", record.string());
+    }
     return 0;
 }
 
-int run_windowed(const GameData& data, std::int64_t max_frames) {
+int run_verify_replay(const std::filesystem::path& path) {
+    const auto replay = load_replay(path);
+    if (!replay) {
+        spdlog::error("{}", replay.error());
+        return 1;
+    }
+    const auto data = parse_game_data(replay->data);
+    if (!data) {
+        spdlog::error("Datos de la repetición: {}", data.error());
+        return 1;
+    }
+    const auto start = SteadyClock::now();
+    const VerifyResult r = verify_replay(*replay, data->engine.world);
+    const double ms = elapsed_ms(start);
+    spdlog::info("verify: {} órdenes, {} ticks de {}, {} checkpoints comparados en {:.1f} ms", replay->commands.size(),
+                 r.ticks, replay->end_tick, r.checkpoints, ms);
+    if (!r.ok) {
+        spdlog::error("verify: DIVERGENCIA en el tick {}: esperado {:016x}, obtenido {:016x}", *r.diverged_at,
+                      r.expected_hash, r.actual_hash);
+        return 1;
+    }
+    // Formato estable, como state_hash= en headless.
+    spdlog::info("verify: OK state_hash={:016x}", r.actual_hash);
+    return 0;
+}
+
+int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* replay) {
     const WindowConfig& wc = data.engine.window;
     auto window = platform::Window::create({wc.title, wc.width, wc.height});
     if (!window) {
@@ -1083,8 +1252,23 @@ int run_windowed(const GameData& data, std::int64_t max_frames) {
     }
     spdlog::info("Backend GPU: {}", (*renderer)->driver_name());
 
-    WindowedGame game(data, **window, **renderer);
+    WindowedGame game(data, **window, **renderer, replay);
     return game.run(max_frames);
+}
+
+int run_replay(const std::filesystem::path& path, std::int64_t max_frames) {
+    const auto replay = load_replay(path);
+    if (!replay) {
+        spdlog::error("{}", replay.error());
+        return 1;
+    }
+    const auto data = parse_game_data(replay->data);
+    if (!data) {
+        spdlog::error("Datos de la repetición: {}", data.error());
+        return 1;
+    }
+    spdlog::info("Repetición {}: {} órdenes, {} ticks", path.string(), replay->commands.size(), replay->end_tick);
+    return run_windowed(*data, max_frames, &*replay);
 }
 
 }  // namespace rts::game

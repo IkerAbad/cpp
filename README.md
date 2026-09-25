@@ -12,8 +12,8 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M2 | Unidades, HPA*, campos de flujo, evitación local, banco de 1000/2000 unidades | hecho |
 | M3 | Economía: 4 recursos, aldeanos, construcción, colas de producción | hecho |
 | M4 | Combate con proyectiles esquivables, experiencia por unidad y héroes | hecho |
-| M7 (adelantado) | IA básica que juega con las mismas reglas que un humano; victoria y derrota | **en curso** |
-| M5 | Repeticiones deterministas | — |
+| M7 (adelantado) | IA básica que juega con las mismas reglas que un humano; victoria y derrota | hecho |
+| M5 | Repeticiones deterministas: grabación automática, reproductor y verificación | hecho |
 | M6 | Logística | — |
 | M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | — |
 | M8 | Multijugador lockstep | — |
@@ -49,7 +49,12 @@ ctest --preset linux-clang-debug
 ./build/linux-clang-debug/src/rts --frames 600              # con ventana, sale tras 600 fotogramas e imprime tiempos
 ./build/linux-clang-debug/src/rts --headless --ticks 12000  # sin ventana: imprime el hash de estado
 ./build/linux-clang-debug/src/rts --data <carpeta>          # otra carpeta de datos
+./build/linux-clang-debug/src/rts --replay <fichero.rtsrep>        # ver una repetición
+./build/linux-clang-debug/src/rts --verify-replay <fichero.rtsrep> # reproducirla sin ventana y comprobar sus hashes
+./build/linux-clang-debug/src/rts --headless --ticks 2400 --record r.rtsrep  # grabar el guion sin ventana
 ```
+
+Cada partida con ventana se graba sola al cerrar en `replays/partida-<fecha>_<hora>.rtsrep`, junto al ejecutable.
 
 Controles:
 
@@ -67,6 +72,7 @@ Controles:
 | Atacar | Clic derecho sobre una unidad o un edificio enemigo |
 | Ataque-movimiento | Ctrl + clic derecho sobre el destino: van peleando con lo que encuentren |
 | Postura | Botones «Agresiva» y «Mantener posición» del panel «Selección» |
+| Repetición: pausa y velocidad | Espacio; teclas 1-4 para x1, x2, x4 y x8 (o el panel «Repetición») |
 
 Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) y `RTS_BUILD_TESTS` (ON).
 
@@ -220,6 +226,14 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 - **Victoria y derrota.** Pierde quien se queda sin unidades ni edificios después de haberlos tenido. La pantalla muestra el resultado.
 - **Configuración.** En `engine.toml`, cada jugador lleva `controller = "humano"` o `"ia"`; por defecto juegas tú (jugador 0) contra la IA.
 
+### Repeticiones (M5)
+
+- **Qué se graba.** Una copia de los ficheros de `data/` (unos 20 KB) y las órdenes humanas, cada una con el tick en que se emitió. La IA vive dentro de la simulación y es determinista: sus órdenes no se graban, se regeneran. Una repetición se reproduce con los datos con que se jugó aunque luego cambien los de `data/`.
+- **Comprobación.** Cada 10 s de juego (`[replay]` en `engine.toml`) se graba el hash de estado, y al final el hash final. Al reproducir, el primer hash distinto localiza la divergencia con esa resolución.
+- **Formato `.rtsrep`.** Binario little-endian explícito: cabecera, versión del formato, hash de los datos, ficheros, órdenes, checkpoints y una suma FNV-1a de todo. Se rechaza un fichero ajeno, truncado o corrupto, o de otra versión, y el error dice cuál de los casos es.
+- **Reproductor.** `rts --replay`: pausa, x1/x2/x4/x8, sin órdenes, con el estado de la verificación en pantalla. No hay retroceso.
+- **Límite conocido.** El fichero no guarda la versión del código. Si cambia la simulación, las repeticiones antiguas divergen y se avisa; no se reproducen mal en silencio.
+
 ### Convenciones de `data/`
 
 - Solo enteros. Una magnitud fraccionaria se escribe en una unidad menor que figura en el nombre de la clave: `max_speed_milli_tiles_per_tick = 150` significa 0,150 casillas por tick. Así la carga no depende del redondeo decimal→binario de cada plataforma.
@@ -245,11 +259,13 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 | `unit`: combate | Fórmula de daño (armaduras, bonus, mínimo 1, porcentaje de nivel), duelo simétrico con muerte en el mismo tick, proyectil que acierta a un blanco quieto y falla a uno que se mueve, niveles y héroe con aura, posturas, ataque-movimiento, edificio destruido que libera casillas, determinismo tick a tick |
 | `unit`: IA | Contra un rival quieto crece, construye cuartel y granjas, ataca y lo derrota en 11 minutos sin gastar lo que no tiene; dos IA juegan la misma partida tick a tick; derrota al quedarse sin nada |
 | `unit`: regresión | Hashes tras 1200 ticks de movimiento con 500 unidades, 1500 ticks de una partida económica de dos jugadores y 600 ticks de una batalla de 30 contra 30 y 3000 ticks de una partida IA contra IA |
+| `unit`: repeticiones | Codificar y decodificar sin pérdida; rechazo de ficheros ajenos, truncados, con cualquier byte cambiado o de otra versión; partida grabada (humano contra IA, órdenes programadas a futuro) reproducida con los mismos hashes; una orden alterada en el tick 800 se detecta en el checkpoint 1000, y quitar una orden también se detecta; grabación con los datos reales reproducida desde su copia |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
-| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms |
+| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
+| CI `replay-cross` | La repetición grabada en Linux con GCC se verifica con MSVC, clang-cl, Clang y GCC |
 
 Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el cambio de diseño es intencionado, se actualiza `kExpectedHash` en el mismo commit y se justifica en el mensaje.
 

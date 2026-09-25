@@ -282,3 +282,12 @@ edge_margin_px = 6
 drag_threshold_px = 4
 # Distancia máxima entre el clic y un marcador para seleccionarlo.
 click_radius_px = 10
+
+[replay]
+# Hash de estado grabado cada 10 s de juego: al verificar, una divergencia se localiza
+# con esta resolución.
+checkpoint_interval_ticks = 200
+# Cada partida se graba sola en esta carpeta, junto al ejecutable.
+directory = "replays"
+# Velocidades del reproductor (teclas 1, 2, 3, 4).
+speeds = [1, 2, 4, 8]

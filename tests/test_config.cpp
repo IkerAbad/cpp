@@ -288,6 +288,11 @@ edge_margin_px = 6
 [selection]
 drag_threshold_px = 4
 click_radius_px = 10
+
+[replay]
+checkpoint_interval_ticks = 200
+directory = "replays"
+speeds = [1, 2, 4, 8]
 )";
 
 TerrainCatalog catalog() {

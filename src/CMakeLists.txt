@@ -39,6 +39,7 @@ add_library(rts_game_core STATIC
     game/camera_control.cpp
     game/config.cpp
     game/fixed_step.cpp
+    game/replay.cpp
     game/selection.cpp)
 target_link_libraries(rts_game_core
     PUBLIC rts_sim rts_render_core

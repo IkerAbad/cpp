@@ -12,6 +12,7 @@ add_executable(rts_tests
     test_movement.cpp
     test_path.cpp
     test_projection.cpp
+    test_replay.cpp
     test_rng.cpp
     test_scene.cpp
     test_selection.cpp

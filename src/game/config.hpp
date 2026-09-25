@@ -7,6 +7,7 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -136,6 +137,13 @@ struct SelectionConfig {
     std::int32_t click_radius_px = 0;
 };
 
+// Repeticiones (M5).
+struct ReplayConfig {
+    std::int32_t checkpoint_interval_ticks = 0;  // hash de estado grabado cada tantos ticks
+    std::string directory;                       // grabación automática, junto al ejecutable
+    std::vector<std::int32_t> speeds;            // multiplicadores del reproductor
+};
+
 struct EngineConfig {
     WindowConfig window;
     LoopConfig loop;
@@ -143,6 +151,7 @@ struct EngineConfig {
     render::ViewParams view;
     CameraConfig camera;
     SelectionConfig selection;
+    ReplayConfig replay;
     std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
     std::vector<std::string> hero_names;                     // por índice de CombatParams
 };
@@ -177,7 +186,17 @@ std::expected<Scenario, std::string> parse_scenario(std::string_view toml_text,
 std::expected<EngineConfig, std::string> parse_engine_config(std::string_view toml_text, const Catalogs& catalogs,
                                                              std::string_view source_name = "<memoria>");
 
+// Fichero de datos en texto, con su ruta relativa a data/ (separador '/'). Las
+// repeticiones llevan una copia de todos: se reproducen con los datos con que se jugaron.
+struct DataFile {
+    std::string path;
+    std::string text;
+
+    friend bool operator==(const DataFile&, const DataFile&) = default;
+};
+
 struct GameData {
+    std::vector<DataFile> files;  // los textos de los que sale todo lo demás
     TerrainCatalog terrain;
     UnitCatalog units;
     NodeCatalog nodes;
@@ -186,8 +205,16 @@ struct GameData {
     Scenario headless_scenario;
 };
 
-// Lee terrain.toml, units.toml, resources.toml, buildings.toml, config/engine.toml y
-// scenarios/headless.toml bajo data_dir.
+// Rutas de los ficheros de datos, en el orden en que se analizan.
+[[nodiscard]] std::span<const std::string_view> data_file_paths() noexcept;
+
+// Lee los ficheros de data_file_paths() bajo data_dir, sin analizarlos.
+std::expected<std::vector<DataFile>, std::string> read_data_files(const std::filesystem::path& data_dir);
+
+// Analiza los textos (de disco o de una repetición). Deben estar todos.
+std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files);
+
+// read_data_files + parse_game_data.
 std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir);
 
 }  // namespace rts::game

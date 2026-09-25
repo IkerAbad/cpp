@@ -121,18 +121,40 @@ jobs:
       # 2 minutos de juego: cubre todas las órdenes de data/scenarios/headless.toml
       # (la última, en el tick 1500): recogida, construcción, colas de producción y
       # los cambios de ocupación que rehacen el pathfinding.
+      # Además se graba la partida: la de linux-gcc se verifica en las cuatro
+      # plataformas (trabajo replay-cross).
       - name: Hash de estado (2 minutos de juego sin ventana)
         run: |
           exe="build/${{ matrix.preset }}/src/rts"
           [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
-          "$exe" --headless --ticks 2400 | tee headless.log
+          "$exe" --headless --ticks 2400 --record replay-${{ matrix.name }}.rtsrep | tee headless.log
           grep -o 'state_hash=[0-9a-f]*' headless.log > hash-${{ matrix.name }}.txt
           cat hash-${{ matrix.name }}.txt
+          # La repetición recién grabada se reproduce igual en la misma máquina.
+          "$exe" --verify-replay replay-${{ matrix.name }}.rtsrep
 
       - uses: actions/upload-artifact@v4
         with:
           name: hash-${{ matrix.name }}
           path: hash-${{ matrix.name }}.txt
+
+      - name: Subir la repetición grabada en Linux
+        if: matrix.name == 'linux-gcc'
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-linux
+          path: replay-linux-gcc.rtsrep
+
+      # Solo el ejecutable: en Linux, vcpkg enlaza estático; en Windows, el triplet es
+      # x64-windows-static-md. Lo usa replay-cross sin volver a compilar.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exe-${{ matrix.name }}
+          path: |
+            build/${{ matrix.preset }}/src/rts
+            build/${{ matrix.preset }}/src/rts.exe
+          if-no-files-found: error
+          retention-days: 3
 
   bench:
     name: Banco de rendimiento (Release, movimiento, batalla e IA contra IA)
@@ -199,6 +221,19 @@ jobs:
       - name: IA contra IA, 30 minutos
         run: build/linux-clang-release/bench/rts_bench --ticks 36000 --max-ms 50 --ai-data data
 
+      # Criterio de M5: una partida de 30 minutos grabada se reproduce con los mismos
+      # 180 hashes intermedios y el mismo hash final.
+      - name: Repetición de 30 minutos
+        run: |
+          cmake --build --preset linux-clang-release --target rts
+          exe=build/linux-clang-release/src/rts
+          "$exe" --headless --ticks 36000 --record r30.rtsrep | tee record.log
+          "$exe" --verify-replay r30.rtsrep | tee verify.log
+          recorded=$(grep -o 'state_hash=[0-9a-f]*' record.log)
+          verified=$(grep -o 'state_hash=[0-9a-f]*' verify.log)
+          echo "grabada: $recorded · reproducida: $verified"
+          [ "$recorded" = "$verified" ]
+
   determinism:
     name: Mismo hash en todas las plataformas
     needs: build
@@ -216,3 +251,35 @@ jobs:
             echo "::error::La simulación diverge entre plataformas ($distinct hashes distintos)"
             exit 1
           fi
+
+  # Criterio de M5: la repetición grabada en Linux (GCC) se reproduce con los mismos
+  # hashes con los cuatro compiladores y en los dos sistemas.
+  replay-cross:
+    name: Repetición de Linux en ${{ matrix.name }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-clang,      os: ubuntu-24.04 }
+          - { name: linux-gcc,        os: ubuntu-24.04 }
+          - { name: windows-msvc,     os: windows-2025 }
+          - { name: windows-clang-cl, os: windows-2025 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: exe-${{ matrix.name }}
+          path: exe
+      - uses: actions/download-artifact@v4
+        with:
+          name: replay-linux
+      - name: Verificar
+        run: |
+          exe=exe/rts
+          [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
+          chmod +x "$exe"
+          "$exe" --verify-replay replay-linux-gcc.rtsrep

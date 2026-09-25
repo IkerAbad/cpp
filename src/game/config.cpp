@@ -24,6 +24,7 @@ constexpr std::int64_t kMaxAmount = 1'000'000;
 constexpr std::int64_t kMaxTicks = 1'000'000;
 constexpr std::int64_t kMaxFootprint = 8;
 constexpr std::int64_t kMaxPlayers = 8;
+constexpr std::size_t kMaxReplaySpeeds = 8;
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro"};
 
@@ -820,6 +821,10 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.selection.drag_threshold_px = r.get_i32("selection.drag_threshold_px", 0, 256);
     cfg.selection.click_radius_px = r.get_i32("selection.click_radius_px", 1, 256);
 
+    cfg.replay.checkpoint_interval_ticks = r.get_i32("replay.checkpoint_interval_ticks", 1, kMaxTicks);
+    cfg.replay.directory = r.get_string("replay.directory");
+    cfg.replay.speeds = r.get_increasing_list("replay.speeds", kMaxReplaySpeeds);
+
     if (error) {
         return std::unexpected(*error);
     }
@@ -831,51 +836,85 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     return cfg;
 }
 
-std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir) {
-    GameData data;
-    // Cada fichero: leer, analizar y mover al resultado; el primer error corta.
-    auto load = [&](const std::filesystem::path& rel, auto&& parse, auto& dest) -> std::optional<std::string> {
-        const std::filesystem::path path = data_dir / rel;
-        const auto text = read_text_file(path);
+namespace {
+
+constexpr std::array<std::string_view, 6> kDataFilePaths{
+    "terrain.toml",       "units.toml",         "resources.toml",
+    "buildings.toml",     "config/engine.toml", "scenarios/headless.toml",
+};
+
+}  // namespace
+
+std::span<const std::string_view> data_file_paths() noexcept {
+    return kDataFilePaths;
+}
+
+std::expected<std::vector<DataFile>, std::string> read_data_files(const std::filesystem::path& data_dir) {
+    std::vector<DataFile> files;
+    for (const std::string_view rel : kDataFilePaths) {
+        auto text = read_text_file(data_dir / std::filesystem::path(rel));
         if (!text) {
-            return text.error();
+            return std::unexpected(text.error());
         }
-        auto parsed = parse(*text, path.string());
+        files.push_back({std::string(rel), std::move(*text)});
+    }
+    return files;
+}
+
+std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files) {
+    GameData data;
+    data.files = std::move(files);
+    // Cada fichero: buscar, analizar y mover al resultado; el primer error corta.
+    auto load = [&](std::string_view rel, auto&& parse, auto& dest) -> std::optional<std::string> {
+        const auto it = std::ranges::find(data.files, rel, &DataFile::path);
+        if (it == data.files.end()) {
+            return std::format("{}: falta el fichero", rel);
+        }
+        auto parsed = parse(it->text, it->path);
         if (!parsed) {
             return parsed.error();
         }
         dest = std::move(*parsed);
         return std::nullopt;
     };
-    if (auto e = load("terrain.toml", [](std::string_view t, std::string_view n) { return parse_terrain_catalog(t, n); },
+    if (auto e = load(kDataFilePaths[0],
+                      [](std::string_view t, std::string_view n) { return parse_terrain_catalog(t, n); },
                       data.terrain)) {
         return std::unexpected(*e);
     }
-    if (auto e = load("units.toml", [](std::string_view t, std::string_view n) { return parse_unit_catalog(t, n); },
+    if (auto e = load(kDataFilePaths[1], [](std::string_view t, std::string_view n) { return parse_unit_catalog(t, n); },
                       data.units)) {
         return std::unexpected(*e);
     }
-    if (auto e = load("resources.toml", [](std::string_view t, std::string_view n) { return parse_node_catalog(t, n); },
+    if (auto e = load(kDataFilePaths[2], [](std::string_view t, std::string_view n) { return parse_node_catalog(t, n); },
                       data.nodes)) {
         return std::unexpected(*e);
     }
-    if (auto e = load("buildings.toml",
+    if (auto e = load(kDataFilePaths[3],
                       [&](std::string_view t, std::string_view n) { return parse_building_catalog(t, data.units, n); },
                       data.buildings)) {
         return std::unexpected(*e);
     }
     const Catalogs catalogs{data.terrain, data.units, data.buildings, data.nodes};
-    if (auto e = load(std::filesystem::path("config") / "engine.toml",
+    if (auto e = load(kDataFilePaths[4],
                       [&](std::string_view t, std::string_view n) { return parse_engine_config(t, catalogs, n); },
                       data.engine)) {
         return std::unexpected(*e);
     }
-    if (auto e = load(std::filesystem::path("scenarios") / "headless.toml",
+    if (auto e = load(kDataFilePaths[5],
                       [&](std::string_view t, std::string_view n) { return parse_scenario(t, catalogs, n); },
                       data.headless_scenario)) {
         return std::unexpected(*e);
     }
     return data;
+}
+
+std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir) {
+    auto files = read_data_files(data_dir);
+    if (!files) {
+        return std::unexpected(files.error());
+    }
+    return parse_game_data(std::move(*files));
 }
 
 }  // namespace rts::game
