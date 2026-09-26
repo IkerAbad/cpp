@@ -188,9 +188,11 @@ inline sim::CombatParams test_combat_params() {
     return c;
 }
 
-inline sim::AiParams test_ai_params() {
-    sim::AiParams a;
-    a.think_interval_ticks = 20;
+inline sim::AiProfile test_ai_profile() {
+    using B = sim::AiBehavior;
+    sim::AiProfile a;
+    a.behaviors = {B::Defend, B::Villagers, B::Houses, B::Barracks, B::Farms,
+                   B::Dropoffs, B::Builders, B::Gather, B::Army, B::Attack};
     a.villager_target = 15;
     a.gather_percent = {40, 35, 10, 15};
     a.house_margin = 3;
@@ -204,12 +206,22 @@ inline sim::AiParams test_ai_params() {
     a.first_wave = 4;
     a.wave_growth = 2;
     a.defend_radius_tiles = 14;
-    a.worker_type = kVillager;
+    a.flee_enemy_tiles = 3;
+    a.safe_base_tiles = 2;
+    a.barracks_queue = 2;
     a.army = {kSoldier, kArcher};
+    return a;
+}
+
+inline sim::AiParams test_ai_params() {
+    sim::AiParams a;
+    a.think_interval_ticks = 20;
+    a.worker_type = kVillager;
     a.house = kHouse;
     a.barracks = kBarracks;
     a.farm = kFarm;
     a.dropoff = {kCenter, kLumberCamp, kCenter, kCenter};
+    a.profiles = {test_ai_profile()};
     return a;
 }
 

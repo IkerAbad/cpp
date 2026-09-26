@@ -73,7 +73,7 @@ struct WorldParams {
     EconomyParams economy;
     CombatParams combat;
     AiParams ai;
-    std::vector<PlayerId> ai_players;  // jugadores que controla la IA
+    std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
     SetupParams setup;
     DemoParams demo;
 };

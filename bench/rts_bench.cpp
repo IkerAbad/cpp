@@ -208,9 +208,12 @@ int main(int argc, char** argv) {
             return 2;
         }
         data = std::move(*loaded);
-        data->engine.world.ai_players.clear();
+        // Todos los jugadores con el perfil del primer jugador de la IA (o el primero).
+        auto& seats = data->engine.world.ai_players;
+        const std::uint8_t profile = seats.empty() ? 0 : seats.front().profile;
+        seats.clear();
         for (std::size_t p = 0; p < data->engine.world.setup.starts.size(); ++p) {
-            data->engine.world.ai_players.push_back(static_cast<rts::sim::PlayerId>(p));
+            seats.push_back({static_cast<rts::sim::PlayerId>(p), profile});
         }
     }
     World world = data ? World(data->engine.world)

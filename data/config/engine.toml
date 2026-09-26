@@ -67,6 +67,7 @@ controller = "humano"
 start = [184, 184]
 color = [225, 70, 60]
 controller = "ia"
+ai_profile = "basica"
 
 [demo]
 # Unidades sueltas de prueba (las usan el banco y las pruebas de movimiento): count
@@ -125,9 +126,23 @@ hero_aura_attack_percent = 15
 hero_names = ["Brunilda", "Rodrigo el Tenaz", "Urraca", "Sancho Barbanegra", "Elvira de la Torre", "Tello", "Jimena", "Nuño el Callado"]
 
 [ai]
-# IA básica: juega con las mismas reglas y costes que un humano (sin trampas).
+# La IA juega con las mismas reglas, costes e información que un humano (sin trampas).
 # Decide una vez por segundo.
 think_interval_ticks = 20
+# Tipos que usa (dependerán de la civilización, no de la dificultad).
+worker = "aldeano"
+house = "casa"
+barracks = "cuartel"
+farm = "granja"
+dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero" }
+
+# Perfiles: cada jugador de la IA elige uno con ai_profile en [[player]]. La
+# dificultad sale de qué módulos usa y de sus umbrales, nunca de ventajas económicas.
+# Módulos, en orden de ejecución: defensa, aldeanos, casas, cuartel, granjas,
+# almacenes, obras, recoleccion, ejercito, ataque.
+[[ai.profile]]
+name = "basica"
+behaviors = ["defensa", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
 villager_target = 25
 # Reparto deseado de los aldeanos que recogen (suma 100).
 gather_percent = { comida = 40, madera = 35, oro = 15, piedra = 10 }
@@ -146,15 +161,14 @@ build_search_radius_tiles = 24
 # Primer ataque con 6 unidades; cada oleada, 4 más.
 first_wave = 6
 wave_growth = 4
-# Enemigos a 14 casillas o menos de su base: defensa.
+# Enemigos a 14 casillas o menos de su base: defensa. Un aldeano con un enemigo a 3
+# casillas o menos huye a la base, salvo que ya esté a 2 o menos de ella.
 defend_radius_tiles = 14
-worker = "aldeano"
+flee_enemy_tiles = 3
+safe_base_tiles = 2
+# Unidades en cola que mantiene en el cuartel.
+barracks_queue = 2
 army = ["milicia", "lancero", "arquero"]
-house = "casa"
-barracks = "cuartel"
-# Granja cuando no queda comida natural cerca de la base.
-farm = "granja"
-dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero" }
 
 [setup]
 seed = 20260924

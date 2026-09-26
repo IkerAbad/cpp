@@ -45,7 +45,7 @@ WorldParams replay_game() {
     p.setup.tree_type = kTree;
     p.setup.tree_density_permille = 300;
     p.setup.clear_radius = 7;
-    p.ai_players = {1};
+    p.ai_players = {{1, 0}};
     return p;
 }
 

@@ -35,7 +35,7 @@ WorldParams ai_game(bool both_ai) {
     p.setup.tree_type = kTree;
     p.setup.tree_density_permille = 300;
     p.setup.clear_radius = 7;
-    p.ai_players = both_ai ? std::vector<rts::sim::PlayerId>{0, 1} : std::vector<rts::sim::PlayerId>{1};
+    p.ai_players = both_ai ? std::vector<rts::sim::AiSeat>{{0, 0}, {1, 0}} : std::vector<rts::sim::AiSeat>{{1, 0}};
     return p;
 }
 

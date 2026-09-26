@@ -25,6 +25,11 @@ constexpr std::int64_t kMaxTicks = 1'000'000;
 constexpr std::int64_t kMaxFootprint = 8;
 constexpr std::int64_t kMaxPlayers = 8;
 constexpr std::size_t kMaxReplaySpeeds = 8;
+constexpr std::size_t kMaxAiProfiles = 32;
+// Nombres de los módulos de IA en los datos, en el orden de sim::AiBehavior.
+constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior::Count)> kAiBehaviorNames{
+    "defensa", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque",
+};
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro"};
 
@@ -650,6 +655,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     }
 
     // Jugadores: inicio (simulación) y color (presentación).
+    std::vector<std::pair<std::string, std::string>> ai_profile_names;  // nombre, clave (para errores)
     for_each_table(r.get_table_array("player"), source_name, "player", error, [&](Reader& pr, std::size_t i) {
         if (i >= static_cast<std::size_t>(kMaxPlayers)) {
             pr.fail(std::format("hay más de {} jugadores", kMaxPlayers));
@@ -663,7 +669,9 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         cfg.player_colors.push_back(pr.get_color<3>("color"));
         const std::string controller = pr.get_string("controller");
         if (controller == "ia") {
-            cfg.world.ai_players.push_back(static_cast<sim::PlayerId>(i));
+            // El perfil se resuelve cuando se hayan leído los de [ai].
+            ai_profile_names.emplace_back(pr.get_string("ai_profile"), pr.full("ai_profile"));
+            cfg.world.ai_players.push_back({static_cast<sim::PlayerId>(i), 0});
         } else if (controller != "humano" && !pr.failed()) {
             pr.fail(std::format("'{}' = \"{}\": debe ser \"humano\" o \"ia\"", pr.full("controller"), controller));
         }
@@ -712,40 +720,70 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     sim::AiParams& ai = cfg.world.ai;
     ai.think_interval_ticks = r.get_i32("ai.think_interval_ticks", 1, 1000);
-    ai.villager_target = r.get_i32("ai.villager_target", 0, 1000);
-    const sim::Stock gather_pct = r.get_stock("ai.gather_percent");
-    std::int32_t pct_sum = 0;
-    for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
-        ai.gather_percent[i] = gather_pct[i];
-        pct_sum += gather_pct[i];
-    }
-    if (!error && pct_sum != 100) {
-        r.fail(std::format("'ai.gather_percent' debe sumar 100 (suma {})", pct_sum));
-    }
-    ai.house_margin = r.get_i32("ai.house_margin", 0, 100);
-    ai.barracks_at_villagers = r.get_i32("ai.barracks_at_villagers", 0, 1000);
-    ai.dropoff_distance_tiles = r.get_i32("ai.dropoff_distance_tiles", 1, 256);
-    ai.dropoff_min_gatherers = r.get_i32("ai.dropoff_min_gatherers", 1, 1000);
-    ai.builders = r.get_i32("ai.builders", 1, 100);
-    ai.gatherers_per_farm = r.get_i32("ai.gatherers_per_farm", 1, 64);
-    ai.build_gap_tiles = r.get_i32("ai.build_gap_tiles", 0, 8);
-    ai.build_search_radius_tiles = r.get_i32("ai.build_search_radius_tiles", 1, 128);
-    ai.first_wave = r.get_i32("ai.first_wave", 1, 10'000);
-    ai.wave_growth = r.get_i32("ai.wave_growth", 0, 10'000);
-    ai.defend_radius_tiles = r.get_i32("ai.defend_radius_tiles", 1, 256);
     ai.worker_type = r.get_named("ai.worker", units, "units.toml");
-    for (const std::string& name : r.get_string_list("ai.army")) {
-        if (const auto id = units.find(name)) {
-            ai.army.push_back(*id);
-        } else if (!error) {
-            r.fail(std::format("'ai.army' contiene \"{}\", que no está en units.toml", name));
-        }
-    }
     ai.house = r.get_named("ai.house", catalogs.buildings, "buildings.toml");
     ai.barracks = r.get_named("ai.barracks", catalogs.buildings, "buildings.toml");
     ai.farm = r.get_named("ai.farm", catalogs.buildings, "buildings.toml");
     for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
         ai.dropoff[i] = r.get_named(std::format("ai.dropoff.{}", kResourceKeys[i]), catalogs.buildings, "buildings.toml");
+    }
+    std::vector<std::string> profile_names;
+    for_each_table(r.get_table_array("ai.profile"), source_name, "ai.profile", error, [&](Reader& pr, std::size_t) {
+        if (profile_names.size() >= kMaxAiProfiles) {
+            pr.fail(std::format("hay más de {} perfiles de IA", kMaxAiProfiles));
+            return;
+        }
+        sim::AiProfile p;
+        profile_names.push_back(pr.get_string("name"));
+        for (const std::string& name : pr.get_string_list("behaviors")) {
+            const auto it = std::ranges::find(kAiBehaviorNames, name);
+            if (it == kAiBehaviorNames.end()) {
+                pr.fail(std::format("'{}' contiene \"{}\", que no es un módulo de IA", pr.full("behaviors"), name));
+                return;
+            }
+            p.behaviors.push_back(static_cast<sim::AiBehavior>(it - kAiBehaviorNames.begin()));
+        }
+        p.villager_target = pr.get_i32("villager_target", 0, 1000);
+        const sim::Stock gather_pct = pr.get_stock("gather_percent");
+        std::int32_t pct_sum = 0;
+        for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
+            p.gather_percent[i] = gather_pct[i];
+            pct_sum += gather_pct[i];
+        }
+        if (!pr.failed() && pct_sum != 100) {
+            pr.fail(std::format("'{}' debe sumar 100 (suma {})", pr.full("gather_percent"), pct_sum));
+        }
+        p.house_margin = pr.get_i32("house_margin", 0, 100);
+        p.barracks_at_villagers = pr.get_i32("barracks_at_villagers", 0, 1000);
+        p.dropoff_distance_tiles = pr.get_i32("dropoff_distance_tiles", 1, 256);
+        p.dropoff_min_gatherers = pr.get_i32("dropoff_min_gatherers", 1, 1000);
+        p.builders = pr.get_i32("builders", 1, 100);
+        p.gatherers_per_farm = pr.get_i32("gatherers_per_farm", 1, 64);
+        p.build_gap_tiles = pr.get_i32("build_gap_tiles", 0, 8);
+        p.build_search_radius_tiles = pr.get_i32("build_search_radius_tiles", 1, 128);
+        p.first_wave = pr.get_i32("first_wave", 1, 10'000);
+        p.wave_growth = pr.get_i32("wave_growth", 0, 10'000);
+        p.defend_radius_tiles = pr.get_i32("defend_radius_tiles", 1, 256);
+        p.flee_enemy_tiles = pr.get_i32("flee_enemy_tiles", 0, 256);
+        p.safe_base_tiles = pr.get_i32("safe_base_tiles", 0, 256);
+        p.barracks_queue = pr.get_i32("barracks_queue", 1, 64);
+        for (const std::string& name : pr.get_string_list("army")) {
+            if (const auto id = units.find(name)) {
+                p.army.push_back(*id);
+            } else if (!pr.failed()) {
+                pr.fail(std::format("'{}' contiene \"{}\", que no está en units.toml", pr.full("army"), name));
+            }
+        }
+        ai.profiles.push_back(std::move(p));
+    });
+    for (std::size_t k = 0; k < ai_profile_names.size() && !error; ++k) {
+        const auto& [name, key] = ai_profile_names[k];
+        const auto it = std::ranges::find(profile_names, name);
+        if (it == profile_names.end()) {
+            r.fail(std::format("'{}' = \"{}\": no hay ningún [[ai.profile]] con ese nombre", key, name));
+        } else {
+            cfg.world.ai_players[k].profile = static_cast<std::uint8_t>(it - profile_names.begin());
+        }
     }
 
     sim::SetupParams& setup = cfg.world.setup;

@@ -162,6 +162,7 @@ controller = "humano"
 start = [50, 20]
 color = [255, 0, 0]
 controller = "ia"
+ai_profile = "basica"
 
 [demo]
 seed = 1
@@ -197,6 +198,15 @@ hero_names = ["Brunilda", "Tello"]
 
 [ai]
 think_interval_ticks = 20
+worker = "peon"
+house = "choza"
+barracks = "fuerte"
+farm = "choza"
+dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte" }
+
+[[ai.profile]]
+name = "basica"
+behaviors = ["defensa", "aldeanos", "ataque"]
 villager_target = 25
 gather_percent = { comida = 40, madera = 35, oro = 15, piedra = 10 }
 house_margin = 3
@@ -210,12 +220,10 @@ build_search_radius_tiles = 24
 first_wave = 6
 wave_growth = 4
 defend_radius_tiles = 14
-worker = "peon"
+flee_enemy_tiles = 3
+safe_base_tiles = 2
+barracks_queue = 2
 army = ["lancero"]
-house = "choza"
-barracks = "fuerte"
-farm = "choza"
-dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte" }
 
 [setup]
 seed = 3
@@ -541,10 +549,26 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
     CHECK(w.combat.hero_name_count == 2);
     CHECK(w.combat.building_reach == Fixed::from_ratio(3, 5));
     CHECK(cfg->hero_names[1] == "Tello");
-    CHECK(w.ai_players == std::vector<rts::sim::PlayerId>{1});
+    REQUIRE(w.ai_players.size() == 1);
+    CHECK(w.ai_players[0].player == 1);
+    CHECK(w.ai_players[0].profile == 0);
     CHECK(w.ai.worker_type == 1);
     CHECK(w.ai.house == 1);
-    CHECK(w.ai.gather_percent[rts::sim::resource_index(Resource::Food)] == 40);
+    REQUIRE(w.ai.profiles.size() == 1);
+    CHECK(w.ai.profiles[0].gather_percent[rts::sim::resource_index(Resource::Food)] == 40);
+    CHECK(w.ai.profiles[0].behaviors ==
+          std::vector<rts::sim::AiBehavior>{rts::sim::AiBehavior::Defend, rts::sim::AiBehavior::Villagers,
+                                            rts::sim::AiBehavior::Attack});
+    SUBCASE("módulo de IA desconocido") {
+        const auto bad = parse_engine(replaced(kEngine, "\"aldeanos\", \"ataque\"", "\"aldeanos\", \"trampas\""));
+        REQUIRE_FALSE(bad.has_value());
+        CHECK(bad.error().find("trampas") != std::string::npos);
+    }
+    SUBCASE("perfil de jugador inexistente") {
+        const auto bad = parse_engine(replaced(kEngine, "ai_profile = \"basica\"", "ai_profile = \"dificil\""));
+        REQUIRE_FALSE(bad.has_value());
+        CHECK(bad.error().find("dificil") != std::string::npos);
+    }
     SUBCASE("reparto que no suma 100") {
         CHECK_FALSE(parse_engine(replaced(kEngine, "comida = 40, madera = 35, oro = 15", "comida = 40, madera = 35, oro = 16")).has_value());
     }
