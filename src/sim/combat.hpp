@@ -25,6 +25,11 @@ namespace rts::sim {
 
 class StateHasher;
 
+// Daño de un golpe: max(1, max(0, cuerpo - armadura) + max(0, proyectil - armadura) +
+// bonus contra la clase del blanco). percent escala el ataque (nivel y aura).
+[[nodiscard]] std::int32_t hit_damage(const CombatStats& attacker, std::int32_t percent, std::int32_t armor_melee,
+                                      std::int32_t armor_pierce, ArmorClassId armor_class) noexcept;
+
 // data/config/engine.toml, sección [combat].
 struct CombatParams {
     // Cada unidad busca blanco cada tantos ticks (repartidas por id): coste por tick

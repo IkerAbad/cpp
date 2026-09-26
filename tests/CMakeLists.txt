@@ -3,6 +3,7 @@ find_package(doctest CONFIG REQUIRED)
 add_executable(rts_tests
     test_main.cpp
     test_ai.cpp
+    test_ai_modules.cpp
     test_combat.cpp
     test_config.cpp
     test_economy.cpp

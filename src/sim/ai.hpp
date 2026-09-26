@@ -34,6 +34,10 @@ enum class AiBehavior : std::uint8_t {
     Gather,     // aldeanos ociosos al recurso con más déficit
     Army,       // el cuartel entrena en ciclo
     Attack,     // oleadas crecientes en ataque-movimiento
+    // Módulos que piensan mejor (perfil "normal").
+    ArmyCounter,     // entrena el tipo que mejor rinde contra el ejército enemigo conocido
+    AttackStrength,  // ataca cuando su fuerza supera a la enemiga; se retira si pierde la batalla
+    FocusFire,       // en combate, cada unidad remata al enemigo armado que antes puede matar
     Count,
 };
 
@@ -56,6 +60,15 @@ struct AiProfile {
     std::int32_t flee_enemy_tiles = 0;       // un aldeano con un enemigo a esto huye a la base...
     std::int32_t safe_base_tiles = 0;        // ... salvo que ya esté a esto de ella
     std::int32_t barracks_queue = 1;         // unidades en cola que mantiene en el cuartel
+    std::int32_t villager_queue = 1;         // aldeanos en cola que mantiene en el centro urbano
+    // ataque_fuerza: ataca si su fuerza total es al menos attack_ratio_percent % de la
+    // enemiga conocida y tiene min_attack_army unidades ociosas; se retira si, en un
+    // radio de engage_radius_tiles alrededor de su ejército en campaña, su fuerza baja
+    // del retreat_ratio_percent % de la enemiga (histéresis: no oscila).
+    std::int32_t attack_ratio_percent = 0;
+    std::int32_t retreat_ratio_percent = 0;
+    std::int32_t min_attack_army = 0;
+    std::int32_t engage_radius_tiles = 0;
     std::vector<UnitTypeId> army;            // ciclo de entrenamiento en el cuartel
 };
 

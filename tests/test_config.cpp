@@ -223,6 +223,11 @@ defend_radius_tiles = 14
 flee_enemy_tiles = 3
 safe_base_tiles = 2
 barracks_queue = 2
+villager_queue = 1
+attack_ratio_percent = 130
+retreat_ratio_percent = 60
+min_attack_army = 6
+engage_radius_tiles = 8
 army = ["lancero"]
 
 [setup]

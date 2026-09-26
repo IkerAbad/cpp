@@ -209,7 +209,23 @@ inline sim::AiProfile test_ai_profile() {
     a.flee_enemy_tiles = 3;
     a.safe_base_tiles = 2;
     a.barracks_queue = 2;
+    a.villager_queue = 1;
     a.army = {kSoldier, kArcher};
+    return a;
+}
+
+// Perfil "normal" de prueba: módulos que piensan mejor, mismos umbrales económicos.
+inline sim::AiProfile test_ai_profile_normal() {
+    using B = sim::AiBehavior;
+    sim::AiProfile a = test_ai_profile();
+    a.behaviors = {B::Defend, B::FocusFire, B::AttackStrength, B::Villagers, B::Houses, B::Barracks,
+                   B::Farms,  B::Dropoffs,  B::Builders,       B::Gather,    B::ArmyCounter};
+    a.villager_queue = 2;
+    a.house_margin = 5;
+    a.attack_ratio_percent = 130;
+    a.retreat_ratio_percent = 60;
+    a.min_attack_army = 4;
+    a.engage_radius_tiles = 8;
     return a;
 }
 
@@ -221,7 +237,7 @@ inline sim::AiParams test_ai_params() {
     a.barracks = kBarracks;
     a.farm = kFarm;
     a.dropoff = {kCenter, kLumberCamp, kCenter, kCenter};
-    a.profiles = {test_ai_profile()};
+    a.profiles = {test_ai_profile(), test_ai_profile_normal()};
     return a;
 }
 

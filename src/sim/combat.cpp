@@ -55,11 +55,18 @@ std::int32_t CombatSystem::attack_percent(const Combatant& c, bool aura) const n
     return kPercent + c.level * params_.attack_percent_per_level + (aura ? params_.hero_aura_attack_percent : 0);
 }
 
+std::int32_t hit_damage(const CombatStats& a, std::int32_t percent, std::int32_t armor_melee,
+                        std::int32_t armor_pierce, ArmorClassId armor_class) noexcept {
+    const std::int32_t melee = a.attack_melee * percent / kPercent;
+    const std::int32_t pierce = a.attack_pierce * percent / kPercent;
+    const std::int32_t sum =
+        std::max(0, melee - armor_melee) + std::max(0, pierce - armor_pierce) + a.bonus[armor_class];
+    return std::max(1, sum);
+}
+
 std::int32_t CombatSystem::damage(UnitTypeId attacker_type, std::int32_t percent, const entt::registry& registry,
                                   entt::entity target) const {
     const CombatStats& a = units_[attacker_type].combat;
-    const std::int32_t melee = a.attack_melee * percent / kPercent;
-    const std::int32_t pierce = a.attack_pierce * percent / kPercent;
     std::int32_t armor_melee = 0;
     std::int32_t armor_pierce = 0;
     ArmorClassId armor_class = 0;
@@ -77,9 +84,7 @@ std::int32_t CombatSystem::damage(UnitTypeId attacker_type, std::int32_t percent
         armor_pierce = bt.armor_pierce;
         armor_class = bt.armor_class;
     }
-    const std::int32_t sum =
-        std::max(0, melee - armor_melee) + std::max(0, pierce - armor_pierce) + a.bonus[armor_class];
-    return std::max(1, sum);
+    return hit_damage(a, percent, armor_melee, armor_pierce, armor_class);
 }
 
 void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, const Command& command,

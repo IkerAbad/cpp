@@ -28,7 +28,8 @@ constexpr std::size_t kMaxReplaySpeeds = 8;
 constexpr std::size_t kMaxAiProfiles = 32;
 // Nombres de los módulos de IA en los datos, en el orden de sim::AiBehavior.
 constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior::Count)> kAiBehaviorNames{
-    "defensa", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque",
+    "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
+    "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro"};
@@ -767,6 +768,11 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.flee_enemy_tiles = pr.get_i32("flee_enemy_tiles", 0, 256);
         p.safe_base_tiles = pr.get_i32("safe_base_tiles", 0, 256);
         p.barracks_queue = pr.get_i32("barracks_queue", 1, 64);
+        p.villager_queue = pr.get_i32("villager_queue", 1, 64);
+        p.attack_ratio_percent = pr.get_i32("attack_ratio_percent", 0, 10'000);
+        p.retreat_ratio_percent = pr.get_i32("retreat_ratio_percent", 0, 10'000);
+        p.min_attack_army = pr.get_i32("min_attack_army", 1, 10'000);
+        p.engage_radius_tiles = pr.get_i32("engage_radius_tiles", 1, 256);
         for (const std::string& name : pr.get_string_list("army")) {
             if (const auto id = units.find(name)) {
                 p.army.push_back(*id);
@@ -776,6 +782,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         }
         ai.profiles.push_back(std::move(p));
     });
+    cfg.ai_profile_names = profile_names;
     for (std::size_t k = 0; k < ai_profile_names.size() && !error; ++k) {
         const auto& [name, key] = ai_profile_names[k];
         const auto it = std::ranges::find(profile_names, name);

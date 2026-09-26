@@ -67,7 +67,7 @@ controller = "humano"
 start = [184, 184]
 color = [225, 70, 60]
 controller = "ia"
-ai_profile = "basica"
+ai_profile = "normal"
 
 [demo]
 # Unidades sueltas de prueba (las usan el banco y las pruebas de movimiento): count
@@ -168,7 +168,45 @@ flee_enemy_tiles = 3
 safe_base_tiles = 2
 # Unidades en cola que mantiene en el cuartel.
 barracks_queue = 2
+villager_queue = 1
+# Solo para ataque_fuerza (no lo usa este perfil).
+attack_ratio_percent = 130
+retreat_ratio_percent = 60
+min_attack_army = 6
+engage_radius_tiles = 8
 army = ["milicia", "lancero", "arquero"]
+
+# Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
+# rival, ataque cuando su fuerza supera a la enemiga (y retirada si pierde la
+# batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
+[[ai.profile]]
+name = "normal"
+behaviors = ["defensa", "concentrar", "ataque_fuerza", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
+villager_target = 30
+gather_percent = { comida = 40, madera = 35, oro = 15, piedra = 10 }
+house_margin = 5
+barracks_at_villagers = 8
+dropoff_distance_tiles = 12
+dropoff_min_gatherers = 3
+builders = 2
+gatherers_per_farm = 2
+build_gap_tiles = 1
+build_search_radius_tiles = 24
+# Oleadas fijas: no las usa (ataca por fuerza).
+first_wave = 6
+wave_growth = 4
+defend_radius_tiles = 14
+flee_enemy_tiles = 3
+safe_base_tiles = 2
+barracks_queue = 2
+villager_queue = 2
+# Ataca con 6 o más tropas ociosas si su fuerza es al menos el 130 % de la enemiga
+# conocida; se retira si, a 8 casillas de su ejército en campaña, baja del 60 %.
+attack_ratio_percent = 130
+retreat_ratio_percent = 60
+min_attack_army = 6
+engage_radius_tiles = 8
+army = ["milicia", "lancero", "arquero", "explorador"]
 
 [setup]
 seed = 20260924

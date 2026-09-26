@@ -198,7 +198,7 @@ jobs:
       - name: Configurar y compilar (RelWithDebInfo)
         run: |
           cmake --preset linux-clang-release -DRTS_BUILD_TESTS=OFF
-          cmake --build --preset linux-clang-release --target rts_bench
+          cmake --build --preset linux-clang-release --target rts_bench rts_ai_match
 
       # Criterio de M2: ningún tick por encima de 50 ms (el presupuesto de un tick a
       # 20 Hz). El runner es compartido: un fallo aislado se reproduce antes de culpar
@@ -220,6 +220,11 @@ jobs:
       # 30 minutos de partida por defecto con la IA en todos los jugadores.
       - name: IA contra IA, 30 minutos
         run: build/linux-clang-release/bench/rts_bench --ticks 36000 --max-ms 50 --ai-data data
+
+      # La IA "normal" debe ganar a la "básica" en al menos el 70 % de 10 partidas de 30
+      # minutos (5 semillas con los lados cambiados). Determinista: no hay suerte.
+      - name: Torneo de IA (normal contra básica)
+        run: build/linux-clang-release/bench/rts_ai_match --data data --a normal --b basica --games 10 --min-win-percent 70
 
       # Criterio de M5: una partida de 30 minutos grabada se reproduce con los mismos
       # 180 hashes intermedios y el mismo hash final.

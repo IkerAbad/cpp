@@ -154,6 +154,7 @@ struct EngineConfig {
     ReplayConfig replay;
     std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
     std::vector<std::string> hero_names;                     // por índice de CombatParams
+    std::vector<std::string> ai_profile_names;               // por índice de AiParams::profiles
 };
 
 // Los errores son textos legibles que nombran el fichero y la clave que falla.

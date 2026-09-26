@@ -20,7 +20,7 @@ namespace {
 
 // Partida de dos jugadores con preparación completa. El jugador 1 es de la IA; el 0,
 // también si both_ai, o un humano que no hace nada.
-WorldParams ai_game(bool both_ai) {
+WorldParams ai_game(bool both_ai, std::uint8_t profile = 0) {
     WorldParams p = test_world_params(0, 16);
     p.setup.seed = 21;
     p.setup.starts = {{60, 60}, {196, 196}};
@@ -35,7 +35,8 @@ WorldParams ai_game(bool both_ai) {
     p.setup.tree_type = kTree;
     p.setup.tree_density_permille = 300;
     p.setup.clear_radius = 7;
-    p.ai_players = both_ai ? std::vector<rts::sim::AiSeat>{{0, 0}, {1, 0}} : std::vector<rts::sim::AiSeat>{{1, 0}};
+    p.ai_players = both_ai ? std::vector<rts::sim::AiSeat>{{0, profile}, {1, profile}}
+                           : std::vector<rts::sim::AiSeat>{{1, profile}};
     return p;
 }
 
@@ -68,8 +69,12 @@ Census census(const World& world, rts::sim::PlayerId player) {
 
 }  // namespace
 
-TEST_CASE("IA: contra un rival quieto crece, construye cuartel, entrena y ataca sin gastar lo que no tiene") {
-    World world(ai_game(false));
+namespace {
+
+// Perfil 0: básica; 1: normal. Los dos, con las mismas reglas.
+void beats_idle_rival(std::uint8_t profile) {
+    INFO("perfil " << static_cast<int>(profile));
+    World world(ai_game(false, profile));
     std::int32_t waves_seen = 0;
     // 11 minutos: las bases están a ~190 casillas; la primera oleada tarda en llegar.
     for (int t = 0; t < 13200; ++t) {
@@ -90,6 +95,16 @@ TEST_CASE("IA: contra un rival quieto crece, construye cuartel, entrena y ataca 
     // El rival quieto no se defiende: a los 11 minutos la IA lo ha derrotado.
     CHECK(world.player_state(0).defeated);
     CHECK_FALSE(world.player_state(1).defeated);
+}
+
+}  // namespace
+
+TEST_CASE("IA básica: contra un rival quieto crece, construye cuartel, entrena y ataca sin gastar lo que no tiene") {
+    beats_idle_rival(0);
+}
+
+TEST_CASE("IA normal: contra un rival quieto crece, construye cuartel, entrena y ataca sin gastar lo que no tiene") {
+    beats_idle_rival(1);
 }
 
 TEST_CASE("IA: dos IA juegan la misma partida tick a tick") {
@@ -131,6 +146,16 @@ TEST_CASE("Regresión: hash de una partida IA contra IA de 3000 ticks") {
         world.step();
     }
     constexpr std::uint64_t kExpectedHash = 0x00a964d76d8b7b68ULL;
+    INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
+    CHECK(world.state_hash() == kExpectedHash);
+}
+
+TEST_CASE("Regresión: hash de una partida IA normal contra IA normal de 3000 ticks") {
+    World world(ai_game(true, 1));
+    for (int t = 0; t < 3000; ++t) {
+        world.step();
+    }
+    constexpr std::uint64_t kExpectedHash = 0xae0f0c145dcf21fdULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }
