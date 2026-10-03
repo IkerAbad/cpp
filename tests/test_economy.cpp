@@ -469,3 +469,18 @@ TEST_CASE("Preparación: edificio inicial, aldeanos y recursos cerca de cada jug
     CHECK(snap.players[1].stock[kWood] == 200);
     CHECK(all_on_passable_tiles(world));
 }
+
+TEST_CASE("Economía: una granja colocada ya terminada da comida desde el principio") {
+    WorldParams p = rts::test::test_world_params(0, 16);
+    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    World world(p);
+    const auto farm = world.spawn_building(0, rts::test::kFarm, {100, 100}, true);
+    REQUIRE(farm.has_value());
+    world.step();
+    rts::sim::Snapshot s;
+    world.write_snapshot(s);
+    const auto it = std::ranges::find(s.objects, *farm, &rts::sim::SnapshotObject::id);
+    REQUIRE(it != s.objects.end());
+    CHECK(it->amount == p.building_types[rts::test::kFarm].farm_food);
+    CHECK(rts::sim::EconomySystem::can_gather(world.registry(), static_cast<entt::entity>(*farm), 0));
+}

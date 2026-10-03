@@ -221,6 +221,8 @@ private:
     void deplete(entt::registry& registry, MovementSystem& movement, entt::entity node);
     void update_production(entt::registry& registry, const MovementSystem& movement);
     void retire_defeated(entt::registry& registry, MovementSystem& movement);
+    // Granja terminada: se convierte también en un nodo de comida de su dueño.
+    static void start_farm(entt::registry& registry, entt::entity building, const BuildingType& bt);
 
     std::int32_t width_;
     std::int32_t height_;

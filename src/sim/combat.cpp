@@ -14,6 +14,9 @@ namespace rts::sim {
 namespace {
 
 constexpr std::int32_t kPercent = 100;
+// Tope de daño de un golpe: con él, ni la vida ni la experiencia acumulada de un tick
+// desbordan 32 bits.
+constexpr std::int64_t kMaxHitDamage = 1'000'000;
 
 TileCoord tile_of(FVec2 p) noexcept {
     return {p.x.floor_to_int(), p.y.floor_to_int()};
@@ -57,11 +60,14 @@ std::int32_t CombatSystem::attack_percent(const Combatant& c, bool aura) const n
 
 std::int32_t hit_damage(const CombatStats& a, std::int32_t percent, std::int32_t armor_melee,
                         std::int32_t armor_pierce, ArmorClassId armor_class) noexcept {
-    const std::int32_t melee = a.attack_melee * percent / kPercent;
-    const std::int32_t pierce = a.attack_pierce * percent / kPercent;
-    const std::int32_t sum =
-        std::max(0, melee - armor_melee) + std::max(0, pierce - armor_pierce) + a.bonus[armor_class];
-    return std::max(1, sum);
+    // En 64 bits y con tope: con los límites de los datos, ataque por porcentaje de
+    // nivel no cabe en 32 bits en el peor caso, y un desbordamiento rompería el
+    // determinismo.
+    const std::int64_t melee = std::int64_t{a.attack_melee} * percent / kPercent;
+    const std::int64_t pierce = std::int64_t{a.attack_pierce} * percent / kPercent;
+    const std::int64_t sum = std::max<std::int64_t>(0, melee - armor_melee) +
+                             std::max<std::int64_t>(0, pierce - armor_pierce) + a.bonus[armor_class];
+    return static_cast<std::int32_t>(std::clamp<std::int64_t>(sum, 1, kMaxHitDamage));
 }
 
 std::int32_t CombatSystem::damage(UnitTypeId attacker_type, std::int32_t percent, const entt::registry& registry,
@@ -349,6 +355,11 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             goal->arrived) {
             c.attack_move = false;  // llegó al destino del ataque-movimiento
         }
+        if (c.attack_move && c.target == entt::null && goal == nullptr) {
+            // Sin camino a su destino (otra isla, fuera del radio de búsqueda): el
+            // ataque-movimiento termina aquí en vez de quedar pendiente para siempre.
+            c.attack_move = false;
+        }
 
         // 2. Adquisición automática, repartida entre ticks por id.
         if (c.target == entt::null && st.auto_attack && st.sight_tiles > 0 &&
@@ -377,12 +388,13 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
         // 3. Al alcance: golpe o disparo cuando la recarga lo permite. Si no, perseguir.
         if (in_range(registry, pos, unit.radius, st.range, c.target)) {
             c.chase_failures = 0;
-            if (c.chase_order != 0) {
-                if (goal != nullptr && goal->order_id == c.chase_order) {
-                    registry.remove<MoveGoal, PathFollow>(e);
-                }
-                c.chase_order = 0;
+            // Al alcance se detiene, venga de donde venga su movimiento: persecución,
+            // ataque-movimiento u orden previa. Si era ataque-movimiento, al quedarse sin
+            // blanco vuelve a su destino (clear_target).
+            if (goal != nullptr) {
+                registry.remove<MoveGoal, PathFollow>(e);
             }
+            c.chase_order = 0;
             if (c.cooldown == 0) {
                 c.cooldown = st.reload_ticks;
                 const std::int32_t percent = attack_percent(c, s_.aura[i] != 0);
@@ -525,13 +537,14 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
     const auto credit = [&](entt::entity attacker, std::int32_t xp) {
         if (registry.valid(attacker)) {
             if (Combatant* c = registry.try_get<Combatant>(attacker)) {
-                c->xp += xp;
+                c->xp = static_cast<std::int32_t>(
+                    std::min<std::int64_t>(std::int64_t{c->xp} + xp, std::numeric_limits<std::int32_t>::max()));
             }
         }
     };
     for (const Hit& h : hits_) {
         if (Health* health = registry.try_get<Health>(h.target)) {
-            health->hp -= h.amount;
+            health->hp = std::max(health->hp - h.amount, 0);  // sin desbordar con muchos golpes
             credit(h.attacker, h.amount);
         }
     }

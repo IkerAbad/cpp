@@ -202,6 +202,9 @@ std::optional<entt::entity> EconomySystem::place_building(entt::registry& regist
     b.progress = complete ? bt.build_ticks : 0;
     registry.emplace<Building>(e, b);
     registry.emplace<Health>(e, complete ? bt.hp : 1, bt.hp);  // los cimientos empiezan con 1
+    if (complete) {
+        start_farm(registry, e, bt);  // una granja colocada ya terminada también da comida
+    }
     if (!bt.trains.empty()) {
         registry.emplace<ProductionQueue>(e);
     }
@@ -681,9 +684,13 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
     health.hp = std::min(health.max_hp, health.hp + static_cast<std::int32_t>(after - before));
     if (b.progress >= bt.build_ticks) {
         b.complete = true;
-        if (bt.farm_food > 0) {
-            registry.emplace<ResourceNode>(w.building, NodeTypeId{0}, Resource::Food, bt.farm_food);
-        }
+        start_farm(registry, w.building, bt);
+    }
+}
+
+void EconomySystem::start_farm(entt::registry& registry, entt::entity building, const BuildingType& bt) {
+    if (bt.farm_food > 0) {
+        registry.emplace<ResourceNode>(building, NodeTypeId{0}, Resource::Food, bt.farm_food);
     }
 }
 

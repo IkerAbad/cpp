@@ -493,9 +493,10 @@ private:
         return best;
     }
 
-    // Clic derecho: atacar a un enemigo; recoger si hay un recurso; construir o
-    // descargar si es un edificio propio; mover en cualquier otro caso. Con Ctrl,
-    // ataque-movimiento: ir al destino peleando con lo que se encuentre.
+    // Clic derecho: atacar a un enemigo; recoger si hay un recurso o una granja propia
+    // terminada; construir o descargar si es otro edificio propio; mover en cualquier
+    // otro caso. Con Ctrl, ataque-movimiento: ir al destino peleando con lo que se
+    // encuentre.
     void issue_context_order(render::Vec2 screen_pos) {
         if (selection_.selected().empty()) {
             return;
@@ -514,6 +515,10 @@ private:
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Resource) {
             c.type = sim::CommandType::Gather;
+            c.object = o->id;
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer && o->complete &&
+                   data_.buildings.types[o->type].type.farm_food > 0) {
+            c.type = sim::CommandType::Gather;  // granja propia terminada: cultivarla
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
             c.type = sim::CommandType::Build;

@@ -2,6 +2,7 @@
 // esquivan, niveles y héroes con aura, posturas, ataque-movimiento, destrucción de
 // edificios con actualización del pathfinding y determinismo.
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <format>
@@ -11,6 +12,7 @@
 
 #include <doctest/doctest.h>
 
+#include "sim/combat.hpp"
 #include "sim/path/grid.hpp"
 #include "sim/path/hpa.hpp"
 #include "sim/world.hpp"
@@ -301,7 +303,55 @@ TEST_CASE("Regresión: hash de una batalla de 30 contra 30 tras 600 ticks") {
     for (int t = 0; t < 600; ++t) {
         world.step();
     }
-    constexpr std::uint64_t kExpectedHash = 0x637efe68c6329d02ULL;
+    constexpr std::uint64_t kExpectedHash = 0x6f44b192af50f861ULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
+}
+
+TEST_CASE("Combate: al alcance del blanco la unidad se detiene, aunque viniera en ataque-movimiento") {
+    World world(open_field());
+    const auto house = world.spawn_building(1, rts::test::kHouse, {102, 99}, true);
+    REQUIRE(house.has_value());
+    const auto soldier = world.spawn_unit(0, kSoldier, {100, 100});
+    Command c = order(CommandType::AttackMove, 0, {soldier});
+    c.target = {140, 100};
+    world.issue(c);
+    std::int32_t max_x = 0;
+    for (int t = 0; t < 400; ++t) {
+        world.step();
+        max_x = std::max(max_x, world.registry().get<Position>(ent(soldier)).x.floor_to_int());
+    }
+    // Se queda junto a la casa golpeándola en vez de seguir andando hacia su destino.
+    CHECK(max_x <= 104);
+    // 5 - 3 de armadura = 2 por golpe, uno cada 20 ticks: unos 20 golpes en 400 ticks.
+    CHECK(world.registry().get<Health>(ent(*house)).hp <= 500 - 2 * 17);
+}
+
+TEST_CASE("Combate: un ataque-movimiento sin camino a su destino termina en vez de quedar pendiente") {
+    World world(open_field());
+    const auto soldier = world.spawn_unit(0, kSoldier, {100, 100});
+    // Un bolsillo de 2x2 casillas cerrado por casas: nada fuera es alcanzable.
+    for (const TileCoord o : {TileCoord{98, 98}, TileCoord{100, 98}, TileCoord{102, 98}, TileCoord{98, 100},
+                              TileCoord{102, 100}, TileCoord{98, 102}, TileCoord{100, 102}, TileCoord{102, 102}}) {
+        REQUIRE(world.spawn_building(1, rts::test::kHouse, o, true).has_value());
+    }
+    world.step();
+    Command c = order(CommandType::AttackMove, 0, {soldier});
+    c.target = {200, 200};
+    world.issue(c);
+    world.step();
+    world.step();
+    CHECK_FALSE(world.registry().get<Combatant>(ent(soldier)).attack_move);
+}
+
+TEST_CASE("Combate: el daño de un golpe no desborda con ataques y niveles extremos") {
+    rts::sim::CombatStats a;
+    a.attack_melee = 1'000'000;
+    a.attack_pierce = 1'000'000;
+    // 64 niveles a +1000 % y aura: más de 650 veces el ataque base.
+    CHECK(rts::sim::hit_damage(a, 65'100, 0, 0, 0) == 1'000'000);
+    CHECK(rts::sim::hit_damage(a, 100, 0, 0, 0) == 1'000'000);
+    rts::sim::CombatStats weak;
+    weak.attack_melee = 1;
+    CHECK(rts::sim::hit_damage(weak, 100, 50, 0, 0) == 1);  // el mínimo se mantiene
 }
