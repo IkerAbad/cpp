@@ -870,6 +870,9 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.replay.checkpoint_interval_ticks = r.get_i32("replay.checkpoint_interval_ticks", 1, kMaxTicks);
     cfg.replay.directory = r.get_string("replay.directory");
     cfg.replay.speeds = r.get_increasing_list("replay.speeds", kMaxReplaySpeeds);
+    if (!error && cfg.replay.speeds.empty()) {
+        r.fail("'replay.speeds' debe tener al menos una velocidad");
+    }
 
     if (error) {
         return std::unexpected(*error);

@@ -429,6 +429,12 @@ TEST_CASE("Configuración: un decimal donde se espera un entero se rechaza") {
     CHECK_FALSE(parse_engine(replaced(kEngine, "= 250", "= 0.25")).has_value());
 }
 
+TEST_CASE("Configuración: el reproductor necesita al menos una velocidad") {
+    const auto cfg = parse_engine(replaced(kEngine, "speeds = [1, 2, 4, 8]", "speeds = []"));
+    REQUIRE_FALSE(cfg.has_value());
+    CHECK(cfg.error().find("replay.speeds") != std::string::npos);
+}
+
 TEST_CASE("Configuración: TOML mal formado da error, no excepción") {
     CHECK_FALSE(parse_engine("[window\ntitle = ").has_value());
     CHECK_FALSE(parse_terrain_catalog("[[terrain]\n").has_value());

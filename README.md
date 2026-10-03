@@ -235,7 +235,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - `ataque_fuerza`: ataca cuando la fuerza estimada de su ejército (vida × daño por tick) llega al 130 % de la enemiga conocida, y se retira si en la batalla baja del 60 %. Esa histéresis evita que oscile entre atacar y retirarse.
   - `concentrar`: cada unidad que pelea remata al enemigo armado que necesita menos golpes suyos. Los aldeanos enemigos no son prioridad: primero, lo que amenaza al ejército.
   - Economía: dos aldeanos en cola y casas con más margen.
-- **Medido** con `rts_ai_match`, 20 partidas de 30 minutos (10 semillas con los lados cambiados): `normal` gana a `basica` 18 de 20 (90 %), 7 de ellas por derrota (al caer el centro urbano) y el resto a los puntos (valor vivo de unidades y edificios). Rematar sigue siendo lento: el modelo de destrucción de edificios está en revisión.
+- **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `basica` 32 de 40 (80 %), 11 de ellas por derrota (al caer el centro urbano) y el resto a los puntos (valor vivo de unidades y edificios). Rematar sigue siendo lento: el modelo de destrucción de edificios está en revisión.
 
 ### Repeticiones (M5)
 

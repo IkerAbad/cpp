@@ -654,9 +654,11 @@ void attack_strength(Decision& d) {
             sy += s.tile.y;
         }
     }
+    std::optional<TileCoord> field_center;
     if (!field.empty()) {
         const auto n = static_cast<std::int64_t>(field.size());
         const TileCoord center{static_cast<std::int32_t>(sx / n), static_cast<std::int32_t>(sy / n)};
+        field_center = center;
         std::int64_t own = 0;
         for (const UnitSeen* s : field) {
             own += chebyshev(s->tile, center) <= radius ? strength(types[s->type], s->hp) : 0;
@@ -676,20 +678,6 @@ void attack_strength(Decision& d) {
         }
     }
 
-    if (v.threatened || std::cmp_less(v.idle_army.size(), d.profile.min_attack_army)) {
-        return;
-    }
-    std::int64_t own_total = 0;
-    for (const UnitSeen& s : v.soldiers) {
-        own_total += strength(types[s.type], s.hp);
-    }
-    std::int64_t enemy_total = 0;
-    for (const UnitSeen& e : v.enemies) {
-        enemy_total += e.armed ? strength(types[e.type], e.hp) : 0;
-    }
-    if (own_total * kPercent < enemy_total * d.profile.attack_ratio_percent) {
-        return;
-    }
     std::vector<TileCoord> vital;
     for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
         if (d.catalog().buildings[v.enemy_building_types[i]].vital) {
@@ -703,13 +691,54 @@ void attack_strength(Decision& d) {
     if (!target) {
         target = nearest(v.enemy_units, v.base);
     }
-    if (target) {
-        Command c = d.order(CommandType::AttackMove);
-        c.target = *target;
-        c.units = ids(v.idle_army);
-        d.out.push_back(std::move(c));
-        ++d.ai.waves_sent;
+    if (!target) {
+        return;
     }
+    // Sueltas: ociosas lejos de casa y sin ningún enemigo a la vista (por ejemplo, al
+    // caer el blanco que les asignó concentrar, que apaga su ataque-movimiento). Se
+    // unen al ejército que pelea en campaña o, si no hay ninguno, siguen hacia el
+    // objetivo. Las que tienen enemigos a la vista se dejan: eligen blanco solas, y
+    // reordenarlas cada decisión les cortaría el ataque (medido en el torneo).
+    std::vector<entt::entity> stranded;
+    std::vector<entt::entity> home;
+    for (const entt::entity e : v.idle_army) {
+        const TileCoord t = tile_of(d.registry.get<Position>(e));
+        if (chebyshev(t, v.base) <= d.profile.defend_radius_tiles) {
+            home.push_back(e);
+            continue;
+        }
+        const std::int32_t sight = types[d.registry.get<Unit>(e).type].combat.sight_tiles;
+        const auto in_sight = [&](TileCoord o) { return chebyshev(o, t) <= sight; };
+        if (std::ranges::none_of(v.enemy_units, in_sight) && std::ranges::none_of(v.enemy_buildings, in_sight)) {
+            stranded.push_back(e);
+        }
+    }
+    if (!stranded.empty()) {
+        Command c = d.order(CommandType::AttackMove);
+        c.target = field_center ? *field_center : *target;
+        c.units = ids(stranded);
+        d.out.push_back(std::move(c));
+    }
+
+    if (v.threatened || std::cmp_less(home.size(), d.profile.min_attack_army)) {
+        return;
+    }
+    std::int64_t own_total = 0;
+    for (const UnitSeen& s : v.soldiers) {
+        own_total += strength(types[s.type], s.hp);
+    }
+    std::int64_t enemy_total = 0;
+    for (const UnitSeen& e : v.enemies) {
+        enemy_total += e.armed ? strength(types[e.type], e.hp) : 0;
+    }
+    if (own_total * kPercent < enemy_total * d.profile.attack_ratio_percent) {
+        return;
+    }
+    Command c = d.order(CommandType::AttackMove);
+    c.target = *target;
+    c.units = ids(home);
+    d.out.push_back(std::move(c));
+    ++d.ai.waves_sent;
 }
 
 // Fuego concentrado: cada unidad que pelea elige, entre los enemigos armados a su

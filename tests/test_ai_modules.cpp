@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <vector>
 
 #include <doctest/doctest.h>
@@ -146,6 +147,62 @@ TEST_CASE("IA normal: ataca cuando su fuerza supera a la enemiga, y no antes") {
         world.step();
         CHECK(think_with(world, {AiBehavior::AttackStrength}).empty());
     }
+}
+
+TEST_CASE("IA normal: las unidades que quedan sueltas lejos de casa no se quedan quietas") {
+    WorldParams p = flat_two_players();
+    SUBCASE("sin ejército en campaña, siguen hacia el centro urbano enemigo") {
+        World world(p);
+        ai_base(world);
+        std::vector<std::uint32_t> stranded;
+        for (std::int32_t i = 0; i < 3; ++i) {
+            stranded.push_back(world.spawn_unit(kAi, kSoldier, {70, 60 + i}));
+        }
+        world.spawn_building(kRival, kCenter, {50, 50}, true);
+        world.step();
+        const auto out = think_with(world, {AiBehavior::AttackStrength});
+        REQUIRE(out.size() == 1);
+        CHECK(out[0].type == CommandType::AttackMove);
+        CHECK(out[0].target == rts::sim::TileCoord{51, 51});  // centro del centro urbano enemigo
+        std::vector<std::uint32_t> units = out[0].units;
+        std::ranges::sort(units);
+        CHECK(units == stranded);
+    }
+    SUBCASE("con ejército en campaña, se unen a él") {
+        World world(p);
+        ai_base(world);
+        const auto loose = world.spawn_unit(kAi, kSoldier, {100, 100});
+        const auto a = world.spawn_unit(kAi, kSoldier, {60, 70});
+        const auto b = world.spawn_unit(kAi, kSoldier, {62, 70});
+        world.spawn_building(kRival, kCenter, {50, 50}, true);
+        Command c;
+        c.player = kAi;
+        c.type = CommandType::AttackMove;
+        c.units = {a, b};
+        c.target = {51, 51};
+        world.issue(c);
+        world.step();
+        const auto out = think_with(world, {AiBehavior::AttackStrength});
+        REQUIRE(out.size() == 1);
+        CHECK(out[0].type == CommandType::AttackMove);
+        CHECK(out[0].units == std::vector<std::uint32_t>{loose});
+        // Hacia el centro del ejército en campaña, no al objetivo.
+        CHECK(out[0].target != rts::sim::TileCoord{51, 51});
+        CHECK(std::abs(out[0].target.x - 61) <= 1);
+        CHECK(std::abs(out[0].target.y - 70) <= 1);
+    }
+}
+
+TEST_CASE("IA normal: no reordena a las que tienen enemigos a la vista") {
+    // Paradas junto a la base enemiga eligen blanco solas: reordenarlas les cortaría el ataque.
+    World world(flat_two_players());
+    ai_base(world);
+    for (std::int32_t i = 0; i < 3; ++i) {
+        world.spawn_unit(kAi, kSoldier, {55, 50 + i});
+    }
+    world.spawn_building(kRival, kCenter, {50, 50}, true);
+    world.step();
+    CHECK(think_with(world, {AiBehavior::AttackStrength}).empty());
 }
 
 TEST_CASE("IA normal: se retira de una batalla perdida") {
