@@ -79,6 +79,7 @@ private:
         std::vector<std::uint32_t> order;   // 0 = sin orden
         std::vector<std::uint8_t> arrived;
         std::vector<std::int32_t> stuck;
+        std::vector<std::uint8_t> waiting;  // esperando camino del planificador
         std::vector<Fixed> blob_radius;  // radio esperado del racimo de su orden
         std::vector<FVec2> goal_point;
         std::vector<FVec2> chosen;

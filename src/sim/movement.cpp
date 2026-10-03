@@ -144,6 +144,10 @@ void MovementSystem::order_move(entt::registry& registry, std::span<const entt::
         const auto goal = grid_.nearest_in_component(target, comp, params_.retarget_radius_tiles);
         if (goal) {
             resolved.push_back({e, *goal});
+        } else {
+            // Sin destino alcanzable: la orden nueva sustituye a la anterior igualmente,
+            // así que se detiene en vez de seguir hacia su destino viejo.
+            registry.remove<MoveGoal, PathFollow>(e);
         }
     }
     if (resolved.empty()) {
@@ -614,6 +618,7 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
     s_.order.clear();
     s_.arrived.clear();
     s_.stuck.clear();
+    s_.waiting.clear();
     s_.blob_radius.clear();
     s_.goal_point.clear();
     for (const entt::entity e : view) {
@@ -646,6 +651,9 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         s_.order.push_back(order);
         s_.arrived.push_back(arrived ? 1 : 0);
         s_.stuck.push_back(stuck);
+        // Esperando camino del planificador: está parada por falta de ruta, no atascada.
+        const PathFollow* follow = registry.try_get<PathFollow>(e);
+        s_.waiting.push_back(follow != nullptr && follow->waiting ? 1 : 0);
         s_.blob_radius.push_back(cluster_radius(unit.radius, group) + params_.arrive_radius);
         s_.goal_point.push_back(goal_point);
     }
@@ -670,7 +678,8 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         if (s_.arrived[i] != 0 || s_.order[i] == 0) {
             continue;
         }
-        const bool crawling = length_sq_wide(s_.chosen[i]) * 16 < mul_wide(s_.speed[i], s_.speed[i]);
+        const bool crawling =
+            s_.waiting[i] == 0 && length_sq_wide(s_.chosen[i]) * 16 < mul_wide(s_.speed[i], s_.speed[i]);
         s_.stuck[i] = crawling ? s_.stuck[i] + 1 : 0;
         const bool stuck = s_.stuck[i] >= params_.stuck_arrive_ticks;
         if (s_.stuck[i] >= 4 * params_.stuck_arrive_ticks) {
@@ -712,7 +721,9 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         registry.get<Velocity>(e).v = s_.chosen[i];
         if (MoveGoal* goal = registry.try_get<MoveGoal>(e); goal != nullptr) {
             goal->stuck_ticks = s_.stuck[i];
-            if (s_.arrived[i] != 0 && !goal->arrived) {
+            if (s_.arrived[i] != 0) {
+                // Llegada por cualquier vía (también la de preferred_velocity): el camino
+                // ya no se sigue; si quedara, un cambio en la rejilla lo replanificaría.
                 goal->arrived = true;
                 registry.remove<PathFollow>(e);
             }
