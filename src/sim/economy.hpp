@@ -49,6 +49,9 @@ struct BuildingType {
     // Granja: al terminarse se convierte en un nodo de comida de su dueño con esta
     // cantidad (0 = no es granja). Se agota y desaparece como cualquier nodo.
     std::int32_t farm_food = 0;
+    // Vital (centro urbano): un jugador que tuvo alguno terminado pierde cuando ya no
+    // le queda ninguno terminado; lo que esté en obra no cuenta.
+    bool vital = false;
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {
@@ -124,7 +127,11 @@ struct PlayerState {
     std::int32_t population = 0;
     std::int32_t population_cap = 0;
     bool started = false;   // ha tenido alguna unidad o edificio
-    bool defeated = false;  // los perdió todos después de tenerlos
+    bool had_vital = false; // ha tenido algún edificio vital terminado
+    // Derrota: si tuvo un edificio vital, al quedarse sin ninguno terminado; si nunca
+    // lo tuvo (pruebas, demo), al quedarse sin unidades ni edificios. Es definitiva, y
+    // lo que le quede se retira del mapa.
+    bool defeated = false;
 };
 
 struct EconomyTickStats {
@@ -173,7 +180,8 @@ public:
     // Nodo explotable por el jugador: sin dueño (natural) o suyo (granja).
     [[nodiscard]] static bool can_gather(const entt::registry& registry, entt::entity node, PlayerId player);
 
-    // Población y tope de cada jugador; update() lo recalcula al empezar cada tick.
+    // Población, tope y derrota de cada jugador; update() lo recalcula al empezar cada
+    // tick y después retira del mapa lo que les quede a los derrotados.
     void recount_population(const entt::registry& registry);
 
     [[nodiscard]] std::span<const PlayerState> players() const noexcept { return players_; }
@@ -212,6 +220,7 @@ private:
                                                               Resource kind, TileCoord from) const;
     void deplete(entt::registry& registry, MovementSystem& movement, entt::entity node);
     void update_production(entt::registry& registry, const MovementSystem& movement);
+    void retire_defeated(entt::registry& registry, MovementSystem& movement);
 
     std::int32_t width_;
     std::int32_t height_;

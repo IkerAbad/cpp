@@ -637,7 +637,8 @@ void army_counter(Decision& d) {
 // Ataque por fuerza, con retirada. Primero, si el ejército en campaña pierde su
 // batalla (fuerza local por debajo de retreat_ratio_percent % de la enemiga), vuelve
 // a casa. Si no, y la fuerza total supera attack_ratio_percent % de la enemiga
-// conocida, las tropas ociosas atacan el edificio enemigo más cercano.
+// conocida, las tropas ociosas atacan el edificio vital enemigo más cercano (su caída
+// decide la partida) o, si no se conoce ninguno, el edificio más cercano.
 void attack_strength(Decision& d) {
     const AiView& v = d.v;
     const auto& types = d.catalog().units;
@@ -689,7 +690,16 @@ void attack_strength(Decision& d) {
     if (own_total * kPercent < enemy_total * d.profile.attack_ratio_percent) {
         return;
     }
-    auto target = nearest(v.enemy_buildings, v.base);
+    std::vector<TileCoord> vital;
+    for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
+        if (d.catalog().buildings[v.enemy_building_types[i]].vital) {
+            vital.push_back(v.enemy_buildings[i]);
+        }
+    }
+    auto target = nearest(vital, v.base);
+    if (!target) {
+        target = nearest(v.enemy_buildings, v.base);
+    }
     if (!target) {
         target = nearest(v.enemy_units, v.base);
     }

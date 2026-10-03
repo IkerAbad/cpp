@@ -7,6 +7,8 @@
 # trains: unidades que produce (nombres de units.toml).
 # farm_food: si es mayor que 0, es una granja: al terminarse la cultiva su dueño y da
 #   esa comida; al agotarse desaparece (hay que construir otra).
+# vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
+#   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
 # color: RGB provisional; el dueño se indica con el color del jugador.
 #
@@ -24,6 +26,7 @@ armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["aldeano"]
 farm_food = 0
+vital = true
 color = [196, 176, 140]
 
 [[building]]
@@ -38,6 +41,7 @@ armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
 farm_food = 0
+vital = false
 color = [176, 132, 96]
 
 [[building]]
@@ -52,6 +56,7 @@ armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
 farm_food = 0
+vital = false
 color = [120, 92, 60]
 
 [[building]]
@@ -66,6 +71,7 @@ armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
 farm_food = 0
+vital = false
 color = [132, 132, 140]
 
 [[building]]
@@ -80,6 +86,7 @@ armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
 farm_food = 0
+vital = false
 color = [206, 184, 110]
 
 [[building]]
@@ -94,6 +101,7 @@ armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["milicia", "lancero", "arquero", "explorador"]
 farm_food = 0
+vital = false
 color = [150, 70, 60]
 
 [[building]]
@@ -108,4 +116,5 @@ armor = { cuerpo = 0, proyectil = 0 }
 class = "edificio"
 trains = []
 farm_food = 250
+vital = false
 color = [214, 190, 92]

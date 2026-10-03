@@ -223,7 +223,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - Entrena en el cuartel la primera unidad de su ciclo que pueda pagar.
   - Ataca con ataque-movimiento cuando reúne una oleada (cada una mayor) y defiende su base: saca el ejército y refugia a los aldeanos amenazados.
 - **Granjas.** Un edificio que, terminado, da comida a su dueño hasta agotarse; la comida natural no dura toda la partida.
-- **Victoria y derrota.** Pierde quien se queda sin unidades ni edificios después de haberlos tenido. La pantalla muestra el resultado.
+- **Victoria y derrota.** Pierde quien se queda sin ningún edificio vital terminado (`vital = true` en `buildings.toml`: el centro urbano) después de haber tenido alguno; uno en obra no cuenta. Un jugador que nunca tuvo uno (pruebas, demo) pierde al quedarse sin unidades ni edificios. La derrota es definitiva y lo que le quede al perdedor se retira del mapa. `ataque_fuerza` apunta primero al edificio vital enemigo más cercano. La pantalla muestra el resultado.
 - **Configuración.** En `engine.toml`, cada jugador lleva `controller = "humano"` o `"ia"`; por defecto juegas tú (jugador 0) contra la IA. Un jugador de la IA elige su perfil con `ai_profile`.
 - **Módulos y perfiles.** La IA se compone de tres capas:
   - **Percepción:** un resumen de lo que el jugador sabe, rehecho en cada decisión. Es el único sitio que lee el mundo; cuando haya niebla de guerra, filtrará con la misma visibilidad que un humano.
@@ -235,7 +235,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - `ataque_fuerza`: ataca cuando la fuerza estimada de su ejército (vida × daño por tick) llega al 130 % de la enemiga conocida, y se retira si en la batalla baja del 60 %. Esa histéresis evita que oscile entre atacar y retirarse.
   - `concentrar`: cada unidad que pelea remata al enemigo armado que necesita menos golpes suyos. Los aldeanos enemigos no son prioridad: primero, lo que amenaza al ejército.
   - Economía: dos aldeanos en cola y casas con más margen.
-- **Medido** con `rts_ai_match`, 20 partidas de 30 minutos (10 semillas con los lados cambiados): `normal` gana a `basica` 19 de 20 (95 %). Solo 3 terminan por derrota; el resto, a los puntos (valor vivo de unidades y edificios). Los edificios aguantan mucho frente a unidades sin asedio, así que rematar es lento.
+- **Medido** con `rts_ai_match`, 20 partidas de 30 minutos (10 semillas con los lados cambiados): `normal` gana a `basica` 18 de 20 (90 %), 7 de ellas por derrota (al caer el centro urbano) y el resto a los puntos (valor vivo de unidades y edificios). Rematar sigue siendo lento: el modelo de destrucción de edificios está en revisión.
 
 ### Repeticiones (M5)
 

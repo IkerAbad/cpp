@@ -514,6 +514,7 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.armor_pierce = armor[1];
         info.type.armor_class = br.get_named("class", ClassNames{units}, "units.toml (classes)");
         info.type.farm_food = br.get_i32("farm_food", 0, kMaxAmount);
+        info.type.vital = br.get_bool("vital");
         for (const std::string& key : br.get_string_list("accepts")) {
             const auto res = find_resource(key);
             if (!res) {

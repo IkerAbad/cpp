@@ -140,12 +140,60 @@ TEST_CASE("Derrota: sin unidades ni edificios después de haberlos tenido") {
     CHECK_FALSE(world.player_state(0).defeated);
 }
 
+TEST_CASE("Derrota: al caer el último centro urbano terminado; lo demás se retira del mapa") {
+    WorldParams p = test_world_params(0, 16);
+    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.demo.player = 1;  // dos jugadores
+    p.building_types[kCenter].hp = 60;  // que caiga pronto
+    World world(p);
+    const auto center = world.spawn_building(1, kCenter, {100, 100}, true);
+    REQUIRE(center.has_value());
+    // Un centro en obra no salva al jugador.
+    REQUIRE(world.spawn_building(1, kCenter, {120, 100}, false).has_value());
+    world.spawn_building(1, kHouse, {100, 110}, true);
+    const auto villager = world.spawn_unit(1, kVillager, {110, 110});
+    std::vector<std::uint32_t> attackers;
+    for (std::int32_t i = 0; i < 6; ++i) {
+        attackers.push_back(world.spawn_unit(0, kSoldier, {96, 96 + i}));
+    }
+    world.step();
+    CHECK(world.player_state(1).had_vital);
+    rts::sim::Command attack;
+    attack.type = rts::sim::CommandType::Attack;
+    attack.player = 0;
+    attack.units = attackers;
+    attack.object = *center;
+    world.issue(attack);
+    int t = 0;
+    for (; t < 2000 && !world.player_state(1).defeated; ++t) {
+        world.step();
+    }
+    REQUIRE(world.player_state(1).defeated);
+    CHECK_FALSE(world.player_state(0).defeated);
+    world.step();  // la retirada se hace al empezar el siguiente tick de economía
+    // Ni la casa, ni el centro en obra, ni el aldeano siguen en el mapa.
+    Snapshot s;
+    world.write_snapshot(s);
+    for (const auto& e : s.entities) {
+        CHECK(e.owner != 1);
+        CHECK(e.id != villager);
+    }
+    for (const auto& o : s.objects) {
+        CHECK_FALSE((o.kind == rts::sim::ObjectKind::Building && o.owner == 1));
+    }
+    // La derrota es definitiva.
+    for (int k = 0; k < 40; ++k) {
+        world.step();
+    }
+    CHECK(world.player_state(1).defeated);
+}
+
 TEST_CASE("Regresión: hash de una partida IA contra IA de 3000 ticks") {
     World world(ai_game(true));
     for (int t = 0; t < 3000; ++t) {
         world.step();
     }
-    constexpr std::uint64_t kExpectedHash = 0x00a964d76d8b7b68ULL;
+    constexpr std::uint64_t kExpectedHash = 0xa922da6c6e71d3c8ULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }
@@ -155,7 +203,7 @@ TEST_CASE("Regresión: hash de una partida IA normal contra IA normal de 3000 ti
     for (int t = 0; t < 3000; ++t) {
         world.step();
     }
-    constexpr std::uint64_t kExpectedHash = 0xae0f0c145dcf21fdULL;
+    constexpr std::uint64_t kExpectedHash = 0xe248064e9f77757dULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }

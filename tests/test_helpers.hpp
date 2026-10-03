@@ -118,6 +118,7 @@ inline std::vector<sim::BuildingType> test_building_types() {
     center.armor_melee = 3;
     center.armor_pierce = 8;
     center.armor_class = kClassBuilding;
+    center.vital = true;
     sim::BuildingType house;
     house.size = 2;
     house.cost = stock(0, 30, 0, 0);

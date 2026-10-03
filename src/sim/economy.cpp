@@ -431,19 +431,27 @@ void EconomySystem::recount_population(const entt::registry& registry) {
             players_[buildings.get<const Owner>(e).player].population_cap += catalog_.buildings[b.type].population;
         }
     }
-    // Derrota: un jugador que tuvo algo y ya no tiene unidades ni edificios.
+    // Derrota: ver PlayerState.
     std::vector<std::uint8_t> present(players_.size(), 0);
+    std::vector<std::uint8_t> vital(players_.size(), 0);
     for (const entt::entity e : units) {
         present[units.get<const Owner>(e).player] = 1;
     }
     for (const entt::entity e : buildings) {
-        present[buildings.get<const Owner>(e).player] = 1;
+        const PlayerId owner = buildings.get<const Owner>(e).player;
+        present[owner] = 1;
+        const Building& b = buildings.get<const Building>(e);
+        if (b.complete && catalog_.buildings[b.type].vital) {
+            vital[owner] = 1;
+        }
     }
     for (std::size_t i = 0; i < players_.size(); ++i) {
         PlayerState& p = players_[i];
         p.population_cap = std::min(p.population_cap, params_.max_population);
         p.started = p.started || present[i] != 0;
-        p.defeated = p.started && present[i] == 0;
+        p.had_vital = p.had_vital || vital[i] != 0;
+        const bool lost = p.had_vital ? vital[i] == 0 : (p.started && present[i] == 0);
+        p.defeated = p.defeated || lost;
     }
 }
 
@@ -451,6 +459,7 @@ void EconomySystem::update(entt::registry& registry, MovementSystem& movement, s
                            Tick tick) {
     stats_ = EconomyTickStats{};
     recount_population(registry);
+    retire_defeated(registry, movement);
     // Lista previa: las tareas crean y destruyen entidades (nodos agotados).
     scratch_.clear();
     for (const entt::entity e : registry.view<Worker>()) {
@@ -762,6 +771,26 @@ void EconomySystem::deplete(entt::registry& registry, MovementSystem& movement, 
     ++stats_.nodes_depleted;
 }
 
+void EconomySystem::retire_defeated(entt::registry& registry, MovementSystem& movement) {
+    if (std::ranges::none_of(players_, &PlayerState::defeated)) {
+        return;
+    }
+    // Lista previa en el orden de la vista: destruir mientras se recorre la invalida.
+    scratch_.clear();
+    for (const auto [e, owner] : registry.view<const Owner>().each()) {
+        if (players_[owner.player].defeated) {
+            scratch_.push_back(e);
+        }
+    }
+    for (const entt::entity e : scratch_) {
+        if (registry.all_of<Footprint>(e)) {
+            remove_building(registry, movement, e);
+        } else {
+            registry.destroy(e);
+        }
+    }
+}
+
 void EconomySystem::update_production(entt::registry& registry, const MovementSystem& movement) {
     scratch_.clear();
     for (const entt::entity e : registry.view<Building, ProductionQueue>()) {
@@ -809,6 +838,7 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
         h.add_i32(p.population);
         h.add_i32(p.population_cap);
         h.add_u32(p.started ? 1U : 0U);
+        h.add_u32(p.had_vital ? 1U : 0U);
         h.add_u32(p.defeated ? 1U : 0U);
     }
     // La ocupación de la rejilla se deriva de las huellas: basta con hashear estas.

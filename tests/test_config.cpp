@@ -111,6 +111,7 @@ armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["peon"]
 farm_food = 0
+vital = false
 color = [9, 9, 9]
 
 [[building]]
@@ -125,6 +126,7 @@ armor = { cuerpo = 1 }
 class = "edificio"
 trains = []
 farm_food = 0
+vital = false
 color = [8, 8, 8]
 )";
 
