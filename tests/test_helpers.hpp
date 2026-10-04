@@ -73,6 +73,8 @@ inline std::vector<sim::UnitType> test_unit_types() {
     soldier.combat.attack_melee = 5;
     soldier.combat.armor_melee = 1;
     soldier.combat.armor_class = kClassInfantry;
+    soldier.combat.ignite = 60;
+    soldier.combat.extinguish = 3;
     soldier.combat.range = sim::Fixed::from_ratio(15, 100);
     soldier.combat.reload_ticks = 20;
     soldier.combat.sight_tiles = 6;
@@ -86,6 +88,8 @@ inline std::vector<sim::UnitType> test_unit_types() {
     villager.combat.hp = 25;
     villager.combat.attack_melee = 3;
     villager.combat.armor_class = kClassVillager;
+    villager.combat.ignite = 40;
+    villager.combat.extinguish = 8;
     villager.combat.range = sim::Fixed::from_ratio(15, 100);
     villager.combat.reload_ticks = 20;
     villager.combat.sight_tiles = 4;
@@ -98,6 +102,8 @@ inline std::vector<sim::UnitType> test_unit_types() {
     archer.combat.hp = 30;
     archer.combat.attack_pierce = 4;
     archer.combat.armor_class = kClassArcher;
+    archer.combat.ignite = 25;
+    archer.combat.extinguish = 2;
     archer.combat.bonus[kClassInfantry] = 1;
     archer.combat.range = sim::Fixed::from_int(4);
     archer.combat.reload_ticks = 20;
@@ -163,6 +169,7 @@ inline sim::EconomyParams test_economy_params() {
     sim::EconomyParams e;
     e.gather_ticks = {10, 12, 14, 16};
     e.interact_range = sim::Fixed::from_ratio(4, 5);
+    e.repair_cost_percent = 50;
     e.retarget_radius_tiles = 8;
     e.approach_attempts = 3;
     e.gatherers_per_tile = 2;
@@ -243,6 +250,23 @@ inline sim::AiParams test_ai_params() {
     return a;
 }
 
+inline sim::FireParams test_fire_params() {
+    sim::FireParams f;
+    f.max_intensity = 1000;
+    f.sustain_intensity = 200;
+    f.decay_per_tick = 2;
+    f.growth_wood_per_tick = 4;
+    f.growth_stone_per_tick = 2;
+    f.burn_wood_milli_per_tick = 750;
+    f.burn_stone_milli_per_tick = 500;
+    f.stone_floor_percent = 60;
+    f.spread_intensity = 800;
+    f.spread_per_tick = 3;
+    f.spread_gap_tiles = 1;
+    f.extinguish_reach = sim::Fixed::from_ratio(4, 5);
+    return f;
+}
+
 inline sim::WorldParams test_world_params(std::int32_t units = 1000, std::int32_t area = 64) {
     sim::WorldParams p;
     p.map = test_map_params();
@@ -252,6 +276,7 @@ inline sim::WorldParams test_world_params(std::int32_t units = 1000, std::int32_
     p.node_types = test_node_types();
     p.economy = test_economy_params();
     p.combat = test_combat_params();
+    p.fire = test_fire_params();
     p.ai = test_ai_params();
     p.movement = test_movement_params();
     p.demo.seed = 0x5EED'2026'0924ULL;

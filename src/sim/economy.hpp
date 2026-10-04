@@ -34,8 +34,13 @@ struct ResourceNodeType {
     std::int32_t size = 1;  // casillas por lado
 };
 
+// Material de un edificio. La madera arde hasta caer; en la piedra el fuego solo
+// consume tejado e interior: el edificio queda quemado (inutilizado) y en pie.
+enum class Material : std::uint8_t { Wood, Stone };
+
 // Tipo de edificio (data/buildings.toml).
 struct BuildingType {
+    Material material = Material::Wood;
     std::int32_t size = 1;         // casillas por lado
     Stock cost{};
     std::int32_t build_ticks = 0;  // ticks de trabajo de un aldeano; n aldeanos, n veces más rápido
@@ -70,6 +75,8 @@ struct EconomyParams {
     std::int32_t queue_capacity = 0;
     std::int32_t max_population = 0;
     std::int32_t spawn_search_radius = 0;    // anillos alrededor del edificio donde aparece lo producido
+    // Reparar la vida entera de un edificio cuesta este % de su coste en madera.
+    std::int32_t repair_cost_percent = 0;
 };
 
 // --- Componentes -------------------------------------------------------------------
@@ -88,6 +95,9 @@ struct Footprint {
     }
 };
 
+// Distancia al cuadrado (32.32) de un punto al rectángulo de una huella; 0 dentro.
+[[nodiscard]] std::int64_t distance_sq_to(const Footprint& f, FVec2 p) noexcept;
+
 struct ResourceNode {
     NodeTypeId type = 0;
     Resource kind = Resource::Food;
@@ -98,7 +108,12 @@ struct Building {
     BuildingTypeId type = 0;
     std::int32_t progress = 0;  // ticks de trabajo acumulados (la vida va en Health)
     bool complete = false;
+    bool burned = false;        // piedra quemada: no produce, no almacena ni da plazas
+    std::int64_t repair_acc = 0;  // fracción de madera de la reparación aún sin cobrar
     std::uint32_t spawned = 0;  // unidades producidas: reparte las casillas de salida
+
+    // Funciona: terminado y no quemado.
+    [[nodiscard]] bool working() const noexcept { return complete && !burned; }
 };
 
 struct ProductionQueue {
@@ -177,6 +192,8 @@ public:
     [[nodiscard]] bool can_place(const entt::registry& registry, const PassGrid& grid, std::int32_t size,
                                  TileCoord origin) const;
     [[nodiscard]] entt::entity occupant(TileCoord c) const noexcept;
+    // Terminado, dañado o quemado y sin fuego: los aldeanos pueden repararlo.
+    [[nodiscard]] static bool needs_repair(const entt::registry& registry, entt::entity building);
     // Nodo explotable por el jugador: sin dueño (natural) o suyo (granja).
     [[nodiscard]] static bool can_gather(const entt::registry& registry, entt::entity node, PlayerId player);
 
@@ -221,6 +238,7 @@ private:
     void deplete(entt::registry& registry, MovementSystem& movement, entt::entity node);
     void update_production(entt::registry& registry, const MovementSystem& movement);
     void retire_defeated(entt::registry& registry, MovementSystem& movement);
+    void repair(entt::registry& registry, entt::entity building, Building& b, const BuildingType& bt);
     // Granja terminada: se convierte también en un nodo de comida de su dueño.
     static void start_farm(entt::registry& registry, entt::entity building, const BuildingType& bt);
 

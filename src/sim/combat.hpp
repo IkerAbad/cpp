@@ -15,6 +15,7 @@
 #include <entt/entity/registry.hpp>
 
 #include "sim/economy.hpp"
+#include "sim/fire.hpp"
 #include "sim/fixed.hpp"
 #include "sim/fmath.hpp"
 #include "sim/movement.hpp"
@@ -82,7 +83,9 @@ public:
     // Attack, AttackMove y SetStance; cualquier otra orden sobre unidades cancela su blanco.
     void apply(entt::registry& registry, MovementSystem& movement, const Command& command,
                std::span<const entt::entity> units, std::uint32_t& next_order_id, Tick tick);
-    void update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
+    // Los golpes de unidades que no son de asedio contra edificios no les quitan vida:
+    // avivan un fuego en ellos (fire.add_heat).
+    void update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy, FireSystem& fire,
                 std::uint32_t& next_order_id, Tick tick);
 
     // Daño de un golpe de una unidad (tipo y porcentaje de ataque) sobre un blanco.
@@ -127,7 +130,14 @@ private:
     [[nodiscard]] FVec2 aim_point(const entt::registry& registry, entt::entity target) const;
     void clear_target(entt::registry& registry, MovementSystem& movement, entt::entity e, Combatant& c,
                       std::uint32_t& next_order_id, Tick tick) const;
-    void update_projectiles(entt::registry& registry, const EconomySystem& economy);
+    void update_projectiles(entt::registry& registry, const EconomySystem& economy, FireSystem& fire);
+    // Golpe de una unidad de tipo attacker_type: daño (unidades, o edificios si es de
+    // asedio) o fuego (edificios, el resto).
+    void strike(const entt::registry& registry, FireSystem& fire, entt::entity target, entt::entity attacker,
+                UnitTypeId attacker_type, std::int32_t percent);
+    // Puede hacer algo contra este edificio: dañarlo (asedio) o prenderle fuego.
+    [[nodiscard]] bool can_harm_building(const entt::registry& registry, UnitTypeId attacker_type,
+                                         entt::entity building) const;
     void apply_hits(entt::registry& registry, MovementSystem& movement, EconomySystem& economy);
     void level_up(entt::registry& registry, entt::entity e, Combatant& c);
 

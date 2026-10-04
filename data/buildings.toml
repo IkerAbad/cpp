@@ -7,6 +7,10 @@
 # trains: unidades que produce (nombres de units.toml).
 # farm_food: si es mayor que 0, es una granja: al terminarse la cultiva su dueño y da
 #   esa comida; al agotarse desaparece (hay que construir otra).
+# material: "madera" o "piedra". Sin armas de asedio no se daña un edificio: se le
+#   prende fuego. La madera arde hasta caer; en la piedra el fuego consume tejado e
+#   interior y el edificio queda quemado (inutilizado) hasta repararlo; solo el
+#   asedio la derriba.
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -27,6 +31,7 @@ class = "edificio"
 trains = ["aldeano"]
 farm_food = 0
 vital = true
+material = "piedra"
 color = [196, 176, 140]
 
 [[building]]
@@ -42,6 +47,7 @@ class = "edificio"
 trains = []
 farm_food = 0
 vital = false
+material = "madera"
 color = [176, 132, 96]
 
 [[building]]
@@ -57,6 +63,7 @@ class = "edificio"
 trains = []
 farm_food = 0
 vital = false
+material = "madera"
 color = [120, 92, 60]
 
 [[building]]
@@ -72,6 +79,7 @@ class = "edificio"
 trains = []
 farm_food = 0
 vital = false
+material = "madera"
 color = [132, 132, 140]
 
 [[building]]
@@ -87,6 +95,7 @@ class = "edificio"
 trains = []
 farm_food = 0
 vital = false
+material = "madera"
 color = [206, 184, 110]
 
 [[building]]
@@ -102,6 +111,7 @@ class = "edificio"
 trains = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero"]
 farm_food = 0
 vital = false
+material = "madera"
 color = [150, 70, 60]
 
 [[building]]
@@ -117,4 +127,5 @@ class = "edificio"
 trains = []
 farm_food = 250
 vital = false
+material = "madera"
 color = [214, 190, 92]

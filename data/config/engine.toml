@@ -98,6 +98,31 @@ queue_capacity = 5
 max_population = 200
 # Anillos alrededor de un edificio donde busca sitio la unidad recién producida.
 spawn_search_radius_tiles = 4
+# Reparar un edificio entero cuesta el 50 % de su coste en madera (proporcional a la
+# vida que se devuelve); al terminar, un edificio quemado vuelve a funcionar.
+repair_cost_percent = 50
+
+[fire]
+# Intensidad de 0 a 1000. Por debajo de 200 un fuego mengua 2 por tick y se apaga
+# solo: hacen falta varios golpes de antorcha seguidos. Por encima crece solo: la
+# madera, 4 por tick (de 200 al máximo en 10 s); la piedra, 2.
+max_intensity = 1000
+sustain_intensity = 200
+decay_per_tick = 2
+growth_wood_per_tick = 4
+growth_stone_per_tick = 2
+# Vida quemada por tick a intensidad máxima (milésimas): una casa de 550 de vida sin
+# atender cae en unos 45 s desde que prende.
+burn_wood_milli_hp_per_tick = 750
+burn_stone_milli_hp_per_tick = 500
+# La piedra no baja del 60 % de su vida por el fuego: queda quemada e inutilizada.
+stone_floor_percent = 60
+# Desde 800 prende a los edificios de madera a 1 casilla o menos: 3 por tick.
+spread_intensity = 800
+spread_per_tick = 3
+spread_gap_tiles = 1
+# Para apagar basta con estar a 0,8 casillas del borde del edificio.
+extinguish_reach_milli_tiles = 800
 
 [combat]
 # Cada unidad busca blanco cada 10 ticks (0,5 s), repartidas por id.

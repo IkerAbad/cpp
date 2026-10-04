@@ -14,7 +14,7 @@ namespace rts::game {
 namespace {
 
 constexpr std::array<std::uint8_t, 8> kMagic{'R', 'T', 'S', 'R', 'E', 'P', 0, 0};
-constexpr std::uint8_t kLastCommandType = static_cast<std::uint8_t>(sim::CommandType::SetStance);
+constexpr std::uint8_t kLastCommandType = static_cast<std::uint8_t>(sim::CommandType::Count) - 1;
 constexpr std::size_t kChecksumBytes = 8;
 constexpr unsigned kByteBits = 8;
 constexpr unsigned kByteMask = 0xffU;

@@ -445,6 +445,10 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             cs.projectile_speed =
                 sim::Fixed::from_ratio(ur.get_i32("projectile_speed_milli_tiles_per_tick", 0, 4 * kMilli), kMilli);
             cs.auto_attack = ur.get_bool("auto_attack");
+            cs.ignite = ur.get_i32("ignite", 0, kMaxAmount);
+            cs.extinguish = ur.get_i32("extinguish", 0, kMaxAmount);
+            cs.siege = ur.get_bool("siege");
+            cs.buildings_only = ur.get_bool("buildings_only");
             if (!error && catalog.find(info.name)) {
                 ur.fail(std::format("nombre de unidad repetido: \"{}\"", info.name));
             }
@@ -515,6 +519,14 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.armor_class = br.get_named("class", ClassNames{units}, "units.toml (classes)");
         info.type.farm_food = br.get_i32("farm_food", 0, kMaxAmount);
         info.type.vital = br.get_bool("vital");
+        const std::string material = br.get_string("material");
+        if (material == "madera") {
+            info.type.material = sim::Material::Wood;
+        } else if (material == "piedra") {
+            info.type.material = sim::Material::Stone;
+        } else if (!br.failed()) {
+            br.fail(std::format("'{}' = \"{}\": debe ser \"madera\" o \"piedra\"", br.full("material"), material));
+        }
         for (const std::string& key : br.get_string_list("accepts")) {
             const auto res = find_resource(key);
             if (!res) {
@@ -701,6 +713,24 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     eco.queue_capacity = r.get_i32("economy.queue_capacity", 1, 64);
     eco.max_population = r.get_i32("economy.max_population", 1, 100'000);
     eco.spawn_search_radius = r.get_i32("economy.spawn_search_radius_tiles", 1, 32);
+    eco.repair_cost_percent = r.get_i32("economy.repair_cost_percent", 0, 1000);
+
+    sim::FireParams& fp = cfg.world.fire;
+    fp.max_intensity = r.get_i32("fire.max_intensity", 1, kMaxAmount);
+    fp.sustain_intensity = r.get_i32("fire.sustain_intensity", 0, kMaxAmount);
+    fp.decay_per_tick = r.get_i32("fire.decay_per_tick", 1, kMaxAmount);
+    fp.growth_wood_per_tick = r.get_i32("fire.growth_wood_per_tick", 0, kMaxAmount);
+    fp.growth_stone_per_tick = r.get_i32("fire.growth_stone_per_tick", 0, kMaxAmount);
+    fp.burn_wood_milli_per_tick = r.get_i32("fire.burn_wood_milli_hp_per_tick", 0, kMaxAmount);
+    fp.burn_stone_milli_per_tick = r.get_i32("fire.burn_stone_milli_hp_per_tick", 0, kMaxAmount);
+    fp.stone_floor_percent = r.get_i32("fire.stone_floor_percent", 0, 100);
+    fp.spread_intensity = r.get_i32("fire.spread_intensity", 0, kMaxAmount);
+    fp.spread_per_tick = r.get_i32("fire.spread_per_tick", 0, kMaxAmount);
+    fp.spread_gap_tiles = r.get_i32("fire.spread_gap_tiles", 0, 8);
+    fp.extinguish_reach = sim::Fixed::from_ratio(r.get_i32("fire.extinguish_reach_milli_tiles", 0, 4 * kMilli), kMilli);
+    if (!error && (fp.sustain_intensity > fp.max_intensity || fp.spread_intensity > fp.max_intensity)) {
+        r.fail("'fire.sustain_intensity' y 'fire.spread_intensity' no pueden superar 'fire.max_intensity'");
+    }
 
     sim::CombatParams& cb = cfg.world.combat;
     cb.acquire_interval_ticks = r.get_i32("combat.acquire_interval_ticks", 1, 1000);

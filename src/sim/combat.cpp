@@ -26,17 +26,6 @@ std::int32_t chebyshev(TileCoord a, TileCoord b) noexcept {
     return std::max(std::abs(a.x - b.x), std::abs(a.y - b.y));
 }
 
-// Cuadrado de la distancia (32.32) de un punto al rectángulo de la huella; 0 dentro.
-std::int64_t distance_sq_to(const Footprint& f, FVec2 p) noexcept {
-    const Fixed x0 = Fixed::from_int(f.origin.x);
-    const Fixed y0 = Fixed::from_int(f.origin.y);
-    const Fixed x1 = Fixed::from_int(f.origin.x + f.size);
-    const Fixed y1 = Fixed::from_int(f.origin.y + f.size);
-    const Fixed dx = p.x < x0 ? x0 - p.x : (p.x > x1 ? p.x - x1 : Fixed{});
-    const Fixed dy = p.y < y0 ? y0 - p.y : (p.y > y1 ? p.y - y1 : Fixed{});
-    return length_sq_wide({dx, dy});
-}
-
 FVec2 footprint_center(const Footprint& f) noexcept {
     return {Fixed::from_int(f.origin.x) + Fixed::from_ratio(f.size, 2),
             Fixed::from_int(f.origin.y) + Fixed::from_ratio(f.size, 2)};
@@ -101,7 +90,11 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
             if (command.object == kNoObject || !is_enemy_target(registry, target, command.player)) {
                 return;
             }
+            const bool is_unit = registry.all_of<Unit>(target);
             for (const entt::entity e : units) {
+                if (is_unit && units_[registry.get<Unit>(e).type].combat.buildings_only) {
+                    continue;  // un ariete no ataca a unidades
+                }
                 if (Combatant* c = registry.try_get<Combatant>(e)) {
                     c->target = target;
                     c->explicit_target = true;
@@ -138,6 +131,9 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
             }
             return;
         }
+        case CommandType::Count:
+            return;
+        case CommandType::Extinguish:
         case CommandType::Move:
         case CommandType::Stop:
         case CommandType::Gather:
@@ -267,7 +263,8 @@ entt::entity CombatSystem::acquire_building(const entt::registry& registry, cons
         for (std::int32_t x = t.x - sight_tiles; x <= t.x + sight_tiles; ++x) {
             const entt::entity o = economy.occupant({x, y});
             if (o == entt::null || o == best || !registry.all_of<Building, Owner, Health>(o) ||
-                registry.get<Owner>(o).player == s_.owner[i]) {
+                registry.get<Owner>(o).player == s_.owner[i] ||
+                !can_harm_building(registry, registry.get<Unit>(s_.entity[i]).type, o)) {
                 continue;
             }
             const std::int64_t d = distance_sq_to(registry.get<Footprint>(o), s_.pos[i]);
@@ -318,8 +315,29 @@ void CombatSystem::clear_target(entt::registry& registry, MovementSystem& moveme
     }
 }
 
+void CombatSystem::strike(const entt::registry& registry, FireSystem& fire, entt::entity target,
+                          entt::entity attacker, UnitTypeId attacker_type, std::int32_t percent) {
+    const CombatStats& st = units_[attacker_type].combat;
+    if (registry.all_of<Building>(target) && !st.siege) {
+        fire.add_heat(target, st.ignite);
+        return;
+    }
+    hits_.push_back({target, attacker, damage(attacker_type, percent, registry, target)});
+}
+
+bool CombatSystem::can_harm_building(const entt::registry& registry, UnitTypeId attacker_type,
+                                     entt::entity building) const {
+    const CombatStats& st = units_[attacker_type].combat;
+    if (st.siege) {
+        return true;
+    }
+    const Building& b = registry.get<Building>(building);
+    // Piedra ya quemada: no le queda qué arder; solo el asedio la derriba.
+    return st.ignite > 0 && !(buildings_[b.type].material == Material::Stone && b.burned);
+}
+
 void CombatSystem::update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
-                          std::uint32_t& next_order_id, Tick tick) {
+                          FireSystem& fire, std::uint32_t& next_order_id, Tick tick) {
     stats_ = CombatTickStats{};
     hits_.clear();
     new_projectiles_.clear();
@@ -347,6 +365,11 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
         if (c.target != entt::null && !is_enemy_target(registry, c.target, s_.owner[i])) {
             clear_target(registry, movement, e, c, next_order_id, tick);
         }
+        // Un edificio al que ya no puede hacer nada (piedra quemada, sin asedio) se deja.
+        if (c.target != entt::null && registry.all_of<Building>(c.target) &&
+            !can_harm_building(registry, unit.type, c.target)) {
+            clear_target(registry, movement, e, c, next_order_id, tick);
+        }
         if (c.target != entt::null && !c.explicit_target && !in_range(registry, pos, unit.radius, sight, c.target)) {
             clear_target(registry, movement, e, c, next_order_id, tick);
         }
@@ -369,7 +392,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                 idle = false;
             }
             if (idle) {
-                entt::entity t = acquire(i, sight);
+                entt::entity t = st.buildings_only ? entt::entity{entt::null} : acquire(i, sight);
                 if (t == entt::null) {
                     t = acquire_building(registry, economy, i, st.sight_tiles);
                 }
@@ -399,7 +422,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                 c.cooldown = st.reload_ticks;
                 const std::int32_t percent = attack_percent(c, s_.aura[i] != 0);
                 if (st.projectile_speed.raw() == 0) {
-                    hits_.push_back({c.target, e, damage(unit.type, percent, registry, c.target)});
+                    strike(registry, fire, c.target, e, unit.type, percent);
                     ++stats_.melee_hits;
                 } else {
                     // Apunta a donde está el blanco ahora: si se mueve, puede esquivarlo.
@@ -433,14 +456,14 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
         movement.order_move(registry, one, target_tile, c.chase_order, tick);
     }
 
-    update_projectiles(registry, economy);
+    update_projectiles(registry, economy, fire);
     for (const Projectile& p : new_projectiles_) {
         registry.emplace<Projectile>(registry.create(), p);
     }
     apply_hits(registry, movement, economy);
 }
 
-void CombatSystem::update_projectiles(entt::registry& registry, const EconomySystem& economy) {
+void CombatSystem::update_projectiles(entt::registry& registry, const EconomySystem& economy, FireSystem& fire) {
     scratch_.clear();
     for (const entt::entity e : registry.view<Projectile>()) {
         scratch_.push_back(e);
@@ -489,7 +512,7 @@ void CombatSystem::update_projectiles(entt::registry& registry, const EconomySys
             }
         }
         if (target != entt::null) {
-            hits_.push_back({target, p.attacker, damage(p.attacker_type, p.attack_percent, registry, target)});
+            strike(registry, fire, target, p.attacker, p.attacker_type, p.attack_percent);
             ++stats_.projectiles_hit;
         } else {
             ++stats_.projectiles_missed;

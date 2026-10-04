@@ -5,11 +5,14 @@
 #include <limits>
 #include <utility>
 
+#include "sim/fire.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::sim {
 
 namespace {
+
+constexpr std::int32_t kPercent = 100;
 
 TileCoord tile_of(FVec2 p) noexcept {
     return {p.x.floor_to_int(), p.y.floor_to_int()};
@@ -20,15 +23,6 @@ FVec2 tile_center(TileCoord c) noexcept {
 }
 
 // Cuadrado de la distancia (32.32) de un punto al rectángulo de la huella; 0 dentro.
-std::int64_t distance_sq_to(const Footprint& f, FVec2 p) noexcept {
-    const Fixed x0 = Fixed::from_int(f.origin.x);
-    const Fixed y0 = Fixed::from_int(f.origin.y);
-    const Fixed x1 = Fixed::from_int(f.origin.x + f.size);
-    const Fixed y1 = Fixed::from_int(f.origin.y + f.size);
-    const Fixed dx = p.x < x0 ? x0 - p.x : (p.x > x1 ? p.x - x1 : Fixed{});
-    const Fixed dy = p.y < y0 ? y0 - p.y : (p.y > y1 ? p.y - y1 : Fixed{});
-    return length_sq_wide({dx, dy});
-}
 
 // Casilla de la huella más cercana a c.
 TileCoord clamp_to(const Footprint& f, TileCoord c) noexcept {
@@ -107,6 +101,16 @@ void reset_movement(Worker& w) noexcept {
 }
 
 }  // namespace
+
+std::int64_t distance_sq_to(const Footprint& f, FVec2 p) noexcept {
+    const Fixed x0 = Fixed::from_int(f.origin.x);
+    const Fixed y0 = Fixed::from_int(f.origin.y);
+    const Fixed x1 = Fixed::from_int(f.origin.x + f.size);
+    const Fixed y1 = Fixed::from_int(f.origin.y + f.size);
+    const Fixed dx = p.x < x0 ? x0 - p.x : (p.x > x1 ? p.x - x1 : Fixed{});
+    const Fixed dy = p.y < y0 ? y0 - p.y : (p.y > y1 ? p.y - y1 : Fixed{});
+    return length_sq_wide({dx, dy});
+}
 
 EconomySystem::EconomySystem(std::int32_t width, std::int32_t height, const EconomyParams& params,
                              EconomyCatalog catalog, std::int32_t players)
@@ -287,11 +291,13 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
 
     switch (command.type) {
         case CommandType::SetStance:
+        case CommandType::Count:
             return;
         case CommandType::Move:
         case CommandType::Stop:
         case CommandType::Attack:
         case CommandType::AttackMove:
+        case CommandType::Extinguish:
             for (const entt::entity e : units) {
                 if (Worker* w = registry.try_get<Worker>(e)) {
                     w->task = WorkerTask::Idle;
@@ -328,8 +334,8 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
         }
 
         case CommandType::Build: {
-            // Edificio propio: en obra, se construye; terminado y almacén del recurso que
-            // lleva el aldeano, se descarga allí.
+            // Edificio propio: en obra, se construye; terminado pero dañado o quemado (y sin
+            // fuego), se repara; almacén del recurso que lleva el aldeano, se descarga allí.
             if (!has_object || !registry.all_of<Building, Owner, Footprint>(object) ||
                 registry.get<Owner>(object).player != player) {
                 return;
@@ -338,7 +344,7 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             const std::uint8_t accepts = catalog_.buildings[b.type].accepts;
             for (const entt::entity e : units) {
                 Worker* w = registry.try_get<Worker>(e);
-                if (w != nullptr && !b.complete) {
+                if (w != nullptr && (!b.complete || needs_repair(registry, object))) {
                     w->task = WorkerTask::Build;
                     w->building = object;
                     reset_movement(*w);
@@ -388,7 +394,7 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             ProductionQueue& q = registry.get<ProductionQueue>(object);
             const Stock& cost = catalog_.units[command.kind].cost;
             PlayerState& ps = players_[player];
-            if (!b.complete || std::ranges::find(trains, command.kind) == trains.end() ||
+            if (!b.working() || std::ranges::find(trains, command.kind) == trains.end() ||
                 std::cmp_greater_equal(q.items.size(), params_.queue_capacity) || !affordable(ps.stock, cost)) {
                 return;
             }
@@ -430,7 +436,7 @@ void EconomySystem::recount_population(const entt::registry& registry) {
     const auto buildings = registry.view<const Building, const Owner>();
     for (const entt::entity e : buildings) {
         const Building& b = buildings.get<const Building>(e);
-        if (b.complete) {
+        if (b.working()) {
             players_[buildings.get<const Owner>(e).player].population_cap += catalog_.buildings[b.type].population;
         }
     }
@@ -626,7 +632,7 @@ void EconomySystem::step_deliver(entt::registry& registry, MovementSystem& movem
             return false;
         }
         const Building& bd = registry.get<Building>(b);
-        return registry.get<Owner>(b).player == player && bd.complete &&
+        return registry.get<Owner>(b).player == player && bd.working() &&
                (catalog_.buildings[bd.type].accepts & resource_bit(w.carry_kind)) != 0;
     };
     if (!valid_dropoff(w.building)) {
@@ -658,7 +664,7 @@ void EconomySystem::step_deliver(entt::registry& registry, MovementSystem& movem
 void EconomySystem::step_build(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
                                std::uint32_t& next_order_id, Tick tick) {
     if (!registry.valid(w.building) || !registry.all_of<Building, Footprint>(w.building) ||
-        registry.get<Building>(w.building).complete) {
+        (registry.get<Building>(w.building).complete && !needs_repair(registry, w.building))) {
         w.task = WorkerTask::Idle;
         return;
     }
@@ -676,6 +682,10 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
     // más rápido (lineal; el género suele dar rendimientos decrecientes).
     Building& b = registry.get<Building>(w.building);
     const BuildingType& bt = catalog_.buildings[b.type];
+    if (b.complete) {
+        repair(registry, w.building, b, bt);
+        return;
+    }
     // La obra suma vida en proporción al trabajo (el daño recibido se conserva).
     Health& health = registry.get<Health>(w.building);
     const auto before = std::int64_t{bt.hp} * b.progress / std::max(bt.build_ticks, 1);
@@ -685,6 +695,34 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
     if (b.progress >= bt.build_ticks) {
         b.complete = true;
         start_farm(registry, w.building, bt);
+    }
+}
+
+bool EconomySystem::needs_repair(const entt::registry& registry, entt::entity building) {
+    const Building& b = registry.get<Building>(building);
+    const Health& h = registry.get<Health>(building);
+    return b.complete && (b.burned || h.hp < h.max_hp) && !registry.all_of<Fire>(building);
+}
+
+void EconomySystem::repair(entt::registry& registry, entt::entity building, Building& b, const BuildingType& bt) {
+    // Al ritmo de la construcción; cuesta madera en proporción a la vida devuelta
+    // (repair_cost_percent del coste en madera del edificio entero). Sin madera, espera.
+    Health& health = registry.get<Health>(building);
+    const std::int32_t gain = std::min(std::max(bt.hp / std::max(bt.build_ticks, 1), 1), health.max_hp - health.hp);
+    PlayerState& ps = players_[registry.get<Owner>(building).player];
+    const auto wood = resource_index(Resource::Wood);
+    const std::int64_t scale = std::int64_t{kPercent} * std::max(health.max_hp, 1);
+    const std::int64_t acc = b.repair_acc + std::int64_t{gain} * bt.cost[wood] * params_.repair_cost_percent;
+    const auto pay = static_cast<std::int32_t>(acc / scale);
+    if (ps.stock[wood] < pay) {
+        return;
+    }
+    ps.stock[wood] -= pay;
+    b.repair_acc = acc % scale;
+    health.hp += gain;
+    if (health.hp >= health.max_hp) {
+        b.burned = false;  // tejado e interior rehechos
+        b.repair_acc = 0;
     }
 }
 
@@ -755,7 +793,7 @@ std::optional<entt::entity> EconomySystem::nearest_dropoff(const entt::registry&
     std::optional<entt::entity> best;
     std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
     for (const auto [e, b, owner, f] : registry.view<const Building, const Owner, const Footprint>().each()) {
-        if (owner.player != player || !b.complete || (catalog_.buildings[b.type].accepts & resource_bit(kind)) == 0) {
+        if (owner.player != player || !b.working() || (catalog_.buildings[b.type].accepts & resource_bit(kind)) == 0) {
             continue;
         }
         const std::int32_t d = octile_distance(from, clamp_to(f, from));
@@ -807,7 +845,7 @@ void EconomySystem::update_production(entt::registry& registry, const MovementSy
         // Referencias estables: crear una unidad no toca Building ni ProductionQueue.
         Building& b = registry.get<Building>(e);
         ProductionQueue& q = registry.get<ProductionQueue>(e);
-        if (!b.complete || q.items.empty()) {
+        if (!b.working() || q.items.empty()) {
             continue;
         }
         const PlayerId player = registry.get<Owner>(e).player;
@@ -870,6 +908,8 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
         h.add_u32(b.type);
         h.add_i32(b.progress);
         h.add_u32(b.complete ? 1U : 0U);
+        h.add_u32(b.burned ? 1U : 0U);
+        h.add_u64(static_cast<std::uint64_t>(b.repair_acc));
         h.add_u32(b.spawned);
     }
     for (const auto [e, q] : registry.view<const ProductionQueue>().each()) {

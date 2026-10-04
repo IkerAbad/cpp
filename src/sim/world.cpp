@@ -59,6 +59,7 @@ World::World(const WorldParams& params)
       economy_(map_->width(), map_->height(), params.economy,
                {params.unit_types, params.building_types, params.node_types}, player_count(params)),
       combat_(map_->width(), map_->height(), params.combat, params.unit_types, params.building_types),
+      fire_(params.fire, params.unit_types, params.building_types),
       ai_(params.ai, params.ai_players),
       rng_(params.demo.seed) {
     setup_game(params.setup);
@@ -233,6 +234,7 @@ void World::apply_command(const Command& command) {
     }
     economy_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     combat_.apply(registry_, movement_, command, units, next_order_id_, tick_);
+    fire_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     if (command.type == CommandType::Move) {
         movement_.order_move(registry_, units, command.target, next_order_id_++, tick_);
     } else if (command.type == CommandType::Stop) {
@@ -260,7 +262,8 @@ void World::step() {
     pending_.erase(pending_.begin(), rest.begin());
 
     economy_.update(registry_, movement_, next_order_id_, tick_);
-    combat_.update(registry_, movement_, economy_, next_order_id_, tick_);
+    combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_);
+    fire_.update(registry_, movement_, economy_, next_order_id_, tick_);
     // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
     movement_.commit_grid_changes(registry_);
     movement_.update(registry_, tick_);
@@ -339,6 +342,7 @@ std::uint64_t World::state_hash() const {
     }
     economy_.hash_into(h, registry_);
     combat_.hash_into(h, registry_);
+    fire_.hash_into(h, registry_);
     ai_.hash_into(h);
     return h.value();
 }

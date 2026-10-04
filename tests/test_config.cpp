@@ -59,6 +59,10 @@ reload_ticks = 40
 sight_tiles = 6
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true
+ignite = 50
+extinguish = 4
+siege = false
+buildings_only = false
 
 [[unit]]
 name = "peon"
@@ -80,6 +84,10 @@ reload_ticks = 40
 sight_tiles = 6
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = false
+ignite = 50
+extinguish = 4
+siege = false
+buildings_only = false
 )";
 
 constexpr const char* kNodes = R"(
@@ -112,6 +120,7 @@ class = "edificio"
 trains = ["peon"]
 farm_food = 0
 vital = false
+material = "madera"
 color = [9, 9, 9]
 
 [[building]]
@@ -127,6 +136,7 @@ class = "edificio"
 trains = []
 farm_food = 0
 vital = false
+material = "madera"
 color = [8, 8, 8]
 )";
 
@@ -182,6 +192,21 @@ gatherers_per_tile = 2
 queue_capacity = 5
 max_population = 200
 spawn_search_radius_tiles = 4
+repair_cost_percent = 50
+
+[fire]
+max_intensity = 1000
+sustain_intensity = 200
+decay_per_tick = 2
+growth_wood_per_tick = 4
+growth_stone_per_tick = 2
+burn_wood_milli_hp_per_tick = 750
+burn_stone_milli_hp_per_tick = 500
+stone_floor_percent = 60
+spread_intensity = 800
+spread_per_tick = 3
+spread_gap_tiles = 1
+extinguish_reach_milli_tiles = 800
 
 [combat]
 acquire_interval_ticks = 10

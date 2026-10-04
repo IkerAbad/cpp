@@ -19,6 +19,10 @@
 # projectile_speed_milli_tiles_per_tick: 0 = cuerpo a cuerpo; si no, dispara un
 #   proyectil hacia donde está el blanco al disparar (se puede esquivar moviéndose).
 # auto_attack: si busca blancos solo (los aldeanos no).
+# Edificios: sin asedio no se les hace daño. ignite: fuego que aviva cada golpe contra
+#   un edificio (antorchas; en los tiradores, flechas incendiarias); extinguish: fuego
+#   que quita por tick apagando (los aldeanos, con cubos y mantas, son los mejores).
+#   siege: su golpe daña edificios; buildings_only: solo ataca edificios.
 #
 # Papeles con criterio histórico (valores de diseño propios, a ajustar jugando):
 # - leva: lanza y escudo, la base de cualquier ejército; barata, se instruye en
@@ -53,6 +57,10 @@ reload_ticks = 40
 sight_tiles = 4
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = false
+ignite = 40
+extinguish = 8
+siege = false
+buildings_only = false
 
 [[unit]]
 name = "leva"
@@ -74,6 +82,10 @@ reload_ticks = 40
 sight_tiles = 6
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true
+ignite = 60
+extinguish = 3
+siege = false
+buildings_only = false
 
 [[unit]]
 name = "hombre_armas"
@@ -95,6 +107,10 @@ reload_ticks = 40
 sight_tiles = 6
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true
+ignite = 60
+extinguish = 3
+siege = false
+buildings_only = false
 
 [[unit]]
 name = "arquero"
@@ -116,6 +132,10 @@ reload_ticks = 40
 sight_tiles = 7
 projectile_speed_milli_tiles_per_tick = 350
 auto_attack = true
+ignite = 25
+extinguish = 2
+siege = false
+buildings_only = false
 
 [[unit]]
 name = "ballestero"
@@ -137,6 +157,10 @@ reload_ticks = 90
 sight_tiles = 7
 projectile_speed_milli_tiles_per_tick = 450
 auto_attack = true
+ignite = 15
+extinguish = 2
+siege = false
+buildings_only = false
 
 [[unit]]
 name = "jinete"
@@ -158,6 +182,10 @@ reload_ticks = 40
 sight_tiles = 8
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true
+ignite = 80
+extinguish = 2
+siege = false
+buildings_only = false
 
 [[unit]]
 name = "caballero"
@@ -179,3 +207,7 @@ reload_ticks = 40
 sight_tiles = 8
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true
+ignite = 60
+extinguish = 2
+siege = false
+buildings_only = false

@@ -13,6 +13,7 @@
 #include "sim/ai.hpp"
 #include "sim/combat.hpp"
 #include "sim/economy.hpp"
+#include "sim/fire.hpp"
 #include "sim/fixed.hpp"
 #include "sim/map_gen.hpp"
 #include "sim/movement.hpp"
@@ -72,6 +73,7 @@ struct WorldParams {
     MovementParams movement;
     EconomyParams economy;
     CombatParams combat;
+    FireParams fire;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
     SetupParams setup;
@@ -140,6 +142,7 @@ public:
     [[nodiscard]] const MovementSystem& movement() const noexcept { return movement_; }
     [[nodiscard]] const EconomySystem& economy() const noexcept { return economy_; }
     [[nodiscard]] const CombatSystem& combat() const noexcept { return combat_; }
+    [[nodiscard]] const FireSystem& fire() const noexcept { return fire_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
@@ -167,6 +170,7 @@ private:
     MovementSystem movement_;
     EconomySystem economy_;
     CombatSystem combat_;
+    FireSystem fire_;
     AiSystem ai_;
     entt::registry registry_;
     Xoshiro256pp rng_;

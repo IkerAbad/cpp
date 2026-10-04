@@ -193,7 +193,7 @@ TEST_CASE("Regresión: hash de una partida IA contra IA de 3000 ticks") {
     for (int t = 0; t < 3000; ++t) {
         world.step();
     }
-    constexpr std::uint64_t kExpectedHash = 0x0548ee68c1188088ULL;
+    constexpr std::uint64_t kExpectedHash = 0xd900968030ae71a8ULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }
@@ -203,7 +203,7 @@ TEST_CASE("Regresión: hash de una partida IA normal contra IA normal de 3000 ti
     for (int t = 0; t < 3000; ++t) {
         world.step();
     }
-    constexpr std::uint64_t kExpectedHash = 0x71cce3fc83a4499dULL;
+    constexpr std::uint64_t kExpectedHash = 0x5c0439085f51ec9dULL;
     INFO(std::format("hash obtenido: 0x{:016x}", world.state_hash()));
     CHECK(world.state_hash() == kExpectedHash);
 }

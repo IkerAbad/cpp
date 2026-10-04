@@ -47,6 +47,12 @@ struct CombatStats {
     std::int32_t sight_tiles = 0;  // radio de adquisición automática de blancos
     Fixed projectile_speed;    // casillas por tick; 0 = cuerpo a cuerpo
     bool auto_attack = true;   // busca blancos solo; los aldeanos, no
+    // Edificios. Sin armas de asedio no se les hace daño: el golpe de cualquier otra
+    // unidad (antorcha, flecha incendiaria) aviva un fuego en ellos con esta cantidad.
+    std::int32_t ignite = 0;
+    std::int32_t extinguish = 0;  // fuego que quita por tick apagando (cubos, mantas, tierra)
+    bool siege = false;           // arma de asedio: su golpe daña edificios
+    bool buildings_only = false;  // solo ataca edificios (ariete)
 };
 
 // Parámetros de un tipo de unidad (data/units.toml).
@@ -127,13 +133,15 @@ enum class CommandType : std::uint8_t {
     Move,         // units -> target
     Stop,         // units
     Gather,       // units -> object (nodo de recurso)
-    Build,        // units -> object (edificio propio en obra)
+    Build,        // units -> object (edificio propio: construir, reparar o descargar)
     Place,        // colocar el edificio de tipo kind con origen target; units lo construyen
     Train,        // encolar una unidad de tipo kind en el edificio object
     CancelTrain,  // quitar la última de la cola de object, con reembolso íntegro
     Attack,       // units -> object (unidad o edificio enemigo)
     AttackMove,   // units -> target, atacando a los enemigos que encuentren por el camino
     SetStance,    // units adoptan la postura kind (sim::Stance)
+    Extinguish,   // units -> object (edificio propio en llamas): apagarlo
+    Count,        // número de tipos (no es una orden)
 };
 
 inline constexpr std::uint32_t kNoObject = 0xFFFF'FFFFU;
