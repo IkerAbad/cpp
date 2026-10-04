@@ -366,8 +366,8 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             }
             const BuildingType& bt = catalog_.buildings[command.kind];
             PlayerState& ps = players_[player];
-            if (!affordable(ps.stock, bt.cost)) {
-                return;
+            if (!affordable(ps.stock, bt.cost) || !meets_requirements(registry, player, command.kind)) {
+                return;  // sin cobrar
             }
             const auto b = place_building(registry, movement, player, command.kind, command.target, false);
             if (!b) {
@@ -696,6 +696,22 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
         b.complete = true;
         start_farm(registry, w.building, bt);
     }
+}
+
+bool EconomySystem::meets_requirements(const entt::registry& registry, PlayerId player, BuildingTypeId type) const {
+    for (const BuildingTypeId needed : catalog_.buildings[type].required) {
+        bool found = false;
+        for (const auto [e, b, owner] : registry.view<const Building, const Owner>().each()) {
+            if (owner.player == player && b.type == needed && b.complete) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool EconomySystem::needs_repair(const entt::registry& registry, entt::entity building) {

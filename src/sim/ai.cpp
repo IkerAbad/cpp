@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "sim/combat.hpp"
+#include "sim/fire.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::sim {
@@ -95,9 +96,20 @@ std::int64_t kill_rate(const UnitType& a, const UnitType& b) noexcept {
 }
 
 // Daño por tick de a contra un edificio, como fracción de su vida (escala kScale).
+// Lo que una unidad hace por tick a un edificio, como fracción de su vida (escala
+// kScale). Asedio: daño. El resto: fuego, que derriba la madera pero no la piedra.
+// Los vitales pesan más: su caída decide la partida.
+constexpr std::int64_t kVitalWeight = 4;
 std::int64_t demolish_rate(const UnitType& a, const BuildingType& b) noexcept {
-    const std::int64_t dmg = hit_damage(a.combat, kPercent, b.armor_melee, b.armor_pierce, b.armor_class);
-    return dmg * kScale / (static_cast<std::int64_t>(std::max(a.combat.reload_ticks, 1)) * std::max(b.hp, 1));
+    std::int64_t per_hit = 0;
+    if (a.combat.siege) {
+        per_hit = hit_damage(a.combat, kPercent, b.armor_melee, b.armor_pierce, b.armor_class);
+    } else if (b.material == Material::Wood) {
+        per_hit = a.combat.ignite;
+    }
+    const std::int64_t rate =
+        per_hit * kScale / (static_cast<std::int64_t>(std::max(a.combat.reload_ticks, 1)) * std::max(b.hp, 1));
+    return b.vital ? rate * kVitalWeight : rate;
 }
 
 // Fuerza estimada de una unidad: vida por daño por tick (escala kScoreScale).
@@ -135,6 +147,11 @@ struct AiView {
     std::vector<UnitSeen> soldiers;  // ejército propio con su estado de combate
     std::vector<UnitSeen> enemies;   // todas las unidades enemigas
     std::vector<BuildingTypeId> enemy_building_types;
+    std::vector<entt::entity> enemy_building_entities;
+    std::vector<std::int32_t> own_type_count;  // edificios propios por tipo (también en obra)
+    // Edificios propios que producen (terminados y en uso) con su cola.
+    std::vector<std::pair<entt::entity, std::int32_t>> trainers;
+    std::vector<entt::entity> own_fires;  // edificios propios en llamas
 };
 
 // Una decisión de un jugador: lo que sabe, lo que puede gastar y las órdenes que da.
@@ -237,7 +254,15 @@ bool perceive(Decision& d) {
         if (buildings.get<const Owner>(e).player != me) {
             v.enemy_buildings.push_back(center_of(f));
             v.enemy_building_types.push_back(b.type);
+            v.enemy_building_entities.push_back(e);
             continue;
+        }
+        if (v.own_type_count.empty()) {
+            v.own_type_count.assign(d.catalog().buildings.size(), 0);
+        }
+        ++v.own_type_count[b.type];
+        if (registry.all_of<Fire>(e)) {
+            v.own_fires.push_back(e);
         }
         v.has_anything = true;
         if (!first_building) {
@@ -246,6 +271,9 @@ bool perceive(Decision& d) {
         const BuildingType& bt = d.catalog().buildings[b.type];
         const bool trains_workers = std::ranges::find(bt.trains, params.worker_type) != bt.trains.end();
         const ProductionQueue* q = registry.try_get<ProductionQueue>(e);
+        if (q != nullptr && b.working() && !trains_workers) {
+            v.trainers.emplace_back(e, static_cast<std::int32_t>(q->items.size()));
+        }
         if (trains_workers && !v.town_center && b.complete) {
             v.town_center = e;
             v.town_center_queue = q != nullptr ? static_cast<std::int32_t>(q->items.size()) : 0;
@@ -588,21 +616,52 @@ void attack(Decision& d) {
 void army_counter(Decision& d) {
     const AiView& v = d.v;
     const auto& cycle = d.profile.army;
-    if (!v.barracks || !v.barracks_complete || v.barracks_queue >= d.profile.barracks_queue || cycle.empty() ||
-        d.population >= d.ps.population_cap) {
+    if (cycle.empty() || d.population >= d.ps.population_cap) {
+        return;
+    }
+    // Edificio propio en uso que entrena el tipo u y tiene sitio en la cola.
+    const auto trainer_for = [&](UnitTypeId u) -> std::optional<entt::entity> {
+        for (const auto& [b, queue] : v.trainers) {
+            const auto& trains = d.catalog().buildings[d.registry.get<Building>(b).type].trains;
+            if (queue < d.profile.barracks_queue && std::ranges::find(trains, u) != trains.end()) {
+                return b;
+            }
+        }
+        return std::nullopt;
+    };
+    if (std::ranges::none_of(cycle, [&](UnitTypeId u) { return trainer_for(u).has_value(); })) {
         return;
     }
     const bool enemy_armed = std::ranges::any_of(v.enemies, &UnitSeen::armed);
+    if (std::cmp_less(v.workers.size(), d.profile.army_min_villagers)) {
+        std::int64_t own = 0;
+        for (const UnitSeen& s : v.soldiers) {
+            own += strength(d.catalog().units[s.type], s.hp);
+        }
+        std::int64_t enemy = 0;
+        for (const UnitSeen& e : v.enemies) {
+            enemy += e.armed ? strength(d.catalog().units[e.type], e.hp) : 0;
+        }
+        if (own >= enemy) {
+            return;  // economía primero
+        }
+    }
     if (!enemy_armed && v.enemy_building_types.empty()) {
-        army(d);
+        if (v.barracks && v.barracks_complete && v.barracks_queue < d.profile.barracks_queue) {
+            army(d);
+        }
         return;
     }
     const auto& types = d.catalog().units;
     const auto& buildings = d.catalog().buildings;
     std::optional<UnitTypeId> best;
     std::int64_t best_score = -1;
+    // Contra un ejército se entrena lo mejor que se pueda pagar ya. Sin ejército
+    // enemigo no hay prisa: se ahorra para lo mejor (el ariete contra la piedra) en vez
+    // de gastar en tropas que no derriban nada.
+    const bool save_for_best = !enemy_armed;
     for (const UnitTypeId u : cycle) {
-        if (!affordable(d.budget, types[u].cost)) {
+        if (!trainer_for(u) || (!save_for_best && !affordable(d.budget, types[u].cost))) {
             continue;
         }
         std::int64_t offense = 0;
@@ -624,14 +683,103 @@ void army_counter(Decision& d) {
             best = u;
         }
     }
-    if (!best) {
+    if (!best || !affordable(d.budget, types[*best].cost)) {
         return;
     }
     Command c = d.order(CommandType::Train);
-    c.object = entt::to_integral(*v.barracks);
+    c.object = entt::to_integral(*trainer_for(*best));
     c.kind = *best;
     d.out.push_back(std::move(c));
     spend(d.budget, types[*best].cost);
+}
+
+// Taller de asedio en cuanto hay un cuartel terminado (es su requisito).
+void workshop(Decision& d) {
+    const AiView& v = d.v;
+    if (!d.params.workshop || !v.barracks_complete || v.threatened || v.own_type_count.empty() ||
+        v.own_type_count[*d.params.workshop] > 0) {
+        return;
+    }
+    d.place(*d.params.workshop, v.base);
+}
+
+// Aldeanos a apagar los edificios propios en llamas: los más cercanos que no estén
+// ya apagando, hasta extinguishers_per_fire por edificio.
+void extinguish(Decision& d) {
+    AiView& v = d.v;
+    for (const entt::entity fire : v.own_fires) {
+        std::int32_t already = 0;
+        for (const entt::entity w : v.workers) {
+            const Extinguisher* x = d.registry.try_get<Extinguisher>(w);
+            already += x != nullptr && x->building == fire ? 1 : 0;
+        }
+        const TileCoord at = center_of(d.registry.get<Footprint>(fire));
+        std::vector<std::pair<std::int32_t, entt::entity>> candidates;  // distancia, aldeano
+        for (const entt::entity w : v.workers) {
+            if (!d.registry.all_of<Extinguisher>(w) && d.registry.get<Worker>(w).task != WorkerTask::Build) {
+                candidates.emplace_back(octile_distance(tile_of(d.registry.get<Position>(w)), at), w);
+            }
+        }
+        std::ranges::sort(candidates, [](const auto& a, const auto& b) {
+            return a.first != b.first ? a.first < b.first : entt::to_integral(a.second) < entt::to_integral(b.second);
+        });
+        Command c = d.order(CommandType::Extinguish);
+        c.object = entt::to_integral(fire);
+        for (std::size_t i = 0; i < candidates.size() && already < d.profile.extinguishers_per_fire; ++i) {
+            c.units.push_back(entt::to_integral(candidates[i].second));
+            ++already;
+        }
+        if (!c.units.empty()) {
+            // Ya no están ociosos para los módulos siguientes.
+            std::erase_if(v.idle_workers, [&](entt::entity w) {
+                return std::ranges::find(c.units, entt::to_integral(w)) != c.units.end();
+            });
+            d.out.push_back(std::move(c));
+        }
+    }
+}
+
+// Incursión: con raid_group unidades del tipo de incursión ociosas en casa, van a
+// quemar el edificio de madera enemigo más cercano sin enemigos armados cerca (lo
+// indefenso; lo fortificado se deja para el asedio).
+void raid(Decision& d) {
+    const AiView& v = d.v;
+    if (!d.profile.raid_unit || v.threatened) {
+        return;
+    }
+    std::vector<std::uint32_t> riders;
+    for (const entt::entity e : v.idle_army) {
+        if (d.registry.get<Unit>(e).type == *d.profile.raid_unit &&
+            chebyshev(tile_of(d.registry.get<Position>(e)), v.base) <= d.profile.defend_radius_tiles) {
+            riders.push_back(entt::to_integral(e));
+        }
+    }
+    if (riders.empty() || std::cmp_less(riders.size(), d.profile.raid_group)) {
+        return;
+    }
+    std::optional<entt::entity> target;
+    std::int32_t best = std::numeric_limits<std::int32_t>::max();
+    for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
+        if (d.catalog().buildings[v.enemy_building_types[i]].material != Material::Wood) {
+            continue;
+        }
+        const TileCoord at = v.enemy_buildings[i];
+        const bool guarded = std::ranges::any_of(v.enemies, [&](const UnitSeen& e) {
+            return e.armed && chebyshev(e.tile, at) <= d.profile.raid_safe_radius_tiles;
+        });
+        const std::int32_t dist = octile_distance(v.base, at);
+        if (!guarded && dist < best) {
+            best = dist;
+            target = v.enemy_building_entities[i];
+        }
+    }
+    if (!target) {
+        return;
+    }
+    Command c = d.order(CommandType::Attack);
+    c.object = entt::to_integral(*target);
+    c.units = std::move(riders);
+    d.out.push_back(std::move(c));
 }
 
 // Ataque por fuerza, con retirada. Primero, si el ejército en campaña pierde su
@@ -792,7 +940,7 @@ void focus_fire(Decision& d) {
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
-    army_counter, attack_strength, focus_fire,
+    army_counter, attack_strength, focus_fire, workshop, extinguish, raid,
 };
 
 }  // namespace

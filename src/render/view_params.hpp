@@ -45,6 +45,8 @@ struct ViewParams {
     Rgba health_low_color{};
     Rgba projectile_color{};
     Rgba hero_color{};
+    Rgba fire_color{};                    // un edificio en llamas tiende a este color
+    std::int32_t burned_shade_percent = 0;  // brillo de un edificio quemado
 };
 
 }  // namespace rts::render

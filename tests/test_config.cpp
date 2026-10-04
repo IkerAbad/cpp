@@ -118,6 +118,7 @@ population = 5
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["peon"]
+requires = []
 farm_food = 0
 vital = false
 material = "madera"
@@ -134,6 +135,7 @@ population = 5
 armor = { cuerpo = 1 }
 class = "edificio"
 trains = []
+requires = []
 farm_food = 0
 vital = false
 material = "madera"
@@ -229,6 +231,7 @@ worker = "peon"
 house = "choza"
 barracks = "fuerte"
 farm = "choza"
+workshop = "fuerte"
 dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
@@ -255,6 +258,11 @@ attack_ratio_percent = 130
 retreat_ratio_percent = 60
 min_attack_army = 6
 engage_radius_tiles = 8
+extinguishers_per_fire = 0
+army_min_villagers = 0
+raid_unit = ""
+raid_group = 1
+raid_safe_radius_tiles = 0
 army = ["lancero"]
 
 [setup]
@@ -319,6 +327,8 @@ health_color = [90, 220, 90, 255]
 health_low_color = [230, 70, 50, 255]
 projectile_color = [245, 240, 220, 255]
 hero_color = [255, 200, 40, 255]
+fire_color = [255, 110, 20, 255]
+burned_shade_percent = 30
 
 [camera]
 scroll_keys_px_per_s = 1000

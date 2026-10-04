@@ -213,3 +213,50 @@ TEST_CASE("Fuego: la piedra queda quemada e inutilizada y se repara con madera")
     world.step();
     CHECK(world.player_state(1).population_cap == 5);
 }
+
+TEST_CASE("Asedio: el ariete daña edificios (también la piedra) e ignora a las unidades") {
+    WorldParams p = flat_two_players();
+    p.building_types[kCenter].material = rts::sim::Material::Stone;
+    World world(p);
+    const auto center = *world.spawn_building(1, kCenter, {100, 100}, true);
+    const auto ram = world.spawn_unit(0, kRam, {98, 101});
+    const auto enemy = world.spawn_unit(1, kSoldier, {97, 104});  // a la vista, pero es una unidad
+    world.step();
+    // Una orden de atacar a una unidad no le afecta.
+    world.issue(order(CommandType::Attack, 0, {ram}, enemy));
+    world.step();
+    CHECK(world.registry().get<rts::sim::Combatant>(ent(ram)).target != ent(enemy));
+    world.issue(order(CommandType::Attack, 0, {ram}, center));
+    for (int t = 0; t < 400; ++t) {
+        world.step();
+    }
+    // 50 - 3 de armadura = 47 por golpe cada 80 ticks: unos 5 golpes en 400 ticks.
+    CHECK(hp(world, center) <= 2000 - 47 * 4);
+    CHECK_FALSE(world.registry().all_of<Fire>(ent(center)));  // daño, no fuego
+}
+
+TEST_CASE("Requisitos: el taller de asedio solo se coloca con un cuartel terminado, y sin él no se cobra") {
+    World world(flat_two_players());
+    const auto villager = world.spawn_unit(0, kVillager, {100, 100});
+    world.set_stock(0, stock(0, 1000, 0, 0));
+    world.step();
+    CHECK_FALSE(world.meets_requirements(0, kWorkshop));
+    Command place = order(CommandType::Place, 0, {villager}, rts::sim::kNoObject);
+    place.kind = kWorkshop;
+    place.target = {110, 110};
+    world.issue(place);
+    world.step();
+    CHECK(world.player_state(0).stock[rts::sim::resource_index(rts::sim::Resource::Wood)] == 1000);
+    CHECK_FALSE(world.object_at({111, 111}).has_value());
+    // Un cuartel en obra no basta; terminado, sí.
+    REQUIRE(world.spawn_building(0, kBarracks, {120, 100}, false).has_value());
+    world.step();
+    CHECK_FALSE(world.meets_requirements(0, kWorkshop));
+    REQUIRE(world.spawn_building(0, kBarracks, {120, 110}, true).has_value());
+    world.step();
+    CHECK(world.meets_requirements(0, kWorkshop));
+    world.issue(place);
+    world.step();
+    CHECK(world.player_state(0).stock[rts::sim::resource_index(rts::sim::Resource::Wood)] == 800);
+    CHECK(world.object_at({111, 111}).has_value());
+}

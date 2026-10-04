@@ -229,3 +229,67 @@ TEST_CASE("IA normal: se retira de una batalla perdida") {
     std::ranges::sort(units);
     CHECK(units == std::vector<std::uint32_t>{std::min(a, b), std::max(a, b)});
 }
+
+TEST_CASE("IA normal: manda aldeanos a apagar sus edificios en llamas") {
+    World world(flat_two_players());
+    const auto house = *world.spawn_building(kAi, kHouse, {120, 120}, true);
+    std::vector<std::uint32_t> villagers;
+    for (std::int32_t i = 0; i < 5; ++i) {
+        villagers.push_back(world.spawn_unit(kAi, kVillager, {110 + i, 110}));
+    }
+    // Prenderle fuego: soldados enemigos atacan la casa.
+    std::vector<std::uint32_t> raiders;
+    for (std::int32_t i = 0; i < 3; ++i) {
+        raiders.push_back(world.spawn_unit(kRival, kSoldier, {119, 119 + i}));
+    }
+    world.step();
+    Command attack;
+    attack.player = kRival;
+    attack.type = CommandType::Attack;
+    attack.units = raiders;
+    attack.object = house;
+    world.issue(attack);
+    for (int t = 0; t < 200 && !world.registry().all_of<rts::sim::Fire>(static_cast<entt::entity>(house)); ++t) {
+        world.step();
+    }
+    REQUIRE(world.registry().all_of<rts::sim::Fire>(static_cast<entt::entity>(house)));
+    const auto out = think_with(world, {AiBehavior::Extinguish});
+    REQUIRE(out.size() == 1);
+    CHECK(out[0].type == CommandType::Extinguish);
+    CHECK(out[0].object == house);
+    CHECK(out[0].units.size() == 3);  // extinguishers_per_fire del perfil de prueba
+}
+
+TEST_CASE("IA normal: incursión contra un edificio de madera sin defensa, no contra uno defendido") {
+    World world(flat_two_players());
+    ai_base(world);
+    std::vector<std::uint32_t> riders;
+    for (std::int32_t i = 0; i < 3; ++i) {
+        riders.push_back(world.spawn_unit(kAi, kSoldier, {145, 140 + i}));
+    }
+    const auto guarded = *world.spawn_building(kRival, kHouse, {120, 120}, true);  // más cerca, defendida
+    for (std::int32_t i = 0; i < 4; ++i) {
+        world.spawn_unit(kRival, kSoldier, {118, 118 + i});
+    }
+    const auto lonely = *world.spawn_building(kRival, kHouse, {60, 60}, true);
+    world.step();
+    const auto out = think_with(world, {AiBehavior::Raid});
+    REQUIRE(out.size() == 1);
+    CHECK(out[0].type == CommandType::Attack);
+    CHECK(out[0].object == lonely);
+    CHECK(out[0].object != guarded);
+    std::vector<std::uint32_t> units = out[0].units;
+    std::ranges::sort(units);
+    CHECK(units == riders);
+}
+
+TEST_CASE("IA normal: construye el taller de asedio cuando tiene cuartel") {
+    World world(flat_two_players());
+    ai_base(world);  // centro urbano y cuartel terminados, dinero de sobra
+    world.spawn_unit(kAi, kVillager, {150, 145});
+    world.step();
+    const auto out = think_with(world, {AiBehavior::Workshop});
+    REQUIRE(out.size() == 1);
+    CHECK(out[0].type == CommandType::Place);
+    CHECK(out[0].kind == kWorkshop);
+}

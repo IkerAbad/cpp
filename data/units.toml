@@ -34,8 +34,11 @@
 #   perfora armadura (mucho ataque por disparo).
 # - jinete: caballería ligera; exploración e incursiones.
 # - caballero: caballería pesada con armadura; carísimo; carga.
+# - ariete: tronco con cabeza de hierro bajo un cobertizo cubierto de pieles húmedas:
+#   inmune al fuego y casi a las flechas, pero sin defensa cuerpo a cuerpo; lento.
+#   Es lo único que derriba la piedra.
 
-classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio"]
+classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio", "asedio"]
 
 [[unit]]
 name = "aldeano"
@@ -211,3 +214,28 @@ ignite = 60
 extinguish = 2
 siege = false
 buildings_only = false
+
+[[unit]]
+name = "ariete"
+radius_milli_tiles = 450
+speed_milli_tiles_per_tick = 28
+color = [110, 80, 50]
+cost = { madera = 160, hierro = 30 }
+train_ticks = 900
+population = 1
+worker = false
+carry_capacity = 0
+hp = 200
+attack = { cuerpo = 50 }
+armor = { proyectil = 40 }
+class = "asedio"
+bonus = {}
+range_milli_tiles = 150
+reload_ticks = 80
+sight_tiles = 6
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = true
+ignite = 0
+extinguish = 0
+siege = true
+buildings_only = true

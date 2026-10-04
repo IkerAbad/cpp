@@ -30,6 +30,7 @@ constexpr std::size_t kMaxAiProfiles = 32;
 constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior::Count)> kAiBehaviorNames{
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
+    "taller",      "apagar",   "incendiar",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -505,8 +506,10 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
     if (list != nullptr && list->size() > static_cast<std::size_t>(kByteMax) + 1) {
         r.fail(std::format("hay {} tipos de edificio y el máximo es {}", list->size(), kByteMax + 1));
     }
+    std::vector<std::vector<std::string>> requires_names;  // se resuelven al final: pueden nombrar edificios posteriores
     for_each_table(list, source_name, "building", error, [&](Reader& br, std::size_t) {
         BuildingInfo info;
+        requires_names.push_back(br.get_string_list("requires"));
         info.name = br.get_string("name");
         info.type.size = br.get_i32("size_tiles", 1, kMaxFootprint);
         info.type.cost = br.get_stock("cost");
@@ -549,6 +552,16 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         }
         catalog.types.push_back(std::move(info));
     });
+    for (std::size_t i = 0; i < requires_names.size() && !error; ++i) {
+        for (const std::string& name : requires_names[i]) {
+            const auto id = catalog.find(name);
+            if (!id || *id == i) {
+                r.fail(std::format("building[{}].requires contiene \"{}\", que no es otro edificio de la lista", i, name));
+                break;
+            }
+            catalog.types[i].type.required.push_back(*id);
+        }
+    }
     if (error) {
         return std::unexpected(*error);
     }
@@ -756,6 +769,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     ai.house = r.get_named("ai.house", catalogs.buildings, "buildings.toml");
     ai.barracks = r.get_named("ai.barracks", catalogs.buildings, "buildings.toml");
     ai.farm = r.get_named("ai.farm", catalogs.buildings, "buildings.toml");
+    ai.workshop = r.get_named("ai.workshop", catalogs.buildings, "buildings.toml");
     for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
         ai.dropoff[i] = r.get_named(std::format("ai.dropoff.{}", kResourceKeys[i]), catalogs.buildings, "buildings.toml");
     }
@@ -804,6 +818,16 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.retreat_ratio_percent = pr.get_i32("retreat_ratio_percent", 0, 10'000);
         p.min_attack_army = pr.get_i32("min_attack_army", 1, 10'000);
         p.engage_radius_tiles = pr.get_i32("engage_radius_tiles", 1, 256);
+        p.extinguishers_per_fire = pr.get_i32("extinguishers_per_fire", 0, 64);
+        p.army_min_villagers = pr.get_i32("army_min_villagers", 0, 1000);
+        if (const std::string raider = pr.get_string("raid_unit"); !raider.empty()) {
+            p.raid_unit = units.find(raider);
+            if (!p.raid_unit && !pr.failed()) {
+                pr.fail(std::format("'{}' = \"{}\": no está en units.toml", pr.full("raid_unit"), raider));
+            }
+        }
+        p.raid_group = pr.get_i32("raid_group", 1, 1000);
+        p.raid_safe_radius_tiles = pr.get_i32("raid_safe_radius_tiles", 0, 256);
         for (const std::string& name : pr.get_string_list("army")) {
             if (const auto id = units.find(name)) {
                 p.army.push_back(*id);
@@ -889,6 +913,8 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.view.health_low_color = r.get_color<4>("view.health_low_color");
     cfg.view.projectile_color = r.get_color<4>("view.projectile_color");
     cfg.view.hero_color = r.get_color<4>("view.hero_color");
+    cfg.view.fire_color = r.get_color<4>("view.fire_color");
+    cfg.view.burned_shade_percent = r.get_i32("view.burned_shade_percent", 0, 100);
 
     cfg.camera.scroll_keys_px_per_s = r.get_i32("camera.scroll_keys_px_per_s", 0, 100'000);
     cfg.camera.scroll_edge_px_per_s = r.get_i32("camera.scroll_edge_px_per_s", 0, 100'000);

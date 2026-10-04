@@ -51,6 +51,8 @@ struct BuildingType {
     std::uint8_t accepts = 0;      // almacén: bit resource_index(r) si admite el recurso r
     std::int32_t population = 0;   // plazas de población que aporta terminado
     std::vector<UnitTypeId> trains;
+    // Para colocarlo hay que tener terminado un edificio de cada uno de estos tipos.
+    std::vector<BuildingTypeId> required;
     // Granja: al terminarse se convierte en un nodo de comida de su dueño con esta
     // cantidad (0 = no es granja). Se agota y desaparece como cualquier nodo.
     std::int32_t farm_food = 0;
@@ -192,6 +194,8 @@ public:
     [[nodiscard]] bool can_place(const entt::registry& registry, const PassGrid& grid, std::int32_t size,
                                  TileCoord origin) const;
     [[nodiscard]] entt::entity occupant(TileCoord c) const noexcept;
+    // El jugador tiene terminado un edificio de cada tipo que exige el tipo type.
+    [[nodiscard]] bool meets_requirements(const entt::registry& registry, PlayerId player, BuildingTypeId type) const;
     // Terminado, dañado o quemado y sin fuego: los aldeanos pueden repararlo.
     [[nodiscard]] static bool needs_repair(const entt::registry& registry, entt::entity building);
     // Nodo explotable por el jugador: sin dueño (natural) o suyo (granja).

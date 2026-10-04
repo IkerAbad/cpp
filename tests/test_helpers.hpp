@@ -44,6 +44,7 @@ inline sim::MovementParams test_movement_params() {
 inline constexpr sim::UnitTypeId kSoldier = 0;
 inline constexpr sim::UnitTypeId kVillager = 1;
 inline constexpr sim::UnitTypeId kArcher = 2;
+inline constexpr sim::UnitTypeId kRam = 3;
 // Clases de armadura de prueba.
 inline constexpr sim::ArmorClassId kClassVillager = 0;
 inline constexpr sim::ArmorClassId kClassInfantry = 1;
@@ -54,6 +55,7 @@ inline constexpr sim::BuildingTypeId kHouse = 1;
 inline constexpr sim::BuildingTypeId kLumberCamp = 2;
 inline constexpr sim::BuildingTypeId kBarracks = 3;
 inline constexpr sim::BuildingTypeId kFarm = 4;
+inline constexpr sim::BuildingTypeId kWorkshop = 5;  // exige un cuartel
 inline constexpr sim::NodeTypeId kTree = 0;
 inline constexpr sim::NodeTypeId kGoldMine = 1;
 inline constexpr sim::NodeTypeId kBerries = 2;
@@ -109,7 +111,22 @@ inline std::vector<sim::UnitType> test_unit_types() {
     archer.combat.reload_ticks = 20;
     archer.combat.sight_tiles = 7;
     archer.combat.projectile_speed = sim::Fixed::from_ratio(35, 100);
-    return {soldier, villager, archer};
+    // Ariete: solo edificios, los daña (asedio), lento y sin armadura cuerpo a cuerpo.
+    sim::UnitType ram;
+    ram.radius = sim::Fixed::from_ratio(45, 100);
+    ram.speed = sim::Fixed::from_ratio(3, 100);
+    ram.cost = stock(0, 160, 0, 0, 30);
+    ram.train_ticks = 100;
+    ram.combat.hp = 200;
+    ram.combat.attack_melee = 50;
+    ram.combat.armor_pierce = 40;
+    ram.combat.armor_class = kClassBuilding;
+    ram.combat.range = sim::Fixed::from_ratio(15, 100);
+    ram.combat.reload_ticks = 80;
+    ram.combat.sight_tiles = 6;
+    ram.combat.siege = true;
+    ram.combat.buildings_only = true;
+    return {soldier, villager, archer, ram};
 }
 
 inline std::vector<sim::BuildingType> test_building_types() {
@@ -158,7 +175,17 @@ inline std::vector<sim::BuildingType> test_building_types() {
     farm.hp = 200;
     farm.armor_class = kClassBuilding;
     farm.farm_food = 200;
-    return {center, house, camp, barracks, farm};
+    sim::BuildingType workshop;
+    workshop.size = 3;
+    workshop.cost = stock(0, 200, 0, 0);
+    workshop.build_ticks = 400;
+    workshop.hp = 900;
+    workshop.armor_melee = 3;
+    workshop.armor_pierce = 8;
+    workshop.armor_class = kClassBuilding;
+    workshop.trains = {kRam};
+    workshop.required = {kBarracks};
+    return {center, house, camp, barracks, farm, workshop};
 }
 
 inline std::vector<sim::ResourceNodeType> test_node_types() {
@@ -235,6 +262,10 @@ inline sim::AiProfile test_ai_profile_normal() {
     a.retreat_ratio_percent = 60;
     a.min_attack_army = 4;
     a.engage_radius_tiles = 8;
+    a.extinguishers_per_fire = 3;
+    a.raid_unit = kSoldier;
+    a.raid_group = 3;
+    a.raid_safe_radius_tiles = 10;
     return a;
 }
 
@@ -245,6 +276,7 @@ inline sim::AiParams test_ai_params() {
     a.house = kHouse;
     a.barracks = kBarracks;
     a.farm = kFarm;
+    a.workshop = kWorkshop;
     a.dropoff = {kCenter, kLumberCamp, kCenter, kCenter};
     a.profiles = {test_ai_profile(), test_ai_profile_normal()};
     return a;

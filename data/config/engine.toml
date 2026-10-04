@@ -159,12 +159,15 @@ worker = "aldeano"
 house = "casa"
 barracks = "cuartel"
 farm = "granja"
+# Taller de asedio (módulo taller).
+workshop = "taller_asedio"
 dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero", hierro = "campamento_minero" }
 
 # Perfiles: cada jugador de la IA elige uno con ai_profile en [[player]]. La
 # dificultad sale de qué módulos usa y de sus umbrales, nunca de ventajas económicas.
-# Módulos, en orden de ejecución: defensa, aldeanos, casas, cuartel, granjas,
-# almacenes, obras, recoleccion, ejercito, ataque.
+# Módulos: defensa, aldeanos, casas, cuartel, granjas, almacenes, obras,
+# recoleccion, ejercito, ataque, ejercito_contra, ataque_fuerza, concentrar, taller,
+# apagar, incendiar. Se ejecutan en el orden de la lista.
 [[ai.profile]]
 name = "basica"
 behaviors = ["defensa", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
@@ -199,6 +202,12 @@ attack_ratio_percent = 130
 retreat_ratio_percent = 60
 min_attack_army = 6
 engage_radius_tiles = 8
+# Sin apagar fuegos ni incursiones (no usa esos módulos).
+extinguishers_per_fire = 0
+army_min_villagers = 0
+raid_unit = ""
+raid_group = 1
+raid_safe_radius_tiles = 0
 army = ["leva", "hombre_armas", "arquero"]
 
 # Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
@@ -206,9 +215,9 @@ army = ["leva", "hombre_armas", "arquero"]
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
 [[ai.profile]]
 name = "normal"
-behaviors = ["defensa", "concentrar", "ataque_fuerza", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
+behaviors = ["defensa", "apagar", "concentrar", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
 villager_target = 30
-gather_percent = { comida = 35, madera = 30, oro = 15, piedra = 5, hierro = 15 }
+gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
 barracks_at_villagers = 8
 dropoff_distance_tiles = 12
@@ -231,7 +240,15 @@ attack_ratio_percent = 130
 retreat_ratio_percent = 60
 min_attack_army = 6
 engage_radius_tiles = 8
-army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero"]
+# apagar: 3 aldeanos por edificio en llamas. incendiar: grupos de 3 jinetes contra
+# edificios de madera sin enemigos armados a 10 casillas.
+extinguishers_per_fire = 3
+# Hasta 20 aldeanos solo entrena tropas si su ejército es más débil que el enemigo.
+army_min_villagers = 20
+raid_unit = "jinete"
+raid_group = 3
+raid_safe_radius_tiles = 10
+army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete"]
 
 [setup]
 seed = 20260924
@@ -353,6 +370,10 @@ health_color = [90, 220, 90, 255]
 health_low_color = [230, 70, 50, 255]
 projectile_color = [245, 240, 220, 255]
 hero_color = [255, 200, 40, 255]
+# Un edificio en llamas tiende al naranja según la intensidad; uno quemado se pinta
+# al 30 % de brillo.
+fire_color = [255, 110, 20, 255]
+burned_shade_percent = 30
 
 [camera]
 scroll_keys_px_per_s = 1200

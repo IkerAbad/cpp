@@ -235,7 +235,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - `ataque_fuerza`: ataca cuando la fuerza estimada de su ejército (vida × daño por tick) llega al 130 % de la enemiga conocida, y se retira si en la batalla baja del 60 %. Esa histéresis evita que oscile entre atacar y retirarse.
   - `concentrar`: cada unidad que pelea remata al enemigo armado que necesita menos golpes suyos. Los aldeanos enemigos no son prioridad: primero, lo que amenaza al ejército.
   - Economía: dos aldeanos en cola y casas con más margen.
-- **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `basica` 32 de 40 (80 %), 11 de ellas por derrota (al caer el centro urbano) y el resto a los puntos (valor vivo de unidades y edificios). Rematar sigue siendo lento: el modelo de destrucción de edificios está en revisión.
+- **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `basica` 32 de 40 (80 %), 11 de ellas por derrota (al caer el centro urbano) y el resto a los puntos (valor vivo de unidades y edificios). Rematar exige asedio (arietes).
 
 ### Repeticiones (M5)
 
@@ -258,6 +258,25 @@ Los papeles y costes reflejan el equipo y la instrucción de cada tipo, que es l
 | Ballestero | comida, madera, hierro | 17 s | Recarga lenta; mucho daño por disparo, perfora armadura |
 | Jinete | comida, oro | 30 s | Rápido; exploración e incursiones |
 | Caballero | comida, hierro, oro | 55 s | Armadura y carga; carísimo |
+
+### Fuego y asedio (fase 1 del rediseño)
+
+Una incursión quema y empobrece; solo un asedio conquista.
+
+- **Fuego.** Sin armas de asedio no se daña un edificio. Cada golpe de otra unidad (antorchas; en los tiradores, flechas incendiarias) aviva un fuego (`ignite` en `units.toml`).
+  - Por debajo de la intensidad de sostén, el fuego mengua y se apaga solo: hacen falta varios golpes seguidos.
+  - Por encima, crece, quema vida en proporción a su intensidad y, muy vivo, prende los edificios de madera a una casilla o menos.
+  - Cualquier unidad lo apaga (clic derecho sobre el edificio propio en llamas), cada tipo con su eficiencia (`extinguish`). Los aldeanos son los mejores.
+  - Todo en `[fire]` de `engine.toml`.
+- **Material** (`material` en `buildings.toml`).
+  - La madera arde hasta caer: una casa sola, en unos 36 s.
+  - La piedra (el centro urbano) solo pierde por el fuego el tejado y el interior: queda quemada e inutilizada (sin plazas, producción ni almacén), en pie, hasta que la reparan aldeanos con madera (`repair_cost_percent`).
+- **Asedio.** El ariete (cobertizo con pieles húmedas: inmune al fuego, casi inmune a las flechas, sin defensa cuerpo a cuerpo y lento) es lo único que daña la piedra. Se construye en el taller de asedio, que exige tener un cuartel terminado (`requires` en `buildings.toml`; sin él, la orden se rechaza sin cobrar).
+- **IA `normal`.**
+  - `apagar`: manda aldeanos a sus fuegos.
+  - `incendiar`: incursiones de jinetes contra edificios de madera sin defensa.
+  - `taller`: construye el taller de asedio.
+  - `ejercito_contra`: entrena cada unidad en el edificio que la produce. Sin ejército enemigo ahorra para lo que derriba la piedra (el ariete). Con pocos aldeanos solo entrena tropas si su ejército es más débil que el enemigo, para que la economía vaya primero.
 
 ### Convenciones de `data/`
 

@@ -11,6 +11,7 @@
 #   prende fuego. La madera arde hasta caer; en la piedra el fuego consume tejado e
 #   interior y el edificio queda quemado (inutilizado) hasta repararlo; solo el
 #   asedio la derriba.
+# requires: edificios (terminados) que hay que tener para poder colocarlo.
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -24,11 +25,12 @@ size_tiles = 3
 cost = { madera = 275, piedra = 100 }
 build_ticks = 3000
 hp = 2400
-accepts = ["comida", "madera", "piedra", "oro"]
+accepts = ["comida", "madera", "piedra", "oro", "hierro"]
 population = 5
-armor = { cuerpo = 3, proyectil = 8 }
+armor = { cuerpo = 20, proyectil = 8 }
 class = "edificio"
 trains = ["aldeano"]
+requires = []
 farm_food = 0
 vital = true
 material = "piedra"
@@ -45,6 +47,7 @@ population = 5
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+requires = []
 farm_food = 0
 vital = false
 material = "madera"
@@ -61,6 +64,7 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+requires = []
 farm_food = 0
 vital = false
 material = "madera"
@@ -77,6 +81,7 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+requires = []
 farm_food = 0
 vital = false
 material = "madera"
@@ -93,6 +98,7 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = []
+requires = []
 farm_food = 0
 vital = false
 material = "madera"
@@ -109,6 +115,7 @@ population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
 trains = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero"]
+requires = []
 farm_food = 0
 vital = false
 material = "madera"
@@ -125,7 +132,27 @@ population = 0
 armor = { cuerpo = 0, proyectil = 0 }
 class = "edificio"
 trains = []
+requires = []
 farm_food = 250
 vital = false
 material = "madera"
 color = [214, 190, 92]
+
+# Carpinteros que construyen arietes. Exige un cuartel: sin tropas que los protejan,
+# los ingenios de asedio no sirven de nada.
+[[building]]
+name = "taller_asedio"
+size_tiles = 3
+cost = { madera = 200 }
+build_ticks = 1000
+hp = 900
+accepts = []
+population = 0
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
+trains = ["ariete"]
+requires = ["cuartel"]
+farm_food = 0
+vital = false
+material = "madera"
+color = [120, 96, 64]

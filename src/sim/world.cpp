@@ -392,6 +392,10 @@ void World::write_snapshot(Snapshot& out) const {
             o.hp = registry_.get<Health>(e).hp;
             o.progress = b->progress;
             o.complete = b->complete;
+            o.burned = b->burned;
+            if (const Fire* fire = registry_.try_get<Fire>(e)) {
+                o.fire = fire->intensity;
+            }
             if (const ProductionQueue* q = registry_.try_get<ProductionQueue>(e)) {
                 o.queue = q->items;
                 o.queue_progress = q->progress;

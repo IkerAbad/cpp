@@ -493,9 +493,10 @@ private:
         return best;
     }
 
-    // Clic derecho: atacar a un enemigo; recoger si hay un recurso o una granja propia
-    // terminada; construir o descargar si es otro edificio propio; mover en cualquier
-    // otro caso. Con Ctrl, ataque-movimiento: ir al destino peleando con lo que se
+    // Clic derecho: atacar a un enemigo (prender fuego a un edificio, o dañarlo con
+    // asedio); apagar un edificio propio en llamas; recoger si hay un recurso o una
+    // granja propia terminada; construir, reparar o descargar si es otro edificio
+    // propio; mover en cualquier otro caso. Con Ctrl, ataque-movimiento: ir al destino peleando con lo que se
     // encuentre.
     void issue_context_order(render::Vec2 screen_pos) {
         if (selection_.selected().empty()) {
@@ -515,6 +516,9 @@ private:
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Resource) {
             c.type = sim::CommandType::Gather;
+            c.object = o->id;
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer && o->fire > 0) {
+            c.type = sim::CommandType::Extinguish;  // edificio propio en llamas: apagarlo
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer && o->complete &&
                    data_.buildings.types[o->type].type.farm_food > 0) {
@@ -930,11 +934,21 @@ private:
                 ImGui::SeparatorText("Construir");
                 for (std::size_t b = 0; b < data_.buildings.types.size(); ++b) {
                     const BuildingInfo& info = data_.buildings.types[b];
-                    ImGui::BeginDisabled(!affordable(stock, info.type.cost));
+                    const auto type = static_cast<sim::BuildingTypeId>(b);
+                    const bool allowed = world_.meets_requirements(kLocalPlayer, type);
+                    ImGui::BeginDisabled(!allowed || !affordable(stock, info.type.cost));
                     if (ImGui::Button(std::format("{} ({})", info.name, cost_text(info.type.cost)).c_str())) {
-                        placing_ = static_cast<sim::BuildingTypeId>(b);
+                        placing_ = type;
                     }
                     ImGui::EndDisabled();
+                    if (!allowed) {
+                        std::string needs;
+                        for (const sim::BuildingTypeId r : info.type.required) {
+                            needs += (needs.empty() ? "" : ", ") + data_.buildings.types[r].name;
+                        }
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("requiere %s", needs.c_str());
+                    }
                 }
                 if (placing_) {
                     ImGui::TextDisabled("Clic: colocar · Mayús+clic: varios · clic derecho o Esc: cancelar");
@@ -954,6 +968,14 @@ private:
         }
         const BuildingInfo& info = data_.buildings.types[o->type];
         ImGui::Text("%s · vida %d/%d", info.name.c_str(), o->hp, info.type.hp);
+        if (o->fire > 0) {
+            ImGui::TextColored({1.0f, 0.5f, 0.1f, 1.0f}, "En llamas (%d %%): clic derecho con unidades para apagarlo",
+                               o->fire * kPercent / data_.engine.world.fire.max_intensity);
+        } else if (o->burned) {
+            ImGui::TextColored({0.8f, 0.6f, 0.4f, 1.0f}, "Quemado: no funciona hasta que lo reparen aldeanos");
+        } else if (o->complete && o->hp < info.type.hp) {
+            ImGui::TextDisabled("Dañado: clic derecho con aldeanos para repararlo (cuesta madera)");
+        }
         if (!o->complete) {
             ImGui::ProgressBar(static_cast<float>(o->progress) / static_cast<float>(info.type.build_ticks), {-1.0f, 0.0f},
                                "en obra");
@@ -1013,6 +1035,17 @@ private:
                 so.body = opaque(data_.buildings.types[o.type].color);
                 if (!o.complete) {
                     so.body = shaded(so.body, view.construction_shade_percent);
+                }
+                if (o.burned) {
+                    so.body = shaded(so.body, view.burned_shade_percent);
+                }
+                if (o.fire > 0) {
+                    // Hacia el color del fuego en proporción a su intensidad.
+                    const std::int32_t t = o.fire * kPercent / data_.engine.world.fire.max_intensity;
+                    for (std::size_t i = 0; i < 3; ++i) {
+                        so.body[i] = static_cast<std::uint8_t>((so.body[i] * (kPercent - t) + view.fire_color[i] * t) /
+                                                               kPercent);
+                    }
                 }
                 so.body_percent = view.building_body_percent;
                 so.highlighted = selected_building_ == o.id;

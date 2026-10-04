@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <entt/entity/registry.hpp>
@@ -38,6 +39,9 @@ enum class AiBehavior : std::uint8_t {
     ArmyCounter,     // entrena el tipo que mejor rinde contra el ejército enemigo conocido
     AttackStrength,  // ataca cuando su fuerza supera a la enemiga; se retira si pierde la batalla
     FocusFire,       // en combate, cada unidad remata al enemigo armado que antes puede matar
+    Workshop,        // taller de asedio cuando ya tiene cuartel
+    Extinguish,      // aldeanos a apagar los fuegos de sus edificios
+    Raid,            // incursiones de jinetes a quemar edificios de madera enemigos sin defensa
     Count,
 };
 
@@ -69,6 +73,15 @@ struct AiProfile {
     std::int32_t retreat_ratio_percent = 0;
     std::int32_t min_attack_army = 0;
     std::int32_t engage_radius_tiles = 0;
+    std::int32_t extinguishers_per_fire = 0;  // apagar: aldeanos por edificio en llamas
+    // ejercito_contra: con menos aldeanos que esto solo entrena si su ejército es más
+    // débil que el enemigo conocido (economía primero, sin quedar indefenso).
+    std::int32_t army_min_villagers = 0;
+    // incendiar: grupos de raid_group unidades de tipo raid_unit contra edificios de
+    // madera sin enemigos armados a raid_safe_radius_tiles.
+    std::optional<UnitTypeId> raid_unit;
+    std::int32_t raid_group = 0;
+    std::int32_t raid_safe_radius_tiles = 0;
     std::vector<UnitTypeId> army;            // ciclo de entrenamiento en el cuartel
 };
 
@@ -80,6 +93,7 @@ struct AiParams {
     BuildingTypeId house = 0;
     BuildingTypeId barracks = 0;
     BuildingTypeId farm = 0;
+    std::optional<BuildingTypeId> workshop;  // taller de asedio (módulo taller)
     std::array<BuildingTypeId, kResourceCount> dropoff{};  // almacén para cada recurso
     std::vector<AiProfile> profiles;
 };

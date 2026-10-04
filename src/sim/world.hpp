@@ -112,6 +112,8 @@ struct SnapshotObject {
     bool complete = true;
     std::vector<UnitTypeId> queue;   // edificios que producen
     std::int32_t queue_progress = 0; // ticks del primero de la cola
+    std::int32_t fire = 0;           // edificios: intensidad del fuego (0 = sin fuego)
+    bool burned = false;             // edificios de piedra quemados (inutilizados)
 };
 
 // Copia de solo lectura del estado que se presenta. El render nunca toca el registro.
@@ -150,6 +152,9 @@ public:
 
     // Consultas de solo lectura para la interfaz (fantasma de colocación, clic derecho).
     [[nodiscard]] bool can_place(BuildingTypeId type, TileCoord origin) const;
+    [[nodiscard]] bool meets_requirements(PlayerId player, BuildingTypeId type) const {
+        return economy_.meets_requirements(registry_, player, type);
+    }
     [[nodiscard]] std::optional<std::uint32_t> object_at(TileCoord c) const;
     [[nodiscard]] const PlayerState& player_state(PlayerId p) const { return economy_.players()[p]; }
 
