@@ -71,7 +71,7 @@ rts_add_shaders(rts_render
         sprite_frag:render/shaders/sprite.frag.hlsl:ps)
 target_link_libraries(rts_render
     PUBLIC rts_render_core rts_platform
-    PRIVATE imgui::imgui)
+    PRIVATE imgui::imgui spdlog::spdlog)
 rts_set_warnings(rts_render)
 
 # --- Ejecutable ----------------------------------------------------------------

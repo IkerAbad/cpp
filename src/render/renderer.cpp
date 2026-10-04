@@ -9,6 +9,7 @@
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
+#include <spdlog/spdlog.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlgpu3.h>
 
@@ -86,16 +87,33 @@ std::expected<std::unique_ptr<Renderer>, std::string> Renderer::create(const Ren
 #else
     constexpr bool debug_mode = true;
 #endif
-    SDL_GPUDevice* device = SDL_CreateGPUDevice(available_shader_formats(), debug_mode, nullptr);
-    if (device == nullptr) {
-        return std::unexpected(std::format("SDL_CreateGPUDevice: {}", SDL_GetError()));
+    // Primero el backend que elija SDL (Direct3D 12 en Windows); si no arranca, Vulkan,
+    // que también existe en casi todas las GPU de Windows. Así un fallo de un backend
+    // en una máquina concreta no deja el juego sin abrir.
+    std::string first_error;
+    for (const char* driver : {static_cast<const char*>(nullptr), "vulkan"}) {
+        SDL_GPUDevice* device = SDL_CreateGPUDevice(available_shader_formats(), debug_mode, driver);
+        if (device == nullptr) {
+            const std::string error = std::format("SDL_CreateGPUDevice({}): {}", driver != nullptr ? driver : "auto",
+                                                  SDL_GetError());
+            first_error = first_error.empty() ? error : first_error;
+            continue;
+        }
+        const std::string name = SDL_GetGPUDeviceDriver(device);
+        // Desde aquí el destructor libera lo que se haya creado.
+        std::unique_ptr<Renderer> renderer(new Renderer(desc.window, device, desc, build_atlas(desc.view)));
+        if (auto ok = renderer->init_gpu_resources(desc.vsync); !ok) {
+            const std::string error = std::format("{} ({})", ok.error(), name);
+            first_error = first_error.empty() ? error : first_error;
+            spdlog::warn("Render con {} no disponible: {}", name, error);
+            if (driver != nullptr || name == "vulkan") {
+                break;  // ya era Vulkan: no hay más que probar
+            }
+            continue;
+        }
+        return renderer;
     }
-    // Desde aquí el destructor libera lo que se haya creado.
-    std::unique_ptr<Renderer> renderer(new Renderer(desc.window, device, desc, build_atlas(desc.view)));
-    if (auto ok = renderer->init_gpu_resources(desc.vsync); !ok) {
-        return std::unexpected(ok.error());
-    }
-    return renderer;
+    return std::unexpected(first_error);
 }
 
 Renderer::Renderer(SDL_Window* window, SDL_GPUDevice* device, const RendererDesc& desc, Atlas atlas)
