@@ -42,6 +42,16 @@
 # - zapador: cava bajo los cimientos apuntalando con madera y luego quema los
 #   puntales para que el muro se hunda. Más lento que el ariete, pero ignora la
 #   armadura de los muros y, bajo tierra, las flechas apenas le alcanzan.
+#
+# Logística (engine.toml, [supply]):
+# rations: raciones que lleva encima; ration_ticks: lo que dura cada una. Un soldado
+#   lleva para 5 min. La caballería gasta el triple (el forraje del caballo pesa más
+#   que la comida del jinete), así que lleva más pero dura menos. Los aldeanos comen
+#   en casa: llevan poco y lo reponen al descargar; con hambre trabajan más despacio.
+# starves: sin raciones acaba perdiendo vida (los aldeanos, no).
+# ammo: disparos que lleva (0 = cuerpo a cuerpo). Las flechas se servían en haces de
+#   24; aquí se reponen de 6 en 6 (ammo_bundle) pagando ammo_cost cada vez: astiles de
+#   madera; los virotes de ballesta, además, punta de hierro.
 
 classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio", "asedio"]
 
@@ -71,6 +81,12 @@ extinguish = 8
 siege = false
 buildings_only = false
 undermine = false
+rations = 6
+ration_ticks = 600
+starves = false
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 
 [[unit]]
 name = "leva"
@@ -98,6 +114,12 @@ extinguish = 3
 siege = false
 buildings_only = false
 undermine = false
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 
 [[unit]]
 name = "hombre_armas"
@@ -125,6 +147,12 @@ extinguish = 3
 siege = false
 buildings_only = false
 undermine = false
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 
 [[unit]]
 name = "arquero"
@@ -152,6 +180,12 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 24
+ammo_bundle = 6
+ammo_cost = { madera = 1 }
 
 [[unit]]
 name = "ballestero"
@@ -179,6 +213,12 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 24
+ammo_bundle = 6
+ammo_cost = { madera = 1, hierro = 1 }
 
 [[unit]]
 name = "jinete"
@@ -206,6 +246,12 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
+rations = 20
+ration_ticks = 200
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 
 [[unit]]
 name = "caballero"
@@ -233,6 +279,12 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
+rations = 20
+ration_ticks = 200
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 
 [[unit]]
 name = "ariete"
@@ -260,6 +312,12 @@ extinguish = 0
 siege = true
 buildings_only = true
 undermine = false
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 
 [[unit]]
 name = "zapador"
@@ -287,3 +345,9 @@ extinguish = 3
 siege = false
 buildings_only = true
 undermine = true
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}

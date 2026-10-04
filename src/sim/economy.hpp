@@ -60,6 +60,8 @@ struct BuildingType {
     // Vital (centro urbano): un jugador que tuvo alguno terminado pierde cuando ya no
     // le queda ninguno terminado; lo que esté en obra no cuenta.
     bool vital = false;
+    // Abastece: las tropas propias cercanas reponen aquí víveres y munición.
+    bool supplies = false;
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {
@@ -86,6 +88,8 @@ struct EconomyParams {
     std::int32_t salvage_percent = 0;
     NodeTypeId rubble_stone = 0;
     NodeTypeId rubble_wood = 0;
+    // Un aldeano hambriento (sin víveres) trabaja a este % de su ritmo.
+    std::int32_t hungry_work_percent = 100;
 };
 
 // --- Componentes -------------------------------------------------------------------
@@ -243,6 +247,8 @@ private:
 
     void update_worker(entt::registry& registry, MovementSystem& movement, entt::entity e,
                        std::uint32_t& next_order_id, Tick tick);
+    // Aldeano hambriento que en este tick no trabaja (hungry_work_percent).
+    [[nodiscard]] bool slowed_by_hunger(const entt::registry& registry, entt::entity e, Tick tick) const;
     void step_gather(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
                      std::uint32_t& next_order_id, Tick tick);
     void step_deliver(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,

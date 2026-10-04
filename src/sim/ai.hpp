@@ -14,6 +14,7 @@
 
 #include "sim/economy.hpp"
 #include "sim/path/grid.hpp"
+#include "sim/supply.hpp"
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
@@ -42,6 +43,7 @@ enum class AiBehavior : std::uint8_t {
     Workshop,        // taller de asedio cuando ya tiene cuartel
     Extinguish,      // aldeanos a apagar los fuegos de sus edificios
     Raid,            // incursiones de jinetes a quemar edificios de madera enemigos sin defensa
+    Resupply,        // tropas cortas de víveres o munición vuelven a abastecerse
     Count,
 };
 
@@ -82,6 +84,9 @@ struct AiProfile {
     std::optional<UnitTypeId> raid_unit;
     std::int32_t raid_group = 0;
     std::int32_t raid_safe_radius_tiles = 0;
+    // abastecer: una unidad que no pelea vuelve a abastecerse cuando sus víveres o su
+    // munición bajan de este % de lo que puede llevar.
+    std::int32_t resupply_percent = 0;
     std::vector<UnitTypeId> army;            // ciclo de entrenamiento en el cuartel
 };
 
@@ -114,7 +119,8 @@ struct AiPlayerState {
 
 class AiSystem {
 public:
-    AiSystem(const AiParams& params, const std::vector<AiSeat>& seats);
+    // supply: las mismas reglas de abastecimiento que aplica la simulación.
+    AiSystem(const AiParams& params, const SupplyParams& supply, const std::vector<AiSeat>& seats);
 
     // Decide para los jugadores a los que les toca este tick y añade sus órdenes a out
     // (se aplican en este mismo tick, después de las del jugador humano).
@@ -126,6 +132,7 @@ public:
 
 private:
     AiParams params_;
+    SupplyParams supply_;
     std::vector<AiPlayerState> players_;
     std::vector<std::uint8_t> profiles_;  // perfil de cada jugador de players_
 };

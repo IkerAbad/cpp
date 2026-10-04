@@ -44,6 +44,7 @@ constexpr double kSmoothing = 0.05;
 constexpr float kMaxCameraDtS = 0.1f;
 // Separación de los paneles de depuración respecto al borde de la ventana.
 constexpr float kPanelMarginPx = 10.0f;
+constexpr ImVec4 kWarnColor{1.0f, 0.45f, 0.35f, 1.0f};  // avisos: hambre, sin munición
 constexpr std::uint8_t kOpaque = 255;
 // Jugador humano de esta máquina. En LAN (M8) lo asignará la sala de espera.
 constexpr sim::PlayerId kLocalPlayer = 0;
@@ -810,6 +811,31 @@ private:
         ImGui::End();
     }
 
+    [[nodiscard]] bool out_of_ammo(const sim::SnapshotEntity& e) const {
+        return data_.units.types[e.type].type.supply.ammo > 0 && e.ammo <= 0;
+    }
+
+    // Víveres y munición de una unidad propia (lo que el jugador sabe de las suyas).
+    void draw_supply_text(const sim::SnapshotEntity& e) const {
+        const sim::SupplyStats& st = data_.units.types[e.type].type.supply;
+        if (st.rations > 0) {
+            ImGui::Text("víveres %d/%d", e.rations, st.rations);
+            if (st.ammo > 0) {
+                ImGui::SameLine();
+            }
+        }
+        if (st.ammo > 0) {
+            ImGui::Text("munición %d/%d", e.ammo, st.ammo);
+        }
+        if (e.hungry) {
+            ImGui::TextColored(kWarnColor, "con hambre: ataca y trabaja peor%s",
+                               st.starves ? "; acabará perdiendo vida" : "");
+        }
+        if (out_of_ammo(e)) {
+            ImGui::TextColored(kWarnColor, "sin munición: no puede disparar");
+        }
+    }
+
     // Ayuda (F2): controles y leyenda de los marcadores.
     void draw_help(const ImVec2& display) {
         if (!show_help_) {
@@ -842,6 +868,11 @@ private:
         ImGui::SeparatorText("Leyenda");
         ImGui::BulletText("Cada unidad lleva su inicial; el borde es el color del jugador");
         ImGui::BulletText("Punto de color: lo que lleva un aldeano");
+        ImGui::BulletText("Inicial en rojo: con hambre o sin munición");
+        ImGui::SeparatorText("Logística");
+        ImGui::BulletText("Las tropas gastan víveres; los tiradores, munición");
+        ImGui::BulletText("Se reponen junto al centro urbano, el molino o el cuartel");
+        ImGui::BulletText("Cada ración cuesta comida; la munición, madera (y hierro)");
         ImGui::BulletText("Pasa el ratón sobre algo para ver qué es");
         ImGui::End();
     }
@@ -875,6 +906,9 @@ private:
             ImGui::BeginTooltip();
             ImGui::Text("%s · %s", u.name.c_str(), owner_text(best->owner).c_str());
             ImGui::Text("vida %d/%d · nivel %d", best->hp, best->max_hp, best->level);
+            if (best->owner == kLocalPlayer) {
+                draw_supply_text(*best);
+            }
             if (best->carried > 0) {
                 ImGui::Text("lleva %d de %s", best->carried, std::string(resource_key(best->carry_kind)).c_str());
             }
@@ -909,15 +943,18 @@ private:
     void draw_unit_labels() {
         ImDrawList* draw = ImGui::GetBackgroundDrawList();
         constexpr ImU32 kBack = IM_COL32(0, 0, 0, 170);
+        constexpr ImU32 kBackWarn = IM_COL32(170, 20, 20, 220);  // con hambre o sin munición
         constexpr ImU32 kText = IM_COL32(255, 255, 255, 255);
         constexpr float kPadPx = 1.0f;
         const auto radius = static_cast<float>(data_.engine.view.marker_radius_px);
         for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
-            const std::string& label = data_.units.types[curr_.entities[screen_index_[i]].type].label;
+            const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
+            const std::string& label = data_.units.types[se.type].label;
+            const bool warn = se.owner == kLocalPlayer && (se.hungry || out_of_ammo(se));
             const ImVec2 size = ImGui::CalcTextSize(label.c_str());
             const render::Vec2 p = screen_entities_[i].pos;
             const ImVec2 at{std::round(p.x + radius + kPadPx * 2.0f), std::round(p.y - size.y * 0.5f)};
-            draw->AddRectFilled({at.x - kPadPx, at.y}, {at.x + size.x + kPadPx, at.y + size.y}, kBack);
+            draw->AddRectFilled({at.x - kPadPx, at.y}, {at.x + size.x + kPadPx, at.y + size.y}, warn ? kBackWarn : kBack);
             draw->AddText(at, kText, label.c_str());
         }
     }
@@ -1036,12 +1073,26 @@ private:
                 }
             }
             ImGui::Text("%zu unidades seleccionadas (%d aldeanos)", selection_.selected().size(), workers);
+            std::int32_t hungry = 0;
+            std::int32_t no_ammo = 0;
+            for (const std::uint32_t id : selection_.selected()) {
+                const auto it = std::ranges::find(curr_.entities, id, &sim::SnapshotEntity::id);
+                if (it != curr_.entities.end()) {
+                    hungry += it->hungry ? 1 : 0;
+                    no_ammo += out_of_ammo(*it) ? 1 : 0;
+                }
+            }
+            if (hungry > 0 || no_ammo > 0) {
+                ImGui::TextColored(kWarnColor, "%d con hambre · %d sin munición: llévalas junto a un edificio que abastezca",
+                                   hungry, no_ammo);
+            }
             if (selection_.selected().size() == 1) {
                 const auto it = std::ranges::find(curr_.entities, selection_.selected().front(), &sim::SnapshotEntity::id);
                 if (it != curr_.entities.end()) {
                     const UnitInfo& u = data_.units.types[it->type];
                     ImGui::Text("%s · vida %d/%d · nivel %d (%d de experiencia)", u.name.c_str(), it->hp, it->max_hp,
                                 it->level, it->xp);
+                    draw_supply_text(*it);
                     if (it->hero_name >= 0 && !data_.engine.hero_names.empty()) {
                         const auto n = static_cast<std::size_t>(it->hero_name) % data_.engine.hero_names.size();
                         ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, "Héroe: %s", data_.engine.hero_names[n].c_str());

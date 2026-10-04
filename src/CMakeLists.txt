@@ -17,6 +17,7 @@ add_library(rts_sim STATIC
     sim/combat.cpp
     sim/economy.cpp
     sim/fire.cpp
+    sim/supply.cpp
     sim/map_gen.cpp
     sim/movement.cpp
     sim/path/flow_field.cpp

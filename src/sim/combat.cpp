@@ -42,6 +42,21 @@ std::int32_t CombatSystem::attack_percent(const Combatant& c, bool aura) const n
     return kPercent + c.level * params_.attack_percent_per_level + (aura ? params_.hero_aura_attack_percent : 0);
 }
 
+std::int32_t CombatSystem::attack_percent(const entt::registry& registry, entt::entity e, const Combatant& c,
+                                          bool aura) const noexcept {
+    const std::int32_t percent = attack_percent(c, aura);
+    const Supply* s = registry.try_get<Supply>(e);
+    if (s == nullptr || units_[registry.get<Unit>(e).type].supply.rations <= 0 || !s->hungry()) {
+        return percent;
+    }
+    return static_cast<std::int32_t>(std::int64_t{percent} * params_.hungry_attack_percent / kPercent);
+}
+
+bool CombatSystem::out_of_ammo(const entt::registry& registry, entt::entity e) const noexcept {
+    const Supply* s = registry.try_get<Supply>(e);
+    return s != nullptr && units_[registry.get<Unit>(e).type].supply.ammo > 0 && s->ammo <= 0;
+}
+
 std::int32_t hit_damage(const CombatStats& a, std::int32_t percent, std::int32_t armor_melee,
                         std::int32_t armor_pierce, ArmorClassId armor_class) noexcept {
     // En 64 bits y con tope: con los límites de los datos, ataque por porcentaje de
@@ -367,6 +382,11 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
         if (c.cooldown > 0) {
             --c.cooldown;
         }
+        const bool no_ammo = out_of_ammo(registry, e);
+        // Sin munición un tirador no puede hacer nada: deja el blanco y espera a reponer.
+        if (no_ammo && c.target != entt::null) {
+            clear_target(registry, movement, e, c, next_order_id, tick);
+        }
 
         // 1. Blanco que ya no vale (muerto, cambió de dueño) o, si no fue ordenado,
         //    que se alejó más allá de la vista: se abandona.
@@ -393,7 +413,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
         }
 
         // 2. Adquisición automática, repartida entre ticks por id.
-        if (c.target == entt::null && st.auto_attack && st.sight_tiles > 0 &&
+        if (c.target == entt::null && !no_ammo && st.auto_attack && st.sight_tiles > 0 &&
             (entt::to_integral(e) + tick) % interval == 0) {
             bool idle = goal == nullptr || goal->arrived || c.attack_move;
             if (const Worker* w = registry.try_get<Worker>(e); w != nullptr && w->task != WorkerTask::Idle) {
@@ -431,7 +451,10 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             c.chase_order = 0;
             if (c.cooldown == 0) {
                 c.cooldown = st.reload_ticks;
-                const std::int32_t percent = attack_percent(c, s_.aura[i] != 0);
+                const std::int32_t percent = attack_percent(registry, e, c, s_.aura[i] != 0);
+                if (Supply* sp = registry.try_get<Supply>(e); sp != nullptr && units_[unit.type].supply.ammo > 0) {
+                    --sp->ammo;  // no_ammo ya descartó el caso sin munición
+                }
                 if (st.projectile_speed.raw() == 0) {
                     strike(registry, fire, c.target, e, unit.type, percent);
                     ++stats_.melee_hits;

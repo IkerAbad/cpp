@@ -129,6 +129,23 @@ spread_gap_tiles = 1
 # Para apagar basta con estar a 0,8 casillas del borde del edificio.
 extinguish_reach_milli_tiles = 800
 
+[supply]
+# Logística. Un ejército no vive del aire: cada unidad lleva raciones (units.toml:
+# rations, ration_ticks) y los tiradores, munición (ammo). Se reponen poco a poco
+# junto a un edificio propio que abastece (buildings.toml: supplies), pagando del
+# almacén del jugador. La munición no se encuentra sobre el terreno: hay que llevarla.
+# A 4 casillas o menos del edificio, como mucho una reposición por segundo y unidad:
+# una ración (1 de comida) y un haz de munición (coste en units.toml).
+resupply_radius_tiles = 4
+resupply_interval_ticks = 20
+ration_cost = { comida = 1 }
+# Hambre (sin raciones): ataque al 60 %, los aldeanos trabajan a la mitad. Tras 1 min
+# de hambre las tropas pierden 1 de vida cada 3 s hasta morir; los aldeanos, no.
+hungry_attack_percent = 60
+hungry_work_percent = 50
+starve_after_ticks = 1200
+starve_hp_interval_ticks = 60
+
 [combat]
 # Cada unidad busca blanco cada 10 ticks (0,5 s), repartidas por id.
 acquire_interval_ticks = 10
@@ -172,10 +189,10 @@ dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_miner
 # dificultad sale de qué módulos usa y de sus umbrales, nunca de ventajas económicas.
 # Módulos: defensa, aldeanos, casas, cuartel, granjas, almacenes, obras,
 # recoleccion, ejercito, ataque, ejercito_contra, ataque_fuerza, concentrar, taller,
-# apagar, incendiar. Se ejecutan en el orden de la lista.
+# apagar, incendiar, abastecer. Se ejecutan en el orden de la lista.
 [[ai.profile]]
 name = "basica"
-behaviors = ["defensa", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
+behaviors = ["defensa", "abastecer", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
 villager_target = 25
 # Reparto deseado de los aldeanos que recogen (suma 100).
 gather_percent = { comida = 35, madera = 30, oro = 15, piedra = 5, hierro = 15 }
@@ -213,6 +230,9 @@ army_min_villagers = 0
 raid_unit = ""
 raid_group = 1
 raid_safe_radius_tiles = 0
+# abastecer: la tropa que no pelea vuelve a abastecerse con menos del 30 % de víveres
+# o munición (y espera junto al almacén a llenarse).
+resupply_percent = 30
 army = ["leva", "hombre_armas", "arquero"]
 
 # Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
@@ -220,7 +240,7 @@ army = ["leva", "hombre_armas", "arquero"]
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
 [[ai.profile]]
 name = "normal"
-behaviors = ["defensa", "apagar", "concentrar", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
+behaviors = ["defensa", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
@@ -253,6 +273,7 @@ army_min_villagers = 20
 raid_unit = "jinete"
 raid_group = 3
 raid_safe_radius_tiles = 10
+resupply_percent = 30
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 [setup]

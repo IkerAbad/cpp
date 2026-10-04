@@ -52,6 +52,8 @@ struct CombatParams {
     Fixed hero_aura_radius;               // casillas
     std::int32_t hero_aura_attack_percent = 0;
     std::int32_t hero_name_count = 0;     // nombres disponibles (los textos, en la presentación)
+    // Una unidad hambrienta (sin víveres) ataca a este % (data: [supply]).
+    std::int32_t hungry_attack_percent = 100;
 };
 
 // Proyectil en vuelo: una entidad propia, sin Unit (el movimiento no lo ve).
@@ -92,6 +94,11 @@ public:
     [[nodiscard]] std::int32_t damage(UnitTypeId attacker_type, std::int32_t attack_percent,
                                       const entt::registry& registry, entt::entity target) const;
     [[nodiscard]] std::int32_t attack_percent(const Combatant& c, bool aura) const noexcept;
+    // Con el hambre: el ataque efectivo de la unidad e en este tick.
+    [[nodiscard]] std::int32_t attack_percent(const entt::registry& registry, entt::entity e, const Combatant& c,
+                                              bool aura) const noexcept;
+    // Tirador que gasta munición y no le queda.
+    [[nodiscard]] bool out_of_ammo(const entt::registry& registry, entt::entity e) const noexcept;
     [[nodiscard]] const CombatParams& params() const noexcept { return params_; }
     [[nodiscard]] const CombatTickStats& last_stats() const noexcept { return stats_; }
 

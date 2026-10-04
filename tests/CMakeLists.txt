@@ -8,6 +8,7 @@ add_executable(rts_tests
     test_config.cpp
     test_economy.cpp
     test_fire.cpp
+    test_supply.cpp
     test_fixed.cpp
     test_fixed_step.cpp
     test_map_gen.cpp

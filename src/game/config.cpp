@@ -31,7 +31,7 @@ constexpr std::size_t kMaxLabelBytes = 4;  // iniciales cortas: caben sobre el m
 constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior::Count)> kAiBehaviorNames{
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
-    "taller",      "apagar",   "incendiar",
+    "taller",      "apagar",   "incendiar",     "abastecer",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -149,7 +149,7 @@ public:
             const auto r = find_resource(key.str());
             const auto v = node.value<std::int64_t>();
             if (!r) {
-                fail(std::format("'{}.{}' no es un recurso (comida, madera, piedra, oro)", full(path), key.str()));
+                fail(std::format("'{}.{}' no es un recurso (comida, madera, piedra, oro, hierro)", full(path), key.str()));
                 return stock;
             }
             if (!v || *v < 0 || *v > kMaxAmount) {
@@ -183,7 +183,7 @@ public:
         const std::string key = get_string(path);
         const auto r = find_resource(key);
         if (!r && !error_) {
-            fail(std::format("'{}' = \"{}\" no es un recurso (comida, madera, piedra, oro)", full(path), key));
+            fail(std::format("'{}' = \"{}\" no es un recurso (comida, madera, piedra, oro, hierro)", full(path), key));
         }
         return r.value_or(sim::Resource::Food);
     }
@@ -456,6 +456,16 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             cs.siege = ur.get_bool("siege");
             cs.buildings_only = ur.get_bool("buildings_only");
             cs.undermine = ur.get_bool("undermine");
+            sim::SupplyStats& sup = info.type.supply;
+            sup.rations = ur.get_i32("rations", 0, kMaxAmount);
+            sup.ration_ticks = ur.get_i32("ration_ticks", 1, kMaxTicks);
+            sup.starves = ur.get_bool("starves");
+            sup.ammo = ur.get_i32("ammo", 0, kMaxAmount);
+            sup.ammo_bundle = ur.get_i32("ammo_bundle", 1, kMaxAmount);
+            sup.ammo_cost = ur.get_stock("ammo_cost");
+            if (!error && sup.ammo > 0 && sup.ammo_bundle > sup.ammo) {
+                ur.fail("'ammo_bundle' no puede superar 'ammo'");
+            }
             if (!error && catalog.find(info.name)) {
                 ur.fail(std::format("nombre de unidad repetido: \"{}\"", info.name));
             }
@@ -528,6 +538,7 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.armor_class = br.get_named("class", ClassNames{units}, "units.toml (classes)");
         info.type.farm_food = br.get_i32("farm_food", 0, kMaxAmount);
         info.type.vital = br.get_bool("vital");
+        info.type.supplies = br.get_bool("supplies");
         const std::string material = br.get_string("material");
         if (material == "madera") {
             info.type.material = sim::Material::Wood;
@@ -782,6 +793,14 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         r.fail("'fire.sustain_intensity' y 'fire.spread_intensity' no pueden superar 'fire.max_intensity'");
     }
 
+    sim::SupplyParams& sp = cfg.world.supply;
+    sp.resupply_radius_tiles = r.get_i32("supply.resupply_radius_tiles", 0, 32);
+    sp.resupply_interval_ticks = r.get_i32("supply.resupply_interval_ticks", 1, kMaxTicks);
+    sp.ration_cost = r.get_stock("supply.ration_cost");
+    sp.starve_after_ticks = r.get_i32("supply.starve_after_ticks", 0, kMaxTicks);
+    sp.starve_hp_interval_ticks = r.get_i32("supply.starve_hp_interval_ticks", 1, kMaxTicks);
+    eco.hungry_work_percent = r.get_i32("supply.hungry_work_percent", 0, 100);
+
     sim::CombatParams& cb = cfg.world.combat;
     cb.acquire_interval_ticks = r.get_i32("combat.acquire_interval_ticks", 1, 1000);
     cb.repath_tiles = r.get_i32("combat.repath_tiles", 1, 64);
@@ -797,6 +816,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cb.hero_aura_radius =
         sim::Fixed::from_ratio(r.get_i32("combat.hero_aura_radius_milli_tiles", 0, 32 * kMilli), kMilli);
     cb.hero_aura_attack_percent = r.get_i32("combat.hero_aura_attack_percent", 0, 1000);
+    cb.hungry_attack_percent = r.get_i32("supply.hungry_attack_percent", 0, 100);
     cfg.hero_names = r.get_string_list("combat.hero_names");
     cb.hero_name_count = static_cast<std::int32_t>(cfg.hero_names.size());
 
@@ -865,6 +885,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         }
         p.raid_group = pr.get_i32("raid_group", 1, 1000);
         p.raid_safe_radius_tiles = pr.get_i32("raid_safe_radius_tiles", 0, 256);
+        p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);
         for (const std::string& name : pr.get_string_list("army")) {
             if (const auto id = units.find(name)) {
                 p.army.push_back(*id);

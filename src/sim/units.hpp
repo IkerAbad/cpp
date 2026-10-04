@@ -16,6 +16,8 @@
 
 namespace rts::sim {
 
+inline constexpr std::int32_t kPercent = 100;
+
 using UnitTypeId = std::uint8_t;
 using PlayerId = std::uint8_t;
 
@@ -58,6 +60,19 @@ struct CombatStats {
     bool undermine = false;
 };
 
+// Sustento de un tipo de unidad (data/units.toml). Un ejército no vive del aire: cada
+// unidad lleva víveres (y forraje, la caballería) que gasta con el tiempo, y los
+// tiradores, munición que gastan al disparar. Se reponen junto a un edificio propio
+// que abastece (SupplySystem), pagando del almacén del jugador.
+struct SupplyStats {
+    std::int32_t rations = 0;       // raciones que lleva encima (0 = no necesita víveres)
+    std::int32_t ration_ticks = 1;  // ticks que dura una ración
+    bool starves = false;           // sin víveres acaba perdiendo vida (los aldeanos, no)
+    std::int32_t ammo = 0;          // disparos que lleva encima (0 = no gasta munición)
+    std::int32_t ammo_bundle = 1;   // disparos que se reponen de una vez
+    Stock ammo_cost{};              // coste de cada reposición
+};
+
 // Parámetros de un tipo de unidad (data/units.toml).
 struct UnitType {
     Fixed radius;  // casillas
@@ -69,15 +84,32 @@ struct UnitType {
     bool worker = false;
     std::int32_t carry_capacity = 0;
     CombatStats combat;
+    SupplyStats supply;
 };
+
+// Víveres y munición que lleva una unidad. Hambrienta: sin raciones.
+struct Supply {
+    std::int32_t rations = 0;
+    std::int32_t ration_timer = 0;  // ticks consumidos de la ración en curso
+    std::int32_t hungry_ticks = 0;  // ticks seguidos sin raciones
+    std::int32_t ammo = 0;
+
+    [[nodiscard]] bool hungry() const noexcept { return rations <= 0; }
+};
+
+// Trabajo parcial repartido de forma uniforme: con percent = 50, un tick sí y otro no;
+// con 25, uno de cada cuatro. Determinista y sin estado.
+[[nodiscard]] constexpr bool works_this_tick(Tick tick, std::int32_t percent) noexcept {
+    const auto p = static_cast<std::int64_t>(percent);
+    const auto t = static_cast<std::int64_t>(tick);
+    return (t + 1) * p / kPercent != t * p / kPercent;
+}
 
 // Posición en casillas: (1.5, 2.5) es el centro de la casilla (1, 2).
 struct Position {
     Fixed x;
     Fixed y;
 };
-
-inline constexpr std::int32_t kPercent = 100;
 
 // Casilla que contiene un punto.
 [[nodiscard]] inline TileCoord tile_of(FVec2 p) noexcept {

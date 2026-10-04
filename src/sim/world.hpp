@@ -18,6 +18,7 @@
 #include "sim/map_gen.hpp"
 #include "sim/movement.hpp"
 #include "sim/rng.hpp"
+#include "sim/supply.hpp"
 #include "sim/tick.hpp"
 #include "sim/tile_map.hpp"
 #include "sim/units.hpp"
@@ -74,6 +75,7 @@ struct WorldParams {
     EconomyParams economy;
     CombatParams combat;
     FireParams fire;
+    SupplyParams supply;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
     SetupParams setup;
@@ -94,6 +96,9 @@ struct SnapshotEntity {
     std::int32_t xp = 0;
     std::int32_t hero_name = -1;  // índice en la lista de nombres de héroe; -1 = no es héroe
     Stance stance = Stance::Aggressive;
+    std::int32_t rations = 0;      // víveres que lleva (máximo: SupplyStats del tipo)
+    std::int32_t ammo = 0;         // munición que lleva
+    bool hungry = false;           // necesita víveres y no le quedan
 };
 
 enum class ObjectKind : std::uint8_t { Building, Resource };
@@ -145,6 +150,7 @@ public:
     [[nodiscard]] const EconomySystem& economy() const noexcept { return economy_; }
     [[nodiscard]] const CombatSystem& combat() const noexcept { return combat_; }
     [[nodiscard]] const FireSystem& fire() const noexcept { return fire_; }
+    [[nodiscard]] const SupplySystem& supply() const noexcept { return supply_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
@@ -176,6 +182,7 @@ private:
     EconomySystem economy_;
     CombatSystem combat_;
     FireSystem fire_;
+    SupplySystem supply_;
     AiSystem ai_;
     entt::registry registry_;
     Xoshiro256pp rng_;

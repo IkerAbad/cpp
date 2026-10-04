@@ -12,6 +12,8 @@
 #   interior y el edificio queda quemado (inutilizado) hasta repararlo; solo el
 #   asedio la derriba.
 # requires: edificios (terminados) que hay que tener para poder colocarlo.
+# supplies: abastece; las tropas propias a su alrededor reponen víveres y munición
+#   (engine.toml, [supply]): el centro urbano, el molino (grano) y el cuartel.
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -33,6 +35,7 @@ trains = ["aldeano"]
 requires = []
 farm_food = 0
 vital = true
+supplies = true
 material = "piedra"
 color = [196, 176, 140]
 
@@ -50,6 +53,7 @@ trains = []
 requires = []
 farm_food = 0
 vital = false
+supplies = false
 material = "madera"
 color = [176, 132, 96]
 
@@ -67,6 +71,7 @@ trains = []
 requires = []
 farm_food = 0
 vital = false
+supplies = false
 material = "madera"
 color = [120, 92, 60]
 
@@ -84,6 +89,7 @@ trains = []
 requires = []
 farm_food = 0
 vital = false
+supplies = false
 material = "madera"
 color = [132, 132, 140]
 
@@ -101,6 +107,7 @@ trains = []
 requires = []
 farm_food = 0
 vital = false
+supplies = true
 material = "madera"
 color = [206, 184, 110]
 
@@ -118,6 +125,7 @@ trains = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero"
 requires = []
 farm_food = 0
 vital = false
+supplies = true
 material = "madera"
 color = [150, 70, 60]
 
@@ -135,6 +143,7 @@ trains = []
 requires = []
 farm_food = 250
 vital = false
+supplies = false
 material = "madera"
 color = [214, 190, 92]
 
@@ -154,5 +163,6 @@ trains = ["ariete", "zapador"]
 requires = ["cuartel"]
 farm_food = 0
 vital = false
+supplies = false
 material = "madera"
 color = [120, 96, 64]

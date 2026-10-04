@@ -60,7 +60,8 @@ World::World(const WorldParams& params)
                {params.unit_types, params.building_types, params.node_types}, player_count(params)),
       combat_(map_->width(), map_->height(), params.combat, params.unit_types, params.building_types),
       fire_(params.fire, params.unit_types, params.building_types),
-      ai_(params.ai, params.ai_players),
+      supply_(params.supply, params.unit_types, params.building_types),
+      ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
     setup_game(params.setup);
     spawn_demo_units(params.demo);
@@ -262,6 +263,7 @@ void World::step() {
     pending_.erase(pending_.begin(), rest.begin());
 
     economy_.update(registry_, movement_, next_order_id_, tick_);
+    supply_.update(registry_, economy_, tick_);
     combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_);
     fire_.update(registry_, movement_, economy_, next_order_id_, tick_);
     // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
@@ -343,6 +345,7 @@ std::uint64_t World::state_hash() const {
     economy_.hash_into(h, registry_);
     combat_.hash_into(h, registry_);
     fire_.hash_into(h, registry_);
+    supply_.hash_into(h, registry_);
     ai_.hash_into(h);
     return h.value();
 }
@@ -374,6 +377,11 @@ void World::write_snapshot(Snapshot& out) const {
             s.xp = c->xp;
             s.hero_name = c->hero_name;
             s.stance = c->stance;
+        }
+        if (const Supply* sp = registry_.try_get<Supply>(e)) {
+            s.rations = sp->rations;
+            s.ammo = sp->ammo;
+            s.hungry = economy_.catalog().units[unit.type].supply.rations > 0 && sp->hungry();
         }
         out.entities.push_back(s);
     });

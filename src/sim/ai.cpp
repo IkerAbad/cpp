@@ -69,6 +69,11 @@ struct UnitSeen {
     bool armed = false;          // ataca solo (no es aldeano)
     entt::entity target = entt::null;
     bool attack_move = false;
+    // Solo de las propias (el jugador ve las barras de las suyas): lo que le queda de
+    // víveres y munición, en % de lo que puede llevar (el menor de los dos).
+    std::int32_t supply_percent = kPercent;
+    bool needs_rations = false;
+    bool needs_ammo = false;
 };
 
 std::int64_t cost_sum(const Stock& cost) noexcept {
@@ -145,6 +150,7 @@ struct AiView {
     // Edificios propios que producen (terminados y en uso) con su cola.
     std::vector<std::pair<entt::entity, std::int32_t>> trainers;
     std::vector<entt::entity> own_fires;  // edificios propios en llamas
+    std::vector<Footprint> supply_sources;  // edificios propios que abastecen (en uso)
 };
 
 // Una decisión de un jugador: lo que sabe, lo que puede gastar y las órdenes que da.
@@ -154,6 +160,7 @@ struct Decision {
     const EconomySystem& economy;
     const PassGrid& grid;
     const AiParams& params;
+    const SupplyParams& supply;
     const AiProfile& profile;
     AiPlayerState& ai;
     Tick tick;
@@ -289,6 +296,9 @@ bool perceive(Decision& d) {
         if (bt.accepts != 0) {
             v.dropoffs.emplace_back(f, bt.accepts);
         }
+        if (bt.supplies && b.working()) {
+            v.supply_sources.push_back(f);
+        }
     }
 
     // Unidades.
@@ -332,6 +342,17 @@ bool perceive(Decision& d) {
         if (c != nullptr) {
             seen.target = c->target;
             seen.attack_move = c->attack_move;
+        }
+        if (const Supply* sp = registry.try_get<Supply>(e)) {
+            const SupplyStats& st = d.catalog().units[seen.type].supply;
+            if (st.rations > 0) {
+                seen.supply_percent = std::min(seen.supply_percent, sp->rations * kPercent / st.rations);
+                seen.needs_rations = sp->rations < st.rations;
+            }
+            if (st.ammo > 0) {
+                seen.supply_percent = std::min(seen.supply_percent, sp->ammo * kPercent / st.ammo);
+                seen.needs_ammo = sp->ammo < st.ammo;
+            }
         }
         v.soldiers.push_back(seen);
         if (still && (c == nullptr || (c->target == entt::null && !c->attack_move))) {
@@ -804,6 +825,61 @@ void raid(Decision& d) {
     d.out.push_back(std::move(c));
 }
 
+// Abastecerse: cada unidad que no pelea y se ha quedado por debajo de resupply_percent
+// de víveres o munición vuelve al edificio propio que abastece más cercano; la que ya
+// está a su alcance espera allí a llenarse mientras el almacén pueda pagarlo. Unas y
+// otras dejan de estar ociosas para los módulos siguientes (no se las manda a atacar
+// con el morral vacío). Las que pelean siguen peleando.
+void resupply(Decision& d) {
+    AiView& v = d.v;
+    if (v.supply_sources.empty() || d.profile.resupply_percent <= 0) {
+        return;
+    }
+    const std::int32_t reach = d.supply.resupply_radius_tiles;
+    const auto distance = [](const Footprint& f, TileCoord t) { return chebyshev(clamp_to(f, t), t); };
+    std::vector<entt::entity> busy;
+    std::vector<std::vector<std::uint32_t>> going(v.supply_sources.size());
+    for (const UnitSeen& s : v.soldiers) {
+        if (s.supply_percent >= kPercent || s.target != entt::null) {
+            continue;
+        }
+        std::size_t best = 0;
+        for (std::size_t i = 1; i < v.supply_sources.size(); ++i) {
+            if (distance(v.supply_sources[i], s.tile) < distance(v.supply_sources[best], s.tile)) {
+                best = i;
+            }
+        }
+        const Footprint& f = v.supply_sources[best];
+        if (distance(f, s.tile) <= reach) {
+            const Stock& ammo_cost = d.catalog().units[s.type].supply.ammo_cost;
+            if ((s.needs_rations && affordable(d.ps.stock, d.supply.ration_cost)) ||
+                (s.needs_ammo && affordable(d.ps.stock, ammo_cost))) {
+                busy.push_back(s.entity);  // se está abasteciendo: que termine
+            }
+            continue;
+        }
+        if (s.supply_percent >= d.profile.resupply_percent) {
+            continue;
+        }
+        busy.push_back(s.entity);
+        const MoveGoal* g = d.registry.try_get<MoveGoal>(s.entity);
+        if (g != nullptr && !g->arrived && distance(f, g->tile) <= reach) {
+            continue;  // ya va hacia allí
+        }
+        going[best].push_back(entt::to_integral(s.entity));
+    }
+    for (std::size_t i = 0; i < going.size(); ++i) {
+        if (going[i].empty()) {
+            continue;
+        }
+        Command c = d.order(CommandType::Move);
+        c.target = center_of(v.supply_sources[i]);
+        c.units = std::move(going[i]);
+        d.out.push_back(std::move(c));
+    }
+    std::erase_if(v.idle_army, [&](entt::entity e) { return std::ranges::find(busy, e) != busy.end(); });
+}
+
 // Ataque por fuerza, con retirada. Primero, si el ejército en campaña pierde su
 // batalla (fuerza local por debajo de retreat_ratio_percent % de la enemiga), vuelve
 // a casa. Si no, y la fuerza total supera attack_ratio_percent % de la enemiga
@@ -962,12 +1038,13 @@ void focus_fire(Decision& d) {
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
-    army_counter, attack_strength, focus_fire, workshop, extinguish, raid,
+    army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply,
 };
 
 }  // namespace
 
-AiSystem::AiSystem(const AiParams& params, const std::vector<AiSeat>& seats) : params_(params) {
+AiSystem::AiSystem(const AiParams& params, const SupplyParams& supply, const std::vector<AiSeat>& seats)
+    : params_(params), supply_(supply) {
     for (const AiSeat& seat : seats) {
         AiPlayerState s;
         s.player = seat.player;
@@ -987,8 +1064,8 @@ void AiSystem::think(const entt::registry& registry, const EconomySystem& econom
             continue;
         }
         const PlayerState& ps = economy.players()[ai.player];
-        Decision d{registry, economy, grid, params_, params_.profiles[profiles_[i]], ai, tick, out, ps, {}, ps.stock,
-                   ps.population};
+        Decision d{registry, economy,  grid, params_, supply_, params_.profiles[profiles_[i]], ai, tick, out, ps, {},
+                   ps.stock, ps.population};
         if (!perceive(d)) {
             continue;  // derrotado
         }

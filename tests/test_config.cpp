@@ -65,6 +65,12 @@ extinguish = 4
 siege = false
 buildings_only = false
 undermine = false
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 
 [[unit]]
 name = "peon"
@@ -92,6 +98,12 @@ extinguish = 4
 siege = false
 buildings_only = false
 undermine = false
+rations = 10
+ration_ticks = 600
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
 )";
 
 constexpr const char* kNodes = R"(
@@ -132,6 +144,7 @@ trains = ["peon"]
 requires = []
 farm_food = 0
 vital = false
+supplies = true
 material = "madera"
 color = [9, 9, 9]
 
@@ -149,6 +162,7 @@ trains = []
 requires = []
 farm_food = 0
 vital = false
+supplies = true
 material = "madera"
 color = [8, 8, 8]
 )";
@@ -224,6 +238,15 @@ spread_per_tick = 3
 spread_gap_tiles = 1
 extinguish_reach_milli_tiles = 800
 
+[supply]
+resupply_radius_tiles = 4
+resupply_interval_ticks = 20
+ration_cost = { comida = 1 }
+hungry_attack_percent = 60
+hungry_work_percent = 50
+starve_after_ticks = 1200
+starve_hp_interval_ticks = 60
+
 [combat]
 acquire_interval_ticks = 10
 repath_tiles = 2
@@ -277,6 +300,7 @@ army_min_villagers = 0
 raid_unit = ""
 raid_group = 1
 raid_safe_radius_tiles = 0
+resupply_percent = 30
 army = ["lancero"]
 
 [setup]

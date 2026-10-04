@@ -170,6 +170,9 @@ entt::entity EconomySystem::spawn_unit(entt::registry& registry, PlayerId player
     if (ut.worker) {
         registry.emplace<Worker>(e);
     }
+    if (ut.supply.rations > 0 || ut.supply.ammo > 0) {
+        registry.emplace<Supply>(e, ut.supply.rations, 0, 0, ut.supply.ammo);  // sale con todo
+    }
     return e;
 }
 
@@ -605,6 +608,9 @@ void EconomySystem::step_gather(entt::registry& registry, MovementSystem& moveme
     if (w.carried > 0 && w.carry_kind != rn.kind) {
         w.carried = 0;  // lo que llevaba de otro recurso se pierde, como en el género
     }
+    if (slowed_by_hunger(registry, e, tick)) {
+        return;
+    }
     if (++w.timer < params_.gather_ticks[resource_index(rn.kind)]) {
         return;
     }
@@ -620,6 +626,12 @@ void EconomySystem::step_gather(entt::registry& registry, MovementSystem& moveme
     if (w.carried >= ut.carry_capacity) {
         go_deliver();
     }
+}
+
+bool EconomySystem::slowed_by_hunger(const entt::registry& registry, entt::entity e, Tick tick) const {
+    const Supply* s = registry.try_get<Supply>(e);
+    return s != nullptr && catalog_.units[registry.get<Unit>(e).type].supply.rations > 0 && s->hungry() &&
+           !works_this_tick(tick, params_.hungry_work_percent);
 }
 
 void EconomySystem::step_deliver(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
@@ -685,6 +697,9 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
             return;
         case Approach::InReach:
             break;
+    }
+    if (slowed_by_hunger(registry, e, tick)) {
+        return;
     }
     // Cada constructor al alcance aporta un tick de trabajo: n constructores, n veces
     // más rápido (lineal; el género suele dar rendimientos decrecientes).
@@ -866,6 +881,9 @@ void EconomySystem::step_demolish(entt::registry& registry, MovementSystem& move
             return;
         case Approach::InReach:
             break;
+    }
+    if (slowed_by_hunger(registry, e, tick)) {
+        return;
     }
     // Desmontar va al ritmo de construir: cada aldeano quita la vida que pondría.
     const BuildingType& bt = catalog_.buildings[registry.get<Building>(w.building).type];

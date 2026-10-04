@@ -39,7 +39,7 @@ WorldParams flat_two_players() {
 std::vector<Command> think_with(const World& world, std::vector<AiBehavior> behaviors) {
     AiParams params = test_ai_params();
     params.profiles[1].behaviors = std::move(behaviors);
-    AiSystem ai(params, {{kAi, 1}});
+    AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
     std::vector<Command> out;
     ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
     return out;
@@ -309,4 +309,32 @@ TEST_CASE("IA normal: construye el taller de asedio cuando tiene cuartel") {
     REQUIRE(out.size() == 1);
     CHECK(out[0].type == CommandType::Place);
     CHECK(out[0].kind == kWorkshop);
+}
+
+TEST_CASE("IA: la tropa corta de víveres vuelve a abastecerse; la que ya está junto al almacén espera") {
+    WorldParams p = flat_two_players();
+    p.unit_types[kSoldier].supply.rations = 10;
+    p.unit_types[kSoldier].supply.ration_ticks = 1;  // se gastan enseguida
+    p.building_types[kCenter].supplies = true;
+    p.supply.resupply_radius_tiles = 3;
+    p.supply.resupply_interval_ticks = 1000;  // que no repongan durante la prueba
+    p.supply.ration_cost = stock(1, 0, 0, 0);
+    World world(p);
+    ai_base(world);
+    const auto far = world.spawn_unit(kAi, kSoldier, {100, 100});
+    const auto near = world.spawn_unit(kAi, kSoldier, {148, 151});
+    for (std::int32_t t = 0; t < 8; ++t) {
+        world.step();  // quedan 2 de 10 raciones: 20 %
+    }
+    AiParams params = test_ai_params();
+    params.profiles[1].behaviors = {AiBehavior::Resupply};
+    params.profiles[1].resupply_percent = 30;
+    AiSystem ai(params, p.supply, {{kAi, 1}});
+    std::vector<Command> out;
+    ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+    REQUIRE(out.size() == 1);
+    CHECK(out[0].type == CommandType::Move);
+    CHECK(out[0].units == std::vector<std::uint32_t>{far});
+    CHECK(out[0].target == rts::sim::TileCoord{151, 151});  // centro del centro urbano
+    CHECK(std::ranges::find(out[0].units, near) == out[0].units.end());
 }
