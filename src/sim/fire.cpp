@@ -11,16 +11,7 @@ namespace rts::sim {
 
 namespace {
 
-constexpr std::int32_t kPercent = 100;
 constexpr std::int32_t kMilli = 1000;
-
-TileCoord tile_of(const Position& p) noexcept {
-    return {p.x.floor_to_int(), p.y.floor_to_int()};
-}
-
-TileCoord center_of(const Footprint& f) noexcept {
-    return {f.origin.x + f.size / 2, f.origin.y + f.size / 2};
-}
 
 }  // namespace
 
@@ -88,9 +79,7 @@ void FireSystem::update_extinguishers(entt::registry& registry, MovementSystem& 
         if (g == nullptr || g->order_id != x.move_order || g->arrived) {
             // Sin desplazamiento propio en curso (llegó a un sitio sin alcance o se lo
             // quitaron): vuelve a acercarse a la casilla de la huella más próxima.
-            const TileCoord here = tile_of(p);
-            const TileCoord near{std::clamp(here.x, f.origin.x, f.origin.x + f.size - 1),
-                                 std::clamp(here.y, f.origin.y, f.origin.y + f.size - 1)};
+            const TileCoord near = clamp_to(f, tile_of(p));
             x.move_order = next_order_id++;
             const std::array<entt::entity, 1> one{e};
             movement.order_move(registry, one, near, x.move_order, tick);
@@ -102,7 +91,8 @@ void FireSystem::spread_from(const entt::registry& registry, const EconomySystem
     const Footprint& f = registry.get<Footprint>(building);
     const std::int32_t gap = params_.spread_gap_tiles;
     // Recorrido fijo del anillo alrededor de la huella; cada vecino una sola vez.
-    std::vector<entt::entity> seen;
+    std::vector<entt::entity>& seen = spread_seen_;
+    seen.clear();
     // Vecino: con gap casillas libres o menos entre su huella y la de este edificio.
     for (std::int32_t y = f.origin.y - gap - 1; y <= f.origin.y + f.size + gap; ++y) {
         for (std::int32_t x = f.origin.x - gap - 1; x <= f.origin.x + f.size + gap; ++x) {

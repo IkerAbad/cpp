@@ -12,21 +12,8 @@ namespace rts::sim {
 
 namespace {
 
-constexpr std::int32_t kPercent = 100;
-
-TileCoord tile_of(FVec2 p) noexcept {
-    return {p.x.floor_to_int(), p.y.floor_to_int()};
-}
-
 FVec2 tile_center(TileCoord c) noexcept {
     return {Fixed::from_int(c.x) + Fixed::from_ratio(1, 2), Fixed::from_int(c.y) + Fixed::from_ratio(1, 2)};
-}
-
-// Cuadrado de la distancia (32.32) de un punto al rectángulo de la huella; 0 dentro.
-
-// Casilla de la huella más cercana a c.
-TileCoord clamp_to(const Footprint& f, TileCoord c) noexcept {
-    return {std::clamp(c.x, f.origin.x, f.origin.x + f.size - 1), std::clamp(c.y, f.origin.y, f.origin.y + f.size - 1)};
 }
 
 // Casillas a distancia de Chebyshev k de la huella, en orden fijo: fila de arriba de
@@ -162,7 +149,7 @@ bool EconomySystem::can_place(const entt::registry& registry, const PassGrid& gr
     const auto units = registry.view<const Position, const Unit>();
     for (const entt::entity e : units) {
         const Position& p = units.get<const Position>(e);
-        if (f.contains(tile_of({p.x, p.y}))) {
+        if (f.contains(tile_of(FVec2{p.x, p.y}))) {
             return false;
         }
     }
@@ -323,7 +310,7 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
                 entt::entity target = object;
                 if (!has_room(registry, object)) {
                     const Position& p = registry.get<Position>(e);
-                    const std::uint32_t comp = movement.grid().component(tile_of({p.x, p.y}));
+                    const std::uint32_t comp = movement.grid().component(tile_of(FVec2{p.x, p.y}));
                     target = find_node_near(registry, movement.grid(), player, kind, f.origin, comp, object)
                                  .value_or(object);
                 }
@@ -550,7 +537,7 @@ void EconomySystem::step_gather(entt::registry& registry, MovementSystem& moveme
         return;
     }
     const Position& pos = registry.get<Position>(e);
-    const std::uint32_t component = movement.grid().component(tile_of({pos.x, pos.y}));
+    const std::uint32_t component = movement.grid().component(tile_of(FVec2{pos.x, pos.y}));
     const PlayerId me = registry.get<Owner>(e).player;
     if (!can_gather(registry, w.node, me)) {
         // Agotado (por él o por otro): otro nodo del mismo recurso cerca del anterior.
@@ -637,7 +624,7 @@ void EconomySystem::step_deliver(entt::registry& registry, MovementSystem& movem
     };
     if (!valid_dropoff(w.building)) {
         const Position& p = registry.get<Position>(e);
-        const auto d = nearest_dropoff(registry, player, w.carry_kind, tile_of({p.x, p.y}));
+        const auto d = nearest_dropoff(registry, player, w.carry_kind, tile_of(FVec2{p.x, p.y}));
         if (!d) {
             w.task = WorkerTask::Idle;  // sin almacén: espera con la carga
             return;

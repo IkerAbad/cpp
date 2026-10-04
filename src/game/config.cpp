@@ -562,6 +562,30 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
             catalog.types[i].type.required.push_back(*id);
         }
     }
+    // Sin ciclos: un edificio que (directa o indirectamente) se exige a sí mismo nunca
+    // se podría colocar. Búsqueda en profundidad con colores.
+    std::vector<std::uint8_t> state(catalog.types.size(), 0);  // 0 sin ver, 1 en curso, 2 hecho
+    const auto cyclic = [&](auto&& self, std::size_t b) -> bool {
+        if (state[b] == 1) {
+            return true;
+        }
+        if (state[b] == 2) {
+            return false;
+        }
+        state[b] = 1;
+        for (const sim::BuildingTypeId n : catalog.types[b].type.required) {
+            if (self(self, n)) {
+                return true;
+            }
+        }
+        state[b] = 2;
+        return false;
+    };
+    for (std::size_t b = 0; b < catalog.types.size() && !error; ++b) {
+        if (cyclic(cyclic, b)) {
+            r.fail(std::format("los requisitos (requires) de \"{}\" forman un ciclo", catalog.types[b].name));
+        }
+    }
     if (error) {
         return std::unexpected(*error);
     }
@@ -730,7 +754,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     sim::FireParams& fp = cfg.world.fire;
     fp.max_intensity = r.get_i32("fire.max_intensity", 1, kMaxAmount);
-    fp.sustain_intensity = r.get_i32("fire.sustain_intensity", 0, kMaxAmount);
+    fp.sustain_intensity = r.get_i32("fire.sustain_intensity", 1, kMaxAmount);
     fp.decay_per_tick = r.get_i32("fire.decay_per_tick", 1, kMaxAmount);
     fp.growth_wood_per_tick = r.get_i32("fire.growth_wood_per_tick", 0, kMaxAmount);
     fp.growth_stone_per_tick = r.get_i32("fire.growth_stone_per_tick", 0, kMaxAmount);

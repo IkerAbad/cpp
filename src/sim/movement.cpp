@@ -138,7 +138,7 @@ void MovementSystem::order_move(entt::registry& registry, std::span<const entt::
     std::vector<Resolved> resolved;
     for (const entt::entity e : units) {
         const Position& p = registry.get<Position>(e);
-        const std::uint32_t comp = grid_.component(tile_of({p.x, p.y}));
+        const std::uint32_t comp = grid_.component(tile_of(FVec2{p.x, p.y}));
         // Si el destino no es alcanzable desde aquí (agua, otra isla), la casilla
         // alcanzable más cercana dentro del radio configurado.
         const auto goal = grid_.nearest_in_component(target, comp, params_.retarget_radius_tiles);
@@ -249,11 +249,11 @@ std::int32_t MovementSystem::build_flow_field(entt::registry& registry, std::spa
     auto mark = [&](TileCoord c) { core[static_cast<std::size_t>(hpa_.sector_of(c))] = 1; };
     for (const entt::entity e : units) {
         const Position& p = registry.get<Position>(e);
-        mark(tile_of({p.x, p.y}));
+        mark(tile_of(FVec2{p.x, p.y}));
     }
     mark(goal);
     const Position& lead = registry.get<Position>(units.front());
-    if (const auto waypoints = hpa_.find_waypoints(grid_, tile_of({lead.x, lead.y}), goal, search_)) {
+    if (const auto waypoints = hpa_.find_waypoints(grid_, tile_of(FVec2{lead.x, lead.y}), goal, search_)) {
         for (const TileCoord& w : *waypoints) {
             mark(w);
         }
@@ -309,7 +309,7 @@ void MovementSystem::run_planner(entt::registry& registry) {
         }
         MoveGoal& goal = registry.get<MoveGoal>(e);
         const Position& p = registry.get<Position>(e);
-        auto waypoints = hpa_.find_waypoints(grid_, tile_of({p.x, p.y}), goal.tile, search_);
+        auto waypoints = hpa_.find_waypoints(grid_, tile_of(FVec2{p.x, p.y}), goal.tile, search_);
         if (!waypoints) {
             goal.arrived = true;  // inalcanzable: la orden termina aquí
             registry.remove<PathFollow>(e);

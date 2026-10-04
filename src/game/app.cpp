@@ -1187,6 +1187,8 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
                 spdlog::error("{} necesita un entero no negativo, recibido '{}'", arg, value);
                 return std::nullopt;
             }
+        } else if (arg.ends_with(".rtsrep")) {
+            options.replay = argv[i];  // arrastrar una repetición sobre el ejecutable
         } else {
             spdlog::error("Argumento no reconocido: '{}'", arg);
             print_usage();

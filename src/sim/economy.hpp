@@ -5,6 +5,7 @@
 // Todo en enteros; los tiempos en ticks. Los nodos y los edificios son entidades con
 // una huella que bloquea casillas en la rejilla de transitabilidad.
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -96,6 +97,16 @@ struct Footprint {
         return c.x >= origin.x && c.y >= origin.y && c.x < origin.x + size && c.y < origin.y + size;
     }
 };
+
+// Casilla central de una huella (la de arriba a la izquierda del centro si es par).
+[[nodiscard]] inline TileCoord center_of(const Footprint& f) noexcept {
+    return {f.origin.x + f.size / 2, f.origin.y + f.size / 2};
+}
+
+// Casilla de la huella más cercana a c.
+[[nodiscard]] inline TileCoord clamp_to(const Footprint& f, TileCoord c) noexcept {
+    return {std::clamp(c.x, f.origin.x, f.origin.x + f.size - 1), std::clamp(c.y, f.origin.y, f.origin.y + f.size - 1)};
+}
 
 // Distancia al cuadrado (32.32) de un punto al rectángulo de una huella; 0 dentro.
 [[nodiscard]] std::int64_t distance_sq_to(const Footprint& f, FVec2 p) noexcept;

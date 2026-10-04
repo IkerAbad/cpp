@@ -74,6 +74,16 @@ struct Position {
     Fixed y;
 };
 
+inline constexpr std::int32_t kPercent = 100;
+
+// Casilla que contiene un punto.
+[[nodiscard]] inline TileCoord tile_of(FVec2 p) noexcept {
+    return {p.x.floor_to_int(), p.y.floor_to_int()};
+}
+[[nodiscard]] inline TileCoord tile_of(const Position& p) noexcept {
+    return {p.x.floor_to_int(), p.y.floor_to_int()};
+}
+
 // Vida de unidades y edificios. max_hp crece con el nivel (unidades) y la vida de un
 // edificio en obra crece con el avance.
 struct Health {

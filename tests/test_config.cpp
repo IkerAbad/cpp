@@ -640,3 +640,26 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
         CHECK(bad.error().find("setup.start_building") != std::string::npos);
     }
 }
+
+TEST_CASE("Edificios: los requisitos nombran otros edificios y no forman ciclos") {
+    const UnitCatalog u = units();
+    // fuerte exige choza y choza exige fuerte: ninguno se podría colocar nunca.
+    std::string text = kBuildings;
+    const auto first = text.find("requires = []");
+    REQUIRE(first != std::string::npos);
+    text.replace(first, std::string("requires = []").size(), "requires = [\"choza\"]");
+    const auto ok = parse_building_catalog(text, u);
+    REQUIRE_MESSAGE(ok.has_value(), (ok ? std::string() : ok.error()));
+    CHECK(ok->types[0].type.required == std::vector<rts::sim::BuildingTypeId>{1});
+    const auto second = text.find("requires = []");
+    REQUIRE(second != std::string::npos);
+    text.replace(second, std::string("requires = []").size(), "requires = [\"fuerte\"]");
+    const auto cycle = parse_building_catalog(text, u);
+    REQUIRE_FALSE(cycle.has_value());
+    CHECK(cycle.error().find("ciclo") != std::string::npos);
+    CHECK_FALSE(parse_building_catalog(replaced(kBuildings, "requires = []", "requires = [\"torre\"]"), u).has_value());
+}
+
+TEST_CASE("Configuración: un fuego necesita una intensidad de sostén de al menos 1") {
+    CHECK_FALSE(parse_engine(replaced(kEngine, "sustain_intensity = 200", "sustain_intensity = 0")).has_value());
+}

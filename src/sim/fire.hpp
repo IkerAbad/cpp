@@ -97,6 +97,7 @@ private:
     std::vector<BuildingType> buildings_;
     std::vector<Heat> heat_;
     std::vector<entt::entity> scratch_;
+    std::vector<entt::entity> spread_seen_;
     FireTickStats stats_;
 };
 

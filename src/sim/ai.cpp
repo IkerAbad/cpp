@@ -14,18 +14,9 @@ namespace rts::sim {
 
 namespace {
 
-constexpr std::int32_t kPercent = 100;
 // Escala entera de las estimaciones de combate (fracciones de vida por tick).
 constexpr std::int64_t kScale = 1'000'000;
 constexpr std::int64_t kScoreScale = 1'000;
-
-TileCoord tile_of(const Position& p) noexcept {
-    return {p.x.floor_to_int(), p.y.floor_to_int()};
-}
-
-TileCoord center_of(const Footprint& f) noexcept {
-    return {f.origin.x + f.size / 2, f.origin.y + f.size / 2};
-}
 
 std::int32_t chebyshev(TileCoord a, TileCoord b) noexcept {
     return std::max(std::abs(a.x - b.x), std::abs(a.y - b.y));
@@ -220,7 +211,7 @@ struct Decision {
 
     bool place(BuildingTypeId type, TileCoord near) {
         const BuildingType& bt = catalog().buildings[type];
-        if (!affordable(budget, bt.cost)) {
+        if (!affordable(budget, bt.cost) || !economy.meets_requirements(registry, me(), type)) {
             return false;
         }
         const auto site = site_near(near, type);
@@ -323,7 +314,7 @@ bool perceive(Decision& d) {
         const bool still = goal == nullptr || goal->arrived;
         if (const Worker* w = registry.try_get<Worker>(e)) {
             v.workers.push_back(e);
-            if (w->task == WorkerTask::Idle && still) {
+            if (w->task == WorkerTask::Idle && still && !registry.all_of<Extinguisher>(e)) {
                 v.idle_workers.push_back(e);
             } else if (w->task == WorkerTask::Gather || w->task == WorkerTask::Deliver) {
                 ++v.gatherers[resource_index(w->gather_kind)];
@@ -654,14 +645,16 @@ void army_counter(Decision& d) {
     }
     const auto& types = d.catalog().units;
     const auto& buildings = d.catalog().buildings;
-    std::optional<UnitTypeId> best;
-    std::int64_t best_score = -1;
     // Contra un ejército se entrena lo mejor que se pueda pagar ya. Sin ejército
     // enemigo no hay prisa: se ahorra para lo mejor (el ariete contra la piedra) en vez
-    // de gastar en tropas que no derriban nada.
-    const bool save_for_best = !enemy_armed;
+    // de gastar en tropas que no derriban nada, siempre que se esté recogiendo lo que
+    // falta para pagarlo; si no, nunca llegaría y se entrena lo mejor asequible.
+    std::optional<UnitTypeId> best;          // entre todos
+    std::int64_t best_score = -1;
+    std::optional<UnitTypeId> best_now;      // entre los asequibles ya
+    std::int64_t best_now_score = -1;
     for (const UnitTypeId u : cycle) {
-        if (!trainer_for(u) || (!save_for_best && !affordable(d.budget, types[u].cost))) {
+        if (!trainer_for(u)) {
             continue;
         }
         std::int64_t offense = 0;
@@ -682,22 +675,36 @@ void army_counter(Decision& d) {
             best_score = score;
             best = u;
         }
+        if (affordable(d.budget, types[u].cost) && score > best_now_score) {
+            best_now_score = score;
+            best_now = u;
+        }
     }
-    if (!best || !affordable(d.budget, types[*best].cost)) {
+    std::optional<UnitTypeId> pick = best_now;
+    if (!enemy_armed && best && best != best_now) {
+        // ¿Llegará a poder pagar el mejor? Solo si se recoge cada recurso que falta.
+        bool reachable = true;
+        for (std::size_t r = 0; r < kResourceCount; ++r) {
+            reachable = reachable && (d.budget[r] >= types[*best].cost[r] || v.gatherers[r] > 0);
+        }
+        if (reachable) {
+            return;  // ahorra
+        }
+    }
+    if (!pick) {
         return;
     }
     Command c = d.order(CommandType::Train);
-    c.object = entt::to_integral(*trainer_for(*best));
-    c.kind = *best;
+    c.object = entt::to_integral(*trainer_for(*pick));
+    c.kind = *pick;
     d.out.push_back(std::move(c));
-    spend(d.budget, types[*best].cost);
+    spend(d.budget, types[*pick].cost);
 }
 
-// Taller de asedio en cuanto hay un cuartel terminado (es su requisito).
+// Taller de asedio en cuanto se cumplen sus requisitos (place los comprueba).
 void workshop(Decision& d) {
     const AiView& v = d.v;
-    if (!d.params.workshop || !v.barracks_complete || v.threatened || v.own_type_count.empty() ||
-        v.own_type_count[*d.params.workshop] > 0) {
+    if (!d.params.workshop || v.threatened || v.own_type_count.empty() || v.own_type_count[*d.params.workshop] > 0) {
         return;
     }
     d.place(*d.params.workshop, v.base);
@@ -707,17 +714,28 @@ void workshop(Decision& d) {
 // ya apagando, hasta extinguishers_per_fire por edificio.
 void extinguish(Decision& d) {
     AiView& v = d.v;
+    // Durante una amenaza no se manda a nadie junto a los enemigos (los que huyen
+    // siguen huyendo): solo fuegos y aldeanos lejos de ellos.
+    const auto near_threat = [&](TileCoord t) {
+        return std::ranges::any_of(v.threats, [&](TileCoord e) { return chebyshev(e, t) <= d.profile.flee_enemy_tiles; });
+    };
+    std::vector<entt::entity> assigned;  // en esta decisión (la orden aún no se ha aplicado)
     for (const entt::entity fire : v.own_fires) {
+        const TileCoord at = center_of(d.registry.get<Footprint>(fire));
+        if (near_threat(at)) {
+            continue;
+        }
         std::int32_t already = 0;
         for (const entt::entity w : v.workers) {
             const Extinguisher* x = d.registry.try_get<Extinguisher>(w);
             already += x != nullptr && x->building == fire ? 1 : 0;
         }
-        const TileCoord at = center_of(d.registry.get<Footprint>(fire));
         std::vector<std::pair<std::int32_t, entt::entity>> candidates;  // distancia, aldeano
         for (const entt::entity w : v.workers) {
-            if (!d.registry.all_of<Extinguisher>(w) && d.registry.get<Worker>(w).task != WorkerTask::Build) {
-                candidates.emplace_back(octile_distance(tile_of(d.registry.get<Position>(w)), at), w);
+            const TileCoord t = tile_of(d.registry.get<Position>(w));
+            if (!d.registry.all_of<Extinguisher>(w) && d.registry.get<Worker>(w).task != WorkerTask::Build &&
+                std::ranges::find(assigned, w) == assigned.end() && !near_threat(t)) {
+                candidates.emplace_back(octile_distance(t, at), w);
             }
         }
         std::ranges::sort(candidates, [](const auto& a, const auto& b) {
@@ -727,23 +745,22 @@ void extinguish(Decision& d) {
         c.object = entt::to_integral(fire);
         for (std::size_t i = 0; i < candidates.size() && already < d.profile.extinguishers_per_fire; ++i) {
             c.units.push_back(entt::to_integral(candidates[i].second));
+            assigned.push_back(candidates[i].second);
             ++already;
         }
         if (!c.units.empty()) {
-            // Ya no están ociosos para los módulos siguientes.
-            std::erase_if(v.idle_workers, [&](entt::entity w) {
-                return std::ranges::find(c.units, entt::to_integral(w)) != c.units.end();
-            });
             d.out.push_back(std::move(c));
         }
     }
+    // Ya no están ociosos para los módulos siguientes.
+    std::erase_if(v.idle_workers, [&](entt::entity w) { return std::ranges::find(assigned, w) != assigned.end(); });
 }
 
 // Incursión: con raid_group unidades del tipo de incursión ociosas en casa, van a
 // quemar el edificio de madera enemigo más cercano sin enemigos armados cerca (lo
 // indefenso; lo fortificado se deja para el asedio).
 void raid(Decision& d) {
-    const AiView& v = d.v;
+    AiView& v = d.v;
     if (!d.profile.raid_unit || v.threatened) {
         return;
     }
@@ -776,6 +793,9 @@ void raid(Decision& d) {
     if (!target) {
         return;
     }
+    std::erase_if(v.idle_army, [&](entt::entity e) {
+        return std::ranges::find(riders, entt::to_integral(e)) != riders.end();
+    });
     Command c = d.order(CommandType::Attack);
     c.object = entt::to_integral(*target);
     c.units = std::move(riders);

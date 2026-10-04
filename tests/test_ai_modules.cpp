@@ -249,7 +249,24 @@ TEST_CASE("IA normal: manda aldeanos a apagar sus edificios en llamas") {
     attack.units = raiders;
     attack.object = house;
     world.issue(attack);
-    for (int t = 0; t < 200 && !world.registry().all_of<rts::sim::Fire>(static_cast<entt::entity>(house)); ++t) {
+    // Hasta que el fuego se sostiene solo (por encima de 200).
+    const auto& reg = world.registry();
+    for (int t = 0; t < 600 && (!reg.all_of<rts::sim::Fire>(static_cast<entt::entity>(house)) ||
+                                reg.get<rts::sim::Fire>(static_cast<entt::entity>(house)).intensity < 300);
+         ++t) {
+        world.step();
+    }
+    REQUIRE(world.registry().all_of<rts::sim::Fire>(static_cast<entt::entity>(house)));
+    // Con los incendiarios aún junto a la casa no manda a nadie a su lado.
+    CHECK(think_with(world, {AiBehavior::Extinguish}).empty());
+    // Se retiran: ahora sí.
+    Command away;
+    away.player = kRival;
+    away.type = CommandType::Move;
+    away.units = raiders;
+    away.target = {60, 60};
+    world.issue(away);
+    for (int t = 0; t < 100; ++t) {
         world.step();
     }
     REQUIRE(world.registry().all_of<rts::sim::Fire>(static_cast<entt::entity>(house)));

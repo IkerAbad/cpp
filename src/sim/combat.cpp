@@ -13,14 +13,9 @@ namespace rts::sim {
 
 namespace {
 
-constexpr std::int32_t kPercent = 100;
 // Tope de daño de un golpe: con él, ni la vida ni la experiencia acumulada de un tick
 // desbordan 32 bits.
 constexpr std::int64_t kMaxHitDamage = 1'000'000;
-
-TileCoord tile_of(FVec2 p) noexcept {
-    return {p.x.floor_to_int(), p.y.floor_to_int()};
-}
 
 std::int32_t chebyshev(TileCoord a, TileCoord b) noexcept {
     return std::max(std::abs(a.x - b.x), std::abs(a.y - b.y));
@@ -390,6 +385,9 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             bool idle = goal == nullptr || goal->arrived || c.attack_move;
             if (const Worker* w = registry.try_get<Worker>(e); w != nullptr && w->task != WorkerTask::Idle) {
                 idle = false;
+            }
+            if (registry.all_of<Extinguisher>(e)) {
+                idle = false;  // apagando un fuego: no sale a buscar pelea
             }
             if (idle) {
                 entt::entity t = st.buildings_only ? entt::entity{entt::null} : acquire(i, sight);
