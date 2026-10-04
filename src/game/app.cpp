@@ -521,8 +521,9 @@ private:
             c.type = sim::CommandType::Extinguish;  // edificio propio en llamas: apagarlo
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer && o->complete &&
-                   data_.buildings.types[o->type].type.farm_food > 0) {
-            c.type = sim::CommandType::Gather;  // granja propia terminada: cultivarla
+                   data_.buildings.types[o->type].type.farm_food > 0 && !o->burned &&
+                   o->hp >= data_.buildings.types[o->type].type.hp) {
+            c.type = sim::CommandType::Gather;  // granja propia terminada e intacta: cultivarla
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
             c.type = sim::CommandType::Build;
