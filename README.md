@@ -278,6 +278,12 @@ Una incursión quema y empobrece; solo un asedio conquista.
   - `taller`: construye el taller de asedio.
   - `ejercito_contra`: entrena cada unidad en el edificio que la produce. Sin ejército enemigo ahorra para lo que derriba la piedra (el ariete). Con pocos aldeanos solo entrena tropas si su ejército es más débil que el enemigo, para que la economía vaya primero.
 
+### Escombros, demolición y minado (fase 2)
+
+- **Escombros.** Lo derribado por asedio deja en su solar un nodo con el 50 % del coste de su material (`salvage_percent`): piedra si era de piedra, madera si era de madera. Bloquea el solar hasta que los aldeanos lo recogen y lo llevan a un almacén, como cualquier recurso (también el enemigo puede saquearlo). Lo que arde no deja nada aprovechable.
+- **Demolición controlada.** Mayús + clic derecho con aldeanos sobre un edificio propio: lo desmontan al ritmo de construir y queda en escombros para transportar, no como reembolso instantáneo.
+- **Zapador** (taller de asedio). Mina bajo la piedra: su ataque ignora la armadura de los muros, y bajo tierra las flechas apenas le alcanzan. Es más lento que el ariete. Contra la madera solo prende fuego, como cualquiera.
+
 ### Convenciones de `data/`
 
 - Solo enteros. Una magnitud fraccionaria se escribe en una unidad menor que figura en el nombre de la clave: `max_speed_milli_tiles_per_tick = 150` significa 0,150 casillas por tick. Así la carga no depende del redondeo decimal→binario de cada plataforma.

@@ -38,3 +38,19 @@ resource = "hierro"
 amount = 600
 size_tiles = 2
 color = [110, 92, 84]
+
+# Escombros de un edificio derribado o desmontado: sus materiales aprovechables, en
+# el solar, hasta que se recogen (cantidad y tamaño los pone el edificio).
+[[node]]
+name = "escombros_piedra"
+resource = "piedra"
+amount = 1
+size_tiles = 1
+color = [150, 140, 130]
+
+[[node]]
+name = "escombros_madera"
+resource = "madera"
+amount = 1
+size_tiles = 1
+color = [110, 85, 60]

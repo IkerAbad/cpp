@@ -260,3 +260,96 @@ TEST_CASE("Requisitos: el taller de asedio solo se coloca con un cuartel termina
     CHECK(world.player_state(0).stock[rts::sim::resource_index(rts::sim::Resource::Wood)] == 800);
     CHECK(world.object_at({111, 111}).has_value());
 }
+
+TEST_CASE("Escombros: un edificio derribado por asedio deja materiales recuperables; quemado, no") {
+    WorldParams p = flat_two_players();
+    p.building_types[kCenter].material = rts::sim::Material::Stone;
+    p.building_types[kCenter].cost = stock(0, 200, 100, 0);
+    p.building_types[kCenter].hp = 300;
+    World world(p);
+    const auto center = *world.spawn_building(1, kCenter, {100, 100}, true);
+    std::vector<std::uint32_t> rams;
+    for (std::int32_t i = 0; i < 2; ++i) {
+        rams.push_back(world.spawn_unit(0, kRam, {98, 100 + i}));
+    }
+    world.step();
+    world.issue(order(CommandType::Attack, 0, rams, center));
+    for (int t = 0; t < 3000 && world.registry().valid(ent(center)); ++t) {
+        world.step();
+    }
+    REQUIRE_FALSE(world.registry().valid(ent(center)));
+    // En el solar, escombros de piedra: el 50 % de 100.
+    const auto rubble = world.object_at({101, 101});
+    REQUIRE(rubble.has_value());
+    const auto& node = world.registry().get<rts::sim::ResourceNode>(ent(*rubble));
+    CHECK(node.kind == rts::sim::Resource::Stone);
+    CHECK(node.amount == 50);
+    CHECK(world.registry().get<rts::sim::Footprint>(ent(*rubble)).size == 3);
+
+    // Una casa de madera que arde hasta caer no deja nada.
+    const auto house = *world.spawn_building(1, kHouse, {120, 100}, true);
+    std::vector<std::uint32_t> raiders;
+    for (std::int32_t i = 0; i < 4; ++i) {
+        raiders.push_back(world.spawn_unit(0, kSoldier, {119, 99 + i}));
+    }
+    world.step();
+    world.issue(order(CommandType::Attack, 0, raiders, house));
+    for (int t = 0; t < 3000 && world.registry().valid(ent(house)); ++t) {
+        world.step();
+    }
+    REQUIRE_FALSE(world.registry().valid(ent(house)));
+    CHECK_FALSE(world.object_at({120, 100}).has_value());
+}
+
+TEST_CASE("Demolición: los aldeanos desmontan un edificio propio y quedan sus materiales para recoger") {
+    World world(flat_two_players());
+    const auto house = *world.spawn_building(0, kHouse, {100, 100}, true);  // madera, cuesta 30 de madera
+    std::vector<std::uint32_t> workers;
+    for (std::int32_t i = 0; i < 2; ++i) {
+        workers.push_back(world.spawn_unit(0, kVillager, {98, 100 + i}));
+    }
+    world.step();
+    world.issue(order(CommandType::Demolish, 0, workers, house));
+    for (int t = 0; t < 2000 && world.registry().valid(ent(house)); ++t) {
+        world.step();
+    }
+    REQUIRE_FALSE(world.registry().valid(ent(house)));
+    const auto rubble = world.object_at({100, 100});
+    REQUIRE(rubble.has_value());
+    const auto& node = world.registry().get<rts::sim::ResourceNode>(ent(*rubble));
+    CHECK(node.kind == rts::sim::Resource::Wood);
+    CHECK(node.amount == 15);
+    // Se pueden recoger como cualquier nodo.
+    CHECK(rts::sim::EconomySystem::can_gather(world.registry(), ent(*rubble), 0));
+}
+
+TEST_CASE("Minado: el zapador ignora la armadura de la piedra; contra la madera, prende fuego") {
+    WorldParams p = flat_two_players();
+    p.building_types[kCenter].material = rts::sim::Material::Stone;
+    p.building_types[kCenter].armor_melee = 40;  // muros que ningún golpe atraviesa
+    rts::sim::UnitType sapper = p.unit_types[kSoldier];
+    sapper.combat.attack_melee = 9;
+    sapper.combat.reload_ticks = 80;
+    sapper.combat.undermine = true;
+    sapper.combat.buildings_only = true;
+    sapper.combat.ignite = 30;
+    p.unit_types.push_back(sapper);
+    const auto kSapper = static_cast<rts::sim::UnitTypeId>(p.unit_types.size() - 1);
+    World world(p);
+    const auto center = *world.spawn_building(1, kCenter, {100, 100}, true);
+    const auto miner = world.spawn_unit(0, kSapper, {98, 101});
+    const auto house = *world.spawn_building(1, kHouse, {110, 100}, true);
+    const auto torch = world.spawn_unit(0, kSapper, {109, 100});
+    world.step();
+    world.issue(order(CommandType::Attack, 0, {miner}, center));
+    world.issue(order(CommandType::Attack, 0, {torch}, house));
+    for (int t = 0; t < 400; ++t) {
+        world.step();
+    }
+    // 9 por golpe sin armadura, uno cada 80 ticks: unos 5 golpes.
+    CHECK(hp(world, center) <= 2000 - 9 * 4);
+    CHECK_FALSE(world.registry().all_of<Fire>(ent(center)));
+    // Contra la madera no mina: sus golpes solo avivan un fuego, y una antorcha sola
+    // no lo sostiene (mengua más entre golpe y golpe de lo que aporta). Ni un rasguño.
+    CHECK(hp(world, house) == 500);
+}

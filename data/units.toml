@@ -22,7 +22,9 @@
 # Edificios: sin asedio no se les hace daño. ignite: fuego que aviva cada golpe contra
 #   un edificio (antorchas; en los tiradores, flechas incendiarias); extinguish: fuego
 #   que quita por tick apagando (los aldeanos, con cubos y mantas, son los mejores).
-#   siege: su golpe daña edificios; buildings_only: solo ataca edificios.
+#   siege: su golpe daña edificios; buildings_only: solo ataca edificios;
+#   undermine: contra la piedra mina bajo los cimientos (su ataque ignora la
+#   armadura); contra la madera, prende fuego como cualquiera.
 #
 # Papeles con criterio histórico (valores de diseño propios, a ajustar jugando):
 # - leva: lanza y escudo, la base de cualquier ejército; barata, se instruye en
@@ -36,7 +38,10 @@
 # - caballero: caballería pesada con armadura; carísimo; carga.
 # - ariete: tronco con cabeza de hierro bajo un cobertizo cubierto de pieles húmedas:
 #   inmune al fuego y casi a las flechas, pero sin defensa cuerpo a cuerpo; lento.
-#   Es lo único que derriba la piedra.
+#   Derriba la piedra a golpes.
+# - zapador: cava bajo los cimientos apuntalando con madera y luego quema los
+#   puntales para que el muro se hunda. Más lento que el ariete, pero ignora la
+#   armadura de los muros y, bajo tierra, las flechas apenas le alcanzan.
 
 classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio", "asedio"]
 
@@ -64,6 +69,7 @@ ignite = 40
 extinguish = 8
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "leva"
@@ -89,6 +95,7 @@ ignite = 60
 extinguish = 3
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "hombre_armas"
@@ -114,6 +121,7 @@ ignite = 60
 extinguish = 3
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "arquero"
@@ -139,6 +147,7 @@ ignite = 25
 extinguish = 2
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "ballestero"
@@ -164,6 +173,7 @@ ignite = 15
 extinguish = 2
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "jinete"
@@ -189,6 +199,7 @@ ignite = 80
 extinguish = 2
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "caballero"
@@ -214,6 +225,7 @@ ignite = 60
 extinguish = 2
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "ariete"
@@ -239,3 +251,30 @@ ignite = 0
 extinguish = 0
 siege = true
 buildings_only = true
+undermine = false
+
+[[unit]]
+name = "zapador"
+radius_milli_tiles = 280
+speed_milli_tiles_per_tick = 50
+color = [140, 120, 90]
+cost = { comida = 60, madera = 20, oro = 40 }
+train_ticks = 700
+population = 1
+worker = false
+carry_capacity = 0
+hp = 45
+attack = { cuerpo = 9 }
+armor = { proyectil = 30 }
+class = "infanteria"
+bonus = {}
+range_milli_tiles = 150
+reload_ticks = 80
+sight_tiles = 5
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = true
+ignite = 30
+extinguish = 3
+siege = false
+buildings_only = true
+undermine = true

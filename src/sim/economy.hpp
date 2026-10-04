@@ -80,6 +80,12 @@ struct EconomyParams {
     std::int32_t spawn_search_radius = 0;    // anillos alrededor del edificio donde aparece lo producido
     // Reparar la vida entera de un edificio cuesta este % de su coste en madera.
     std::int32_t repair_cost_percent = 0;
+    // Escombros: un edificio derribado por asedio o desmontado deja, en su solar, un
+    // nodo con este % del coste de su material (piedra o madera), que hay que recoger
+    // y transportar. Lo que arde no deja nada aprovechable.
+    std::int32_t salvage_percent = 0;
+    NodeTypeId rubble_stone = 0;
+    NodeTypeId rubble_wood = 0;
 };
 
 // --- Componentes -------------------------------------------------------------------
@@ -134,7 +140,7 @@ struct ProductionQueue {
     std::int32_t progress = 0;  // ticks del primero de la cola
 };
 
-enum class WorkerTask : std::uint8_t { Idle, Gather, Deliver, Build };
+enum class WorkerTask : std::uint8_t { Idle, Gather, Deliver, Build, Demolish };
 
 struct Worker {
     WorkerTask task = WorkerTask::Idle;
@@ -192,8 +198,10 @@ public:
     entt::entity spawn_unit(entt::registry& registry, PlayerId player, UnitTypeId type, FVec2 pos) const;
     std::optional<entt::entity> place_building(entt::registry& registry, MovementSystem& movement, PlayerId player,
                                                BuildingTypeId type, TileCoord origin, bool complete);
-    // Destrucción de un edificio (combate): libera su huella en la rejilla.
-    void remove_building(entt::registry& registry, MovementSystem& movement, entt::entity building);
+    // Destrucción de un edificio: libera su huella en la rejilla y, con rubble, deja
+    // escombros recuperables en su solar (asedio, demolición; no el fuego).
+    void remove_building(entt::registry& registry, MovementSystem& movement, entt::entity building,
+                         bool rubble = false);
     std::optional<entt::entity> place_node(entt::registry& registry, MovementSystem& movement, NodeTypeId type,
                                            TileCoord origin);
     // Casilla libre alrededor de una huella, repartida por index entre las del primer
@@ -241,6 +249,8 @@ private:
                       std::uint32_t& next_order_id, Tick tick);
     void step_build(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
                     std::uint32_t& next_order_id, Tick tick);
+    void step_demolish(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
+                       std::uint32_t& next_order_id, Tick tick);
     Approach approach(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
                       const Footprint& target, std::uint32_t& next_order_id, Tick tick);
     void start_gather(Worker& w, entt::entity node, const Footprint& f, Resource kind) const;

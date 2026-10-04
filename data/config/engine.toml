@@ -101,6 +101,11 @@ spawn_search_radius_tiles = 4
 # Reparar un edificio entero cuesta el 50 % de su coste en madera (proporcional a la
 # vida que se devuelve); al terminar, un edificio quemado vuelve a funcionar.
 repair_cost_percent = 50
+# Escombros: lo derribado por asedio o desmontado deja en su solar el 50 % del coste
+# de su material (piedra o madera), para recoger y transportar. Lo quemado, nada.
+salvage_percent = 50
+rubble_stone = "escombros_piedra"
+rubble_wood = "escombros_madera"
 
 [fire]
 # Intensidad de 0 a 1000. Por debajo de 200 un fuego mengua 2 por tick y se apaga
@@ -248,7 +253,7 @@ army_min_villagers = 20
 raid_unit = "jinete"
 raid_group = 3
 raid_safe_radius_tiles = 10
-army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete"]
+army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 [setup]
 seed = 20260924

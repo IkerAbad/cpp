@@ -347,6 +347,24 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             return;
         }
 
+        case CommandType::Demolish: {
+            if (!has_object || !registry.all_of<Building, Owner, Footprint>(object) ||
+                registry.get<Owner>(object).player != player) {
+                return;
+            }
+            for (const entt::entity e : units) {
+                if (Worker* w = registry.try_get<Worker>(e)) {
+                    w->task = WorkerTask::Demolish;
+                    w->building = object;
+                    reset_movement(*w);
+                } else {
+                    walkers.push_back(e);
+                }
+            }
+            walk_to(registry.get<Footprint>(object).origin);
+            return;
+        }
+
         case CommandType::Place: {
             if (command.kind >= catalog_.buildings.size()) {
                 return;
@@ -482,6 +500,9 @@ void EconomySystem::update_worker(entt::registry& registry, MovementSystem& move
             break;
         case WorkerTask::Build:
             step_build(registry, movement, e, w, next_order_id, tick);
+            break;
+        case WorkerTask::Demolish:
+            step_demolish(registry, movement, e, w, next_order_id, tick);
             break;
     }
 }
@@ -808,9 +829,53 @@ std::optional<entt::entity> EconomySystem::nearest_dropoff(const entt::registry&
     return best;
 }
 
-void EconomySystem::remove_building(entt::registry& registry, MovementSystem& movement, entt::entity building) {
-    release(movement, registry.get<Footprint>(building));
+void EconomySystem::remove_building(entt::registry& registry, MovementSystem& movement, entt::entity building,
+                                    bool rubble) {
+    const Footprint f = registry.get<Footprint>(building);
+    const BuildingType& bt = catalog_.buildings[registry.get<Building>(building).type];
+    release(movement, f);
     registry.destroy(building);
+    if (!rubble) {
+        return;
+    }
+    const bool stone = bt.material == Material::Stone;
+    const Resource kind = stone ? Resource::Stone : Resource::Wood;
+    const std::int32_t amount = bt.cost[resource_index(kind)] * params_.salvage_percent / kPercent;
+    if (amount <= 0) {
+        return;
+    }
+    // Escombros del tamaño del solar, con la cantidad que dio el edificio.
+    const auto e = registry.create();
+    registry.emplace<Footprint>(e, f);
+    registry.emplace<ResourceNode>(e, stone ? params_.rubble_stone : params_.rubble_wood, kind, amount);
+    occupy(movement, f, e);
+}
+
+void EconomySystem::step_demolish(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
+                                  std::uint32_t& next_order_id, Tick tick) {
+    if (!registry.valid(w.building) || !registry.all_of<Building, Footprint, Health>(w.building)) {
+        w.task = WorkerTask::Idle;
+        return;
+    }
+    const Footprint f = registry.get<Footprint>(w.building);
+    switch (approach(registry, movement, e, w, f, next_order_id, tick)) {
+        case Approach::Moving:
+            return;
+        case Approach::Failed:
+            w.task = WorkerTask::Idle;
+            return;
+        case Approach::InReach:
+            break;
+    }
+    // Desmontar va al ritmo de construir: cada aldeano quita la vida que pondría.
+    const BuildingType& bt = catalog_.buildings[registry.get<Building>(w.building).type];
+    Health& health = registry.get<Health>(w.building);
+    health.hp -= std::max(bt.hp / std::max(bt.build_ticks, 1), 1);
+    if (health.hp <= 0) {
+        remove_building(registry, movement, w.building, true);
+        w.task = WorkerTask::Idle;
+        w.building = entt::null;
+    }
 }
 
 void EconomySystem::deplete(entt::registry& registry, MovementSystem& movement, entt::entity node) {

@@ -450,6 +450,7 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             cs.extinguish = ur.get_i32("extinguish", 0, kMaxAmount);
             cs.siege = ur.get_bool("siege");
             cs.buildings_only = ur.get_bool("buildings_only");
+            cs.undermine = ur.get_bool("undermine");
             if (!error && catalog.find(info.name)) {
                 ur.fail(std::format("nombre de unidad repetido: \"{}\"", info.name));
             }
@@ -751,6 +752,13 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     eco.max_population = r.get_i32("economy.max_population", 1, 100'000);
     eco.spawn_search_radius = r.get_i32("economy.spawn_search_radius_tiles", 1, 32);
     eco.repair_cost_percent = r.get_i32("economy.repair_cost_percent", 0, 1000);
+    eco.salvage_percent = r.get_i32("economy.salvage_percent", 0, 100);
+    eco.rubble_stone = r.get_named("economy.rubble_stone", catalogs.nodes, "resources.toml");
+    eco.rubble_wood = r.get_named("economy.rubble_wood", catalogs.nodes, "resources.toml");
+    if (!error && (catalogs.nodes.types[eco.rubble_stone].type.kind != sim::Resource::Stone ||
+                   catalogs.nodes.types[eco.rubble_wood].type.kind != sim::Resource::Wood)) {
+        r.fail("'economy.rubble_stone' debe ser un nodo de piedra y 'economy.rubble_wood', uno de madera");
+    }
 
     sim::FireParams& fp = cfg.world.fire;
     fp.max_intensity = r.get_i32("fire.max_intensity", 1, kMaxAmount);

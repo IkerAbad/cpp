@@ -129,6 +129,7 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
         case CommandType::Count:
             return;
         case CommandType::Extinguish:
+        case CommandType::Demolish:
         case CommandType::Move:
         case CommandType::Stop:
         case CommandType::Gather:
@@ -313,9 +314,18 @@ void CombatSystem::clear_target(entt::registry& registry, MovementSystem& moveme
 void CombatSystem::strike(const entt::registry& registry, FireSystem& fire, entt::entity target,
                           entt::entity attacker, UnitTypeId attacker_type, std::int32_t percent) {
     const CombatStats& st = units_[attacker_type].combat;
-    if (registry.all_of<Building>(target) && !st.siege) {
-        fire.add_heat(target, st.ignite);
-        return;
+    if (const Building* b = registry.try_get<Building>(target)) {
+        const bool stone = buildings_[b->type].material == Material::Stone;
+        if (st.undermine && stone) {
+            // Mina bajo los cimientos: la armadura de los muros no cuenta.
+            const std::int64_t dig = std::int64_t{st.attack_melee} * percent / kPercent;
+            hits_.push_back({target, attacker, static_cast<std::int32_t>(std::clamp<std::int64_t>(dig, 1, kMaxHitDamage))});
+            return;
+        }
+        if (!st.siege) {
+            fire.add_heat(target, st.ignite);
+            return;
+        }
     }
     hits_.push_back({target, attacker, damage(attacker_type, percent, registry, target)});
 }
@@ -327,6 +337,9 @@ bool CombatSystem::can_harm_building(const entt::registry& registry, UnitTypeId 
         return true;
     }
     const Building& b = registry.get<Building>(building);
+    if (st.undermine && buildings_[b.type].material == Material::Stone) {
+        return true;
+    }
     // Piedra ya quemada: no le queda qué arder; solo el asedio la derriba.
     return st.ignite > 0 && !(buildings_[b.type].material == Material::Stone && b.burned);
 }
@@ -594,7 +607,7 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
     }
     for (const entt::entity e : dead) {
         if (registry.all_of<Building>(e)) {
-            economy.remove_building(registry, movement, e);
+            economy.remove_building(registry, movement, e, true);  // derribado: escombros
         } else {
             registry.destroy(e);
         }

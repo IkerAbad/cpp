@@ -63,6 +63,7 @@ ignite = 50
 extinguish = 4
 siege = false
 buildings_only = false
+undermine = false
 
 [[unit]]
 name = "peon"
@@ -88,6 +89,7 @@ ignite = 50
 extinguish = 4
 siege = false
 buildings_only = false
+undermine = false
 )";
 
 constexpr const char* kNodes = R"(
@@ -104,6 +106,13 @@ resource = "oro"
 amount = 800
 size_tiles = 2
 color = [200, 200, 0]
+
+[[node]]
+name = "cascote"
+resource = "piedra"
+amount = 1
+size_tiles = 1
+color = [150, 140, 130]
 )";
 
 constexpr const char* kBuildings = R"(
@@ -195,6 +204,9 @@ queue_capacity = 5
 max_population = 200
 spawn_search_radius_tiles = 4
 repair_cost_percent = 50
+salvage_percent = 50
+rubble_stone = "cascote"
+rubble_wood = "pino"
 
 [fire]
 max_intensity = 1000
@@ -626,7 +638,7 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
     SUBCASE("umbrales no crecientes") {
         CHECK_FALSE(parse_engine(replaced(kEngine, "[30, 70, 120]", "[30, 30, 120]")).has_value());
     }
-    CHECK(w.node_types.size() == 2);
+    CHECK(w.node_types.size() == 3);
 
     SUBCASE("inicio fuera del mapa") {
         CHECK_FALSE(parse_engine(replaced(kEngine, "[50, 20]", "[50, 40]")).has_value());

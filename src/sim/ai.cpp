@@ -93,7 +93,9 @@ std::int64_t kill_rate(const UnitType& a, const UnitType& b) noexcept {
 constexpr std::int64_t kVitalWeight = 4;
 std::int64_t demolish_rate(const UnitType& a, const BuildingType& b) noexcept {
     std::int64_t per_hit = 0;
-    if (a.combat.siege) {
+    if (a.combat.undermine && b.material == Material::Stone) {
+        per_hit = a.combat.attack_melee;  // mina: sin armadura
+    } else if (a.combat.siege) {
         per_hit = hit_damage(a.combat, kPercent, b.armor_melee, b.armor_pierce, b.armor_class);
     } else if (b.material == Material::Wood) {
         per_hit = a.combat.ignite;

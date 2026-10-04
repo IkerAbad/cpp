@@ -150,7 +150,7 @@ accepts = []
 population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
-trains = ["ariete"]
+trains = ["ariete", "zapador"]
 requires = ["cuartel"]
 farm_food = 0
 vital = false

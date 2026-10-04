@@ -91,6 +91,8 @@ const char* task_name(sim::WorkerTask t) noexcept {
             return "llevando al almacén";
         case sim::WorkerTask::Build:
             return "construyendo";
+        case sim::WorkerTask::Demolish:
+            return "desmontando";
     }
     return "?";
 }
@@ -517,6 +519,10 @@ private:
         } else if (o != nullptr && o->kind == sim::ObjectKind::Resource) {
             c.type = sim::CommandType::Gather;
             c.object = o->id;
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer &&
+                   window_.shift_held()) {
+            c.type = sim::CommandType::Demolish;  // Mayús: desmontarlo (deja escombros recuperables)
+            c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer && o->fire > 0) {
             c.type = sim::CommandType::Extinguish;  // edificio propio en llamas: apagarlo
             c.object = o->id;
@@ -756,6 +762,7 @@ private:
         ImGui::TextDisabled("Arrastre: rectángulo · Mayús: añadir · Esc: limpiar");
         ImGui::TextDisabled("Clic derecho: mover, atacar (enemigo), recoger (recurso), construir o descargar");
         ImGui::TextDisabled("Ctrl + clic derecho: ataque-movimiento");
+        ImGui::TextDisabled("Mayús + clic derecho sobre un edificio propio: desmontarlo");
         const sim::CombatTickStats& cb = world_.combat().last_stats();
         ImGui::Text("Combate: %d golpes, %d proyectiles (%d aciertos, %d fallos), %d bajas en el último tick",
                     cb.melee_hits, cb.projectiles_fired, cb.projectiles_hit, cb.projectiles_missed, cb.kills);
@@ -977,6 +984,7 @@ private:
         } else if (o->complete && o->hp < info.type.hp) {
             ImGui::TextDisabled("Dañado: clic derecho con aldeanos para repararlo (cuesta madera)");
         }
+        ImGui::TextDisabled("Mayús + clic derecho con aldeanos: desmontarlo (deja escombros)");
         if (!o->complete) {
             ImGui::ProgressBar(static_cast<float>(o->progress) / static_cast<float>(info.type.build_ticks), {-1.0f, 0.0f},
                                "en obra");

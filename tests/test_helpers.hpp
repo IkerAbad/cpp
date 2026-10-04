@@ -59,6 +59,7 @@ inline constexpr sim::BuildingTypeId kWorkshop = 5;  // exige un cuartel
 inline constexpr sim::NodeTypeId kTree = 0;
 inline constexpr sim::NodeTypeId kGoldMine = 1;
 inline constexpr sim::NodeTypeId kBerries = 2;
+inline constexpr sim::NodeTypeId kStoneRubble = 3;
 
 inline sim::Stock stock(std::int32_t food, std::int32_t wood, std::int32_t stone, std::int32_t gold,
                         std::int32_t iron = 0) {
@@ -189,7 +190,8 @@ inline std::vector<sim::BuildingType> test_building_types() {
 }
 
 inline std::vector<sim::ResourceNodeType> test_node_types() {
-    return {{sim::Resource::Wood, 100, 1}, {sim::Resource::Gold, 800, 2}, {sim::Resource::Food, 20, 1}};
+    return {{sim::Resource::Wood, 100, 1}, {sim::Resource::Gold, 800, 2}, {sim::Resource::Food, 20, 1},
+            {sim::Resource::Stone, 1, 1}};
 }
 
 inline sim::EconomyParams test_economy_params() {
@@ -197,6 +199,9 @@ inline sim::EconomyParams test_economy_params() {
     e.gather_ticks = {10, 12, 14, 16};
     e.interact_range = sim::Fixed::from_ratio(4, 5);
     e.repair_cost_percent = 50;
+    e.salvage_percent = 50;
+    e.rubble_stone = kStoneRubble;
+    e.rubble_wood = kTree;
     e.retarget_radius_tiles = 8;
     e.approach_attempts = 3;
     e.gatherers_per_tile = 2;
