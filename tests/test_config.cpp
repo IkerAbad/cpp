@@ -105,7 +105,7 @@ size_tiles = 3
 cost = { madera = 275, piedra = 100 }
 build_ticks = 3000
 hp = 2400
-accepts = ["comida", "madera", "piedra", "oro"]
+accepts = ["comida", "madera", "piedra", "oro", "hierro"]
 population = 5
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
@@ -174,7 +174,7 @@ count = 10
 area_tiles = 16
 
 [economy]
-gather_ticks = { comida = 50, madera = 55, piedra = 70, oro = 65 }
+gather_ticks = { comida = 50, madera = 55, piedra = 70, oro = 65, hierro = 70 }
 interact_range_milli_tiles = 500
 retarget_radius_tiles = 10
 approach_attempts = 3
@@ -204,7 +204,7 @@ worker = "peon"
 house = "choza"
 barracks = "fuerte"
 farm = "choza"
-dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte" }
+dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
 name = "basica"
@@ -283,7 +283,7 @@ node_body_percent = 80
 construction_shade_percent = 45
 ghost_valid_color = [0, 255, 0, 100]
 ghost_invalid_color = [255, 0, 0, 100]
-resource_colors = { comida = [1, 0, 0, 255], madera = [2, 0, 0, 255], piedra = [3, 0, 0, 255], oro = [4, 0, 0, 255] }
+resource_colors = { comida = [1, 0, 0, 255], madera = [2, 0, 0, 255], piedra = [3, 0, 0, 255], oro = [4, 0, 0, 255], hierro = [5, 0, 0, 255] }
 # Barras de vida (unidades heridas o seleccionadas, edificios dañados): 20x3 píxeles,
 # en rojo por debajo del 35 %.
 health_bar_width_px = 20
@@ -515,7 +515,7 @@ TEST_CASE("Economía: costes, almacenes y producción se leen de los catálogos"
     CHECK(peon.cost[rts::sim::resource_index(Resource::Food)] == 50);
     CHECK(c.unit_catalog.types[0].type.cost[rts::sim::resource_index(Resource::Gold)] == 20);
     const auto& fuerte = c.building_catalog.types[0].type;
-    CHECK(fuerte.accepts == 0x0F);
+    CHECK(fuerte.accepts == 0x1F);
     CHECK(fuerte.trains == std::vector<rts::sim::UnitTypeId>{1});
     CHECK(c.building_catalog.types[1].type.accepts == 0);
     CHECK(c.node_catalog.types[1].type.kind == Resource::Gold);
@@ -526,7 +526,7 @@ TEST_CASE("Economía: costes, almacenes y producción se leen de los catálogos"
     CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "comida = 60", "comdia = 60")).has_value());
     CHECK_FALSE(parse_building_catalog(replaced(kBuildings, "[\"peon\"]", "[\"grifo\"]"), c.unit_catalog).has_value());
     CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "carry_capacity = 10", "carry_capacity = 0")).has_value());
-    CHECK_FALSE(parse_node_catalog(replaced(kNodes, "\"madera\"", "\"hierro\"")).has_value());
+    CHECK_FALSE(parse_node_catalog(replaced(kNodes, "\"madera\"", "\"plata\"")).has_value());
     // Combate: clase desconocida, bonus contra una clase inexistente, clave de ataque rara.
     CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "class = \"infanteria\"", "class = \"dragon\"")).has_value());
     CHECK_FALSE(parse_unit_catalog(replaced(kUnits, "bonus = { edificio = 2 }", "bonus = { barco = 2 }")).has_value());

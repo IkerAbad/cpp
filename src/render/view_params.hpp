@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include "sim/units.hpp"
+
 namespace rts::render {
 
 using Rgba = std::array<std::uint8_t, 4>;
@@ -32,7 +34,7 @@ struct ViewParams {
     std::int32_t construction_shade_percent = 0;
     Rgba ghost_valid_color{};
     Rgba ghost_invalid_color{};
-    std::array<Rgba, 4> resource_colors{};  // por sim::Resource
+    std::array<Rgba, sim::kResourceCount> resource_colors{};  // por sim::Resource
 
     // Combate (M4): barras de vida, proyectiles y anillo de héroe.
     std::int32_t health_bar_width_px = 0;

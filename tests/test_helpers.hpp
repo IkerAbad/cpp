@@ -58,8 +58,9 @@ inline constexpr sim::NodeTypeId kTree = 0;
 inline constexpr sim::NodeTypeId kGoldMine = 1;
 inline constexpr sim::NodeTypeId kBerries = 2;
 
-inline sim::Stock stock(std::int32_t food, std::int32_t wood, std::int32_t stone, std::int32_t gold) {
-    return {food, wood, stone, gold};
+inline sim::Stock stock(std::int32_t food, std::int32_t wood, std::int32_t stone, std::int32_t gold,
+                        std::int32_t iron = 0) {
+    return {food, wood, stone, gold, iron};
 }
 
 inline std::vector<sim::UnitType> test_unit_types() {
@@ -106,7 +107,7 @@ inline std::vector<sim::UnitType> test_unit_types() {
 }
 
 inline std::vector<sim::BuildingType> test_building_types() {
-    constexpr std::uint8_t kAll = 0x0F;
+    constexpr std::uint8_t kAll = 0x1F;
     sim::BuildingType center;
     center.size = 3;
     center.cost = stock(0, 200, 0, 0);

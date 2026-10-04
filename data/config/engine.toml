@@ -81,7 +81,7 @@ area_tiles = 32
 
 [economy]
 # Ticks por unidad recogida (20 ticks = 1 s): 55 ticks = 0,36 madera/s por aldeano.
-gather_ticks = { comida = 50, madera = 55, piedra = 70, oro = 65 }
+gather_ticks = { comida = 50, madera = 55, piedra = 70, oro = 65, hierro = 70 }
 # Un aldeano trabaja sobre un objeto si el borde de su disco está a menos de 0,8
 # casillas del borde de la huella. Con radio 0,25, el centro puede estar a 1,05: basta
 # con llegar a cualquier casilla vecina, también en diagonal (0,71 desde su centro),
@@ -134,7 +134,7 @@ worker = "aldeano"
 house = "casa"
 barracks = "cuartel"
 farm = "granja"
-dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero" }
+dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero", hierro = "campamento_minero" }
 
 # Perfiles: cada jugador de la IA elige uno con ai_profile en [[player]]. La
 # dificultad sale de qué módulos usa y de sus umbrales, nunca de ventajas económicas.
@@ -247,6 +247,12 @@ min_distance_tiles = 8
 max_distance_tiles = 12
 
 [[setup.near_start]]
+node = "mina_hierro"
+count = 1
+min_distance_tiles = 8
+max_distance_tiles = 12
+
+[[setup.near_start]]
 node = "arbol"
 count = 20
 min_distance_tiles = 9
@@ -311,7 +317,7 @@ construction_shade_percent = 45
 ghost_valid_color = [120, 255, 140, 120]
 ghost_invalid_color = [255, 80, 80, 120]
 # Punto sobre un aldeano que lleva algo, según el recurso.
-resource_colors = { comida = [232, 96, 120, 255], madera = [150, 104, 60, 255], piedra = [200, 200, 205, 255], oro = [250, 212, 64, 255] }
+resource_colors = { comida = [232, 96, 120, 255], madera = [150, 104, 60, 255], piedra = [200, 200, 205, 255], oro = [250, 212, 64, 255], hierro = [120, 132, 148, 255] }
 # Barras de vida (unidades heridas o seleccionadas, edificios dañados): 20x3 píxeles,
 # en rojo por debajo del 35 %.
 health_bar_width_px = 20

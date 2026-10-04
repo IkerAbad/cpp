@@ -20,8 +20,8 @@ using UnitTypeId = std::uint8_t;
 using PlayerId = std::uint8_t;
 
 // Recursos: el índice en Stock es el valor del enum.
-enum class Resource : std::uint8_t { Food, Wood, Stone, Gold };
-inline constexpr std::size_t kResourceCount = 4;
+enum class Resource : std::uint8_t { Food, Wood, Stone, Gold, Iron };
+inline constexpr std::size_t kResourceCount = 5;
 using Stock = std::array<std::int32_t, kResourceCount>;
 
 [[nodiscard]] constexpr std::size_t resource_index(Resource r) noexcept { return static_cast<std::size_t>(r); }

@@ -32,7 +32,7 @@ constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior:
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
 };
 
-constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro"};
+constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
 
 // Lector con acumulación del primer error. Las rutas de error incluyen el prefijo
 // de la tabla (p. ej. "map.bands[2].terrain") para que el mensaje sea accionable.

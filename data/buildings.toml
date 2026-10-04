@@ -65,7 +65,7 @@ size_tiles = 2
 cost = { madera = 100 }
 build_ticks = 700
 hp = 600
-accepts = ["piedra", "oro"]
+accepts = ["piedra", "oro", "hierro"]
 population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
