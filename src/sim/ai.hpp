@@ -100,6 +100,11 @@ struct AiProfile {
     std::int32_t camp_offset_tiles = 0;
     std::int32_t convoy_carriers = 0;
     std::int32_t baggage_offset_tiles = 0;
+    // Asedio: con el campamento en uso, monta allí hasta tantos ingenios de asedio.
+    std::int32_t siege_engines = 0;
+    // El campamento se levanta solo con su ejército en campaña a esta distancia del
+    // objetivo o menos (domina el terreno).
+    std::int32_t siege_front_tiles = 0;
     std::vector<UnitTypeId> army;            // ciclo de entrenamiento en el cuartel
 };
 
@@ -114,6 +119,7 @@ struct AiParams {
     std::optional<BuildingTypeId> workshop;  // taller de asedio (módulo taller)
     std::optional<BuildingTypeId> camp;      // campamento de campaña (módulo logistica)
     std::optional<UnitTypeId> carrier;       // bagaje de los convoyes (módulo logistica)
+    std::optional<UnitTypeId> siege_engine;  // se monta en el campamento (trabuquete)
     std::array<BuildingTypeId, kResourceCount> dropoff{};  // almacén para cada recurso
     std::vector<AiProfile> profiles;
 };

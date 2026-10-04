@@ -192,6 +192,8 @@ workshop = "taller_asedio"
 # Logística (módulo logistica): campamento de campaña y bagaje de los convoyes.
 camp = "campamento"
 carrier = "acemila"
+# Ingenio de asedio que se monta en el campamento ("" = ninguno).
+siege_engine = "trabuquete"
 dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero", hierro = "campamento_minero" }
 
 # Perfiles: cada jugador de la IA elige uno con ai_profile en [[player]]. La
@@ -249,6 +251,8 @@ camp_distance_tiles = 0
 camp_offset_tiles = 0
 convoy_carriers = 0
 baggage_offset_tiles = 0
+siege_engines = 0
+siege_front_tiles = 0
 army = ["leva", "hombre_armas", "arquero"]
 
 # Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
@@ -292,12 +296,15 @@ raid_safe_radius_tiles = 10
 resupply_percent = 30
 upkeep_reserve_percent = 50
 # logistica: 2 acémilas siguen al ejército en campaña 4 casillas por detrás y
-# vuelven a casa a cargar. Sin campamentos (medido: levantarlo junto al enemigo lo
-# pierde enseguida y cuesta más de lo que aporta).
-camp_distance_tiles = 0
-camp_offset_tiles = 0
+# vuelven a casa a cargar. Asedio: con su ejército en campaña a 20 casillas o menos
+# del objetivo, si queda a más de 30 de toda fuente de suministro, campamento a
+# 9 casillas de él (dentro del alcance del trabuquete) y hasta 2 trabuquetes.
+camp_distance_tiles = 30
+camp_offset_tiles = 9
 convoy_carriers = 2
 baggage_offset_tiles = 4
+siege_engines = 2
+siege_front_tiles = 20
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 [setup]

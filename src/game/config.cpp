@@ -859,6 +859,12 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     if (!error && camp.empty() != carrier.empty()) {
         r.fail("'ai.camp' y 'ai.carrier' van juntos: los dos con nombre o los dos vacíos");
     }
+    if (const std::string engine = r.get_string("ai.siege_engine"); !error && !engine.empty()) {
+        ai.siege_engine = units.find(engine);
+        if (!ai.siege_engine) {
+            r.fail(std::format("'ai.siege_engine' = \"{}\": no está en units.toml", engine));
+        }
+    }
     if (!error && !camp.empty()) {
         ai.camp = catalogs.buildings.find(camp);
         ai.carrier = units.find(carrier);
@@ -932,6 +938,8 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.camp_offset_tiles = pr.get_i32("camp_offset_tiles", 0, 1024);
         p.convoy_carriers = pr.get_i32("convoy_carriers", 0, 64);
         p.baggage_offset_tiles = pr.get_i32("baggage_offset_tiles", 0, 64);
+        p.siege_engines = pr.get_i32("siege_engines", 0, 64);
+        p.siege_front_tiles = pr.get_i32("siege_front_tiles", 0, 1024);
         for (const std::string& name : pr.get_string_list("army")) {
             if (const auto id = units.find(name)) {
                 p.army.push_back(*id);

@@ -280,6 +280,7 @@ farm = "choza"
 workshop = "fuerte"
 camp = ""
 carrier = ""
+siege_engine = ""
 dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
@@ -317,6 +318,8 @@ camp_distance_tiles = 0
 camp_offset_tiles = 0
 convoy_carriers = 0
 baggage_offset_tiles = 0
+siege_engines = 0
+siege_front_tiles = 0
 army = ["lancero"]
 
 [setup]

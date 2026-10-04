@@ -307,8 +307,9 @@ Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipe
   - `abastecer`: la tropa que no pelea y baja del 30 % vuelve a la fuente más cercana que puede darle algo (edificio o bagaje) y espera a llenarse.
   - `logistica`: dos acémilas siguen al ejército en campaña unas casillas por detrás y vuelven a casa a cargar.
   - Ambos perfiles guardan comida para las raciones (`upkeep_reserve_percent`).
-  - El campamento avanzado de la IA existe, pero está apagado (`camp_distance_tiles = 0`): medido en el torneo, levantarlo junto al enemigo lo pierde enseguida y cuesta más de lo que aporta.
-- **Torneo con traza:** `rts_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos y almacén de cada jugador.
+  - Asedio: solo con su ejército en campaña a 20 casillas o menos del objetivo (`siege_front_tiles`), campamento a 9 casillas de él, convoyes hacia allí y hasta 2 trabuquetes montados con lo que traen (`siege_engines`). Medido: un campamento sin el ejército delante se perdía enseguida; con esta condición, ni gana ni pierde partidas (10 a 10 contra la misma IA sin asedio): los convoyes rara vez reúnen un trabuquete antes de los 30 minutos.
+  - `incendiar` va antes a por el bagaje enemigo sin escolta (cortar convoyes) que a quemar edificios.
+- **Torneo con traza:** `rts_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos, almacén y lo cerca que está su ejército del centro enemigo.
 
 ### Convenciones de `data/`
 

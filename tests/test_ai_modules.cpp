@@ -444,3 +444,53 @@ TEST_CASE("IA: el bagaje cargado sigue al ejército en campaña por detrás; las
     CHECK(follows->target.x > 101);
     CHECK(follows->target.y > 100);
 }
+
+TEST_CASE("IA: la incursión va antes a por el bagaje enemigo sin escolta que a quemar") {
+    BaggageSetup s;
+    s.ai.profiles[1].behaviors = {AiBehavior::Raid};
+    World world(s.params);
+    ai_base(world);
+    for (std::int32_t i = 0; i < 3; ++i) {
+        world.spawn_unit(kAi, kSoldier, {145, 140 + i});
+    }
+    world.spawn_building(kRival, kHouse, {120, 120}, true);   // más cerca, sin defensa
+    const auto mule = world.spawn_unit(kRival, s.mule, {60, 60});  // lejos, sin escolta
+    world.step();
+    const auto out = s.think(world);
+    REQUIRE(out.size() == 1);
+    CHECK(out[0].type == CommandType::Attack);
+    CHECK(out[0].object == mule);
+}
+
+TEST_CASE("IA: con campamento en uso y almacén suficiente, monta allí el ingenio de asedio") {
+    BaggageSetup s;
+    // Campamento de prueba (copia de la casa) que monta arietes con su almacén.
+    rts::sim::BuildingType camp = s.params.building_types[kHouse];
+    camp.supplies = true;
+    camp.store_capacity = 500;
+    camp.store_target = stock(0, 200, 0, 0, 50);
+    camp.trains = {kRam};
+    camp.population = 0;
+    const auto camp_type = static_cast<rts::sim::BuildingTypeId>(s.params.building_types.size());
+    s.params.building_types.push_back(camp);
+    s.ai.camp = camp_type;
+    s.ai.siege_engine = kRam;
+    s.ai.profiles[1].behaviors = {AiBehavior::Logistics};
+    s.ai.profiles[1].siege_engines = 1;
+    World world(s.params);
+    ai_base(world);
+    REQUIRE(world.spawn_building(kAi, camp_type, {100, 100}, true));
+    world.step();  // el campamento terminado recibe su almacén (vacío)
+    CHECK(std::ranges::none_of(s.think(world), [](const Command& o) { return o.type == CommandType::Train && o.kind == kRam; }));
+    // Con lo que cuesta el ariete en el almacén del campamento, lo monta allí.
+    s.params.unit_types[kRam].cost = stock(0, 0, 0, 0, 0);
+    World world2(s.params);
+    ai_base(world2);
+    const auto c2 = *world2.spawn_building(kAi, camp_type, {100, 100}, true);
+    world2.step();
+    const auto out = s.think(world2);
+    const auto it = std::ranges::find_if(out, [](const Command& o) { return o.type == CommandType::Train; });
+    REQUIRE(it != out.end());
+    CHECK(it->object == c2);
+    CHECK(it->kind == kRam);
+}

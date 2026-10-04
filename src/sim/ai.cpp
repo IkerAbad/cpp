@@ -67,6 +67,7 @@ struct UnitSeen {
     UnitTypeId type = 0;
     std::int32_t hp = 0;
     bool armed = false;          // ataca solo (no es aldeano)
+    bool carrier = false;        // bagaje (acémila, carreta): se ve qué es
     entt::entity target = entt::null;
     bool attack_move = false;
     // Solo de las propias (el jugador ve las barras de las suyas): lo que le queda de
@@ -331,6 +332,7 @@ bool perceive(Decision& d) {
         const Health* health = registry.try_get<Health>(e);
         seen.hp = health != nullptr ? health->hp : 0;
         seen.armed = registry.try_get<Worker>(e) == nullptr && d.catalog().units[seen.type].combat.auto_attack;
+        seen.carrier = d.catalog().units[seen.type].convoy_capacity > 0;
         if (units.get<const Owner>(e).player != me) {
             v.enemy_units.push_back(t);
             v.enemies.push_back(seen);
@@ -806,7 +808,8 @@ void extinguish(Decision& d) {
     std::erase_if(v.idle_workers, [&](entt::entity w) { return std::ranges::find(assigned, w) != assigned.end(); });
 }
 
-// Incursión: con raid_group unidades del tipo de incursión ociosas en casa, van a
+// Incursión: con raid_group unidades del tipo de incursión ociosas en casa, van a por
+// el bagaje enemigo sin escolta (cortar convoyes) o, si no lo hay, a
 // quemar el edificio de madera enemigo más cercano sin enemigos armados cerca (lo
 // indefenso; lo fortificado se deja para el asedio).
 void raid(Decision& d) {
@@ -824,18 +827,29 @@ void raid(Decision& d) {
     if (riders.empty() || std::cmp_less(riders.size(), d.profile.raid_group)) {
         return;
     }
+    const auto guarded = [&](TileCoord at) {
+        return std::ranges::any_of(v.enemies, [&](const UnitSeen& e) {
+            return e.armed && chebyshev(e.tile, at) <= d.profile.raid_safe_radius_tiles;
+        });
+    };
     std::optional<entt::entity> target;
     std::int32_t best = std::numeric_limits<std::int32_t>::max();
-    for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
+    // Primero, cortar convoyes: el bagaje enemigo sin escolta (sin él, su ejército en
+    // campaña se queda sin víveres ni munición).
+    for (const UnitSeen& e : v.enemies) {
+        const std::int32_t dist = octile_distance(v.base, e.tile);
+        if (e.carrier && !guarded(e.tile) && dist < best) {
+            best = dist;
+            target = e.entity;
+        }
+    }
+    for (std::size_t i = 0; i < v.enemy_buildings.size() && !target; ++i) {
         if (d.catalog().buildings[v.enemy_building_types[i]].material != Material::Wood) {
             continue;
         }
         const TileCoord at = v.enemy_buildings[i];
-        const bool guarded = std::ranges::any_of(v.enemies, [&](const UnitSeen& e) {
-            return e.armed && chebyshev(e.tile, at) <= d.profile.raid_safe_radius_tiles;
-        });
         const std::int32_t dist = octile_distance(v.base, at);
-        if (!guarded && dist < best) {
+        if (!guarded(at) && dist < best) {
             best = dist;
             target = v.enemy_building_entities[i];
         }
@@ -1017,9 +1031,32 @@ void logistics(Decision& d) {
         for (const TileCoord c : v.camps) {
             nearest_source = std::min(nearest_source, chebyshev(c, *target));
         }
-        if (nearest_source > d.profile.camp_distance_tiles && !v.threatened && campaigning &&
+        // Solo cuando su ejército en campaña ya está junto al objetivo (domina el
+        // terreno): un campamento sin tropas delante es leña para el enemigo (medido).
+        const auto front = field_center(d);
+        if (nearest_source > d.profile.camp_distance_tiles && !v.threatened && front &&
+            chebyshev(*front, *target) <= d.profile.siege_front_tiles &&
             chebyshev(*target, v.base) > d.profile.camp_offset_tiles) {
             d.place(*d.params.camp, toward(*target, v.base, d.profile.camp_offset_tiles));
+        }
+    }
+    // Asedio: monta ingenios en el campamento con lo que han traído los convoyes.
+    if (v.camp && d.params.siege_engine) {
+        const UnitTypeId engine = *d.params.siege_engine;
+        std::int32_t engines = 0;
+        for (const UnitSeen& s : v.soldiers) {
+            engines += s.type == engine ? 1 : 0;
+        }
+        const ProductionQueue* q = d.registry.try_get<ProductionQueue>(*v.camp);
+        const SupplyStore* store = d.registry.try_get<SupplyStore>(*v.camp);
+        const auto& trains = d.catalog().buildings[d.registry.get<Building>(*v.camp).type].trains;
+        if (q != nullptr && q->items.empty() && store != nullptr && engines < d.profile.siege_engines &&
+            std::ranges::find(trains, engine) != trains.end() &&
+            affordable(store->stock, d.catalog().units[engine].cost) && d.population < d.ps.population_cap) {
+            Command c = d.order(CommandType::Train);
+            c.object = entt::to_integral(*v.camp);
+            c.kind = engine;
+            d.out.push_back(std::move(c));
         }
     }
 

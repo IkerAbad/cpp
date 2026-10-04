@@ -15,7 +15,9 @@
 // gana o pierde un perfil.
 
 #include <charconv>
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <filesystem>
 #include <optional>
@@ -100,16 +102,33 @@ void trace(const rts::sim::World& world, const rts::sim::WorldParams& params, ch
                 camp_store += cost_sum(o.store);
             }
         }
+        // Lo más cerca que está su ejército de un edificio vital enemigo (presión).
+        std::int64_t pressure = -1;
+        for (const auto& o : s.objects) {
+            if (o.kind != rts::sim::ObjectKind::Building || o.owner == p || !params.building_types[o.type].vital) {
+                continue;
+            }
+            for (const auto& e : s.entities) {
+                const rts::sim::UnitType& u = params.unit_types[e.type];
+                if (e.owner != p || u.worker || u.convoy_capacity > 0) {
+                    continue;
+                }
+                const std::int64_t dx = std::abs(e.pos.x.floor_to_int() - (o.origin.x + o.size / 2));
+                const std::int64_t dy = std::abs(e.pos.y.floor_to_int() - (o.origin.y + o.size / 2));
+                const std::int64_t d = std::max(dx, dy);
+                pressure = pressure < 0 ? d : std::min(pressure, d);
+            }
+        }
         const auto& st = world.player_state(p).stock;
         const char who = p == 0 ? a_or_b0 : (a_or_b0 == 'A' ? 'B' : 'A');
         std::printf("  %lld:%02lld %c: aldeanos %lld, ejército %lld (hambre %lld, sin munición %lld), bagaje %lld, "
-                    "campamentos %lld (%lld), edificios %lld, almacén %d/%d/%d/%d/%d\n",
+                    "campamentos %lld (%lld), edificios %lld, almacén %d/%d/%d/%d/%d, a %lld del centro enemigo\n",
                     static_cast<long long>(t / rts::sim::kTicksPerSecond / kSecondsPerMinute),
                     static_cast<long long>(t / rts::sim::kTicksPerSecond % kSecondsPerMinute), who,
                     static_cast<long long>(villagers), static_cast<long long>(army), static_cast<long long>(hungry),
                     static_cast<long long>(no_ammo), static_cast<long long>(carriers), static_cast<long long>(camps),
                     static_cast<long long>(camp_store), static_cast<long long>(buildings), st[0], st[1], st[2], st[3],
-                    st[4]);
+                    st[4], static_cast<long long>(pressure));
     }
 }
 
