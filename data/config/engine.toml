@@ -177,6 +177,11 @@ hero_aura_radius_milli_tiles = 4000
 hero_aura_attack_percent = 15
 # Nombres propios de los héroes, en el orden en que aparecen (se reutilizan al acabarse).
 hero_names = ["Brunilda", "Rodrigo el Tenaz", "Urraca", "Sancho Barbanegra", "Elvira de la Torre", "Tello", "Jimena", "Nuño el Callado"]
+# Prioridad al elegir blanco solo (la misma para el jugador y para la IA): primero
+# quien me ataca (autopreservación), luego lo armado que puede herir a la tropa, los
+# ingenios de asedio, el bagaje y los aldeanos; dentro de cada clase, el más cercano.
+# Valen: me_ataca, armada, asedio, bagaje, aldeano, otra.
+target_priority = ["me_ataca", "armada", "asedio", "bagaje", "aldeano", "otra"]
 
 [ai]
 # La IA juega con las mismas reglas, costes e información que un humano (sin trampas).

@@ -270,6 +270,7 @@ armor_every_levels = 3
 hero_aura_radius_milli_tiles = 4000
 hero_aura_attack_percent = 15
 hero_names = ["Brunilda", "Tello"]
+target_priority = []
 
 [ai]
 think_interval_ticks = 20

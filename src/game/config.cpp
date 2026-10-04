@@ -844,6 +844,30 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cb.hero_aura_attack_percent = r.get_i32("combat.hero_aura_attack_percent", 0, 1000);
     cb.hungry_attack_percent = r.get_i32("supply.hungry_attack_percent", 0, 100);
     cfg.hero_names = r.get_string_list("combat.hero_names");
+    {
+        constexpr std::array<std::pair<std::string_view, sim::TargetClass>, 6> kTargetClasses{{
+            {"me_ataca", sim::TargetClass::AttackingMe},
+            {"armada", sim::TargetClass::Armed},
+            {"asedio", sim::TargetClass::Siege},
+            {"bagaje", sim::TargetClass::Carrier},
+            {"aldeano", sim::TargetClass::Worker},
+            {"otra", sim::TargetClass::Other},
+        }};
+        for (const std::string& name : r.get_string_list("combat.target_priority")) {
+            const auto it = std::ranges::find(kTargetClasses, name, &std::pair<std::string_view, sim::TargetClass>::first);
+            if (it == kTargetClasses.end()) {
+                r.fail(std::format("'combat.target_priority' contiene \"{}\"; valen: me_ataca, armada, asedio, "
+                                   "bagaje, aldeano, otra",
+                                   name));
+                break;
+            }
+            if (std::ranges::find(cb.target_priority, it->second) != cb.target_priority.end()) {
+                r.fail(std::format("'combat.target_priority' repite \"{}\"", name));
+                break;
+            }
+            cb.target_priority.push_back(it->second);
+        }
+    }
     cb.hero_name_count = static_cast<std::int32_t>(cfg.hero_names.size());
 
     sim::AiParams& ai = cfg.world.ai;

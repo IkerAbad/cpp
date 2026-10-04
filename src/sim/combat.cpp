@@ -171,13 +171,29 @@ void CombatSystem::gather(const entt::registry& registry) {
     s_.pos.clear();
     s_.radius.clear();
     s_.owner.clear();
+    s_.klass.clear();
+    s_.aiming.clear();
     const auto view = registry.view<const Position, const Unit, const Owner, const Health>();
     for (const entt::entity e : view) {
         const Position& p = view.get<const Position>(e);
+        const UnitType& ut = units_[view.get<const Unit>(e).type];
         s_.entity.push_back(e);
         s_.pos.push_back({p.x, p.y});
         s_.radius.push_back(view.get<const Unit>(e).radius);
         s_.owner.push_back(view.get<const Owner>(e).player);
+        TargetClass k = TargetClass::Other;
+        if (ut.convoy_capacity > 0) {
+            k = TargetClass::Carrier;
+        } else if (ut.worker) {
+            k = TargetClass::Worker;
+        } else if (ut.combat.buildings_only) {
+            k = TargetClass::Siege;
+        } else if (ut.combat.auto_attack) {
+            k = TargetClass::Armed;
+        }
+        s_.klass.push_back(k);
+        const Combatant* c = registry.try_get<Combatant>(e);
+        s_.aiming.push_back(c != nullptr ? c->target : entt::entity{entt::null});
     }
     const std::size_t n = s_.entity.size();
     s_.aura.assign(n, 0);
@@ -246,16 +262,30 @@ bool CombatSystem::is_enemy_target(const entt::registry& registry, entt::entity 
            (registry.all_of<Unit, Position>(target) || registry.all_of<Building, Footprint>(target));
 }
 
+std::size_t CombatSystem::priority_of(TargetClass k) const noexcept {
+    const auto& order = params_.target_priority;
+    const auto it = std::ranges::find(order, k);
+    return order.empty() ? 0 : static_cast<std::size_t>(it - order.begin());  // no listada: al final
+}
+
 entt::entity CombatSystem::acquire(std::size_t i, Fixed sight) const {
     const std::int64_t sight_sq = mul_wide(sight, sight);
     std::size_t best = s_.entity.size();
+    std::size_t best_tier = std::numeric_limits<std::size_t>::max();
     std::int64_t best_d = std::numeric_limits<std::int64_t>::max();
     for_each_near(s_.pos[i], sight, [&](std::size_t j) {
         if (s_.owner[j] == s_.owner[i]) {
             return;
         }
         const std::int64_t d = length_sq_wide(s_.pos[j] - s_.pos[i]);
-        if (d <= sight_sq && (d < best_d || (d == best_d && j < best))) {
+        if (d > sight_sq) {
+            return;
+        }
+        // Autopreservación: el armado que me tiene por blanco, antes que nada.
+        const bool at_me = s_.aiming[j] == s_.entity[i] && s_.klass[j] == TargetClass::Armed;
+        const std::size_t tier = priority_of(at_me ? TargetClass::AttackingMe : s_.klass[j]);
+        if (tier < best_tier || (tier == best_tier && (d < best_d || (d == best_d && j < best)))) {
+            best_tier = tier;
             best_d = d;
             best = j;
         }

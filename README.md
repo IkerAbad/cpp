@@ -311,6 +311,19 @@ Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipe
   - `incendiar` va antes a por el bagaje enemigo sin escolta (cortar convoyes) que a quemar edificios.
 - **Torneo con traza:** `rts_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos, almacén y lo cerca que está su ejército del centro enemigo.
 
+### Prioridad de blancos
+
+Una unidad que elige blanco sola (la del jugador igual que la de la IA) sigue `combat.target_priority` en `engine.toml`:
+
+1. `me_ataca`: la unidad armada que la tiene por blanco (autopreservación).
+2. `armada`: lo que puede herir a la tropa.
+3. `asedio`: ingenios que solo atacan edificios.
+4. `bagaje`: acémilas y carretas.
+5. `aldeano`.
+6. `otra`.
+
+Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la distancia (comportamiento anterior). Las órdenes explícitas del jugador y el módulo `concentrar` de la IA mandan sobre esta regla.
+
 ### Convenciones de `data/`
 
 - Solo enteros. Una magnitud fraccionaria se escribe en una unidad menor que figura en el nombre de la clave: `max_speed_milli_tiles_per_tick = 150` significa 0,150 casillas por tick. Así la carga no depende del redondeo decimal→binario de cada plataforma.

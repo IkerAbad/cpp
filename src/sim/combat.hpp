@@ -31,6 +31,16 @@ class StateHasher;
 [[nodiscard]] std::int32_t hit_damage(const CombatStats& attacker, std::int32_t percent, std::int32_t armor_melee,
                                       std::int32_t armor_pierce, ArmorClassId armor_class) noexcept;
 
+// Clases de blanco para la adquisición automática (engine.toml, combat.target_priority).
+enum class TargetClass : std::uint8_t {
+    AttackingMe,  // unidad armada que tiene por blanco a quien busca (autopreservación)
+    Armed,        // puede herir a la tropa
+    Siege,        // ingenio de asedio (solo ataca edificios)
+    Carrier,      // bagaje
+    Worker,       // aldeano
+    Other,
+};
+
 // data/config/engine.toml, sección [combat].
 struct CombatParams {
     // Cada unidad busca blanco cada tantos ticks (repartidas por id): coste por tick
@@ -52,6 +62,10 @@ struct CombatParams {
     Fixed hero_aura_radius;               // casillas
     std::int32_t hero_aura_attack_percent = 0;
     std::int32_t hero_name_count = 0;     // nombres disponibles (los textos, en la presentación)
+    // Orden de preferencia al elegir blanco solo: primero la clase que va antes en la
+    // lista y, dentro de ella, el más cercano. Las no listadas, al final. Vacía: solo
+    // la distancia.
+    std::vector<TargetClass> target_priority;
     // Una unidad hambrienta (sin víveres) ataca a este % (data: [supply]).
     std::int32_t hungry_attack_percent = 100;
 };
@@ -118,6 +132,8 @@ private:
         std::vector<Fixed> radius;
         std::vector<PlayerId> owner;
         std::vector<std::uint8_t> aura;
+        std::vector<TargetClass> klass;   // clase como blanco (sin contar a quién ataca)
+        std::vector<entt::entity> aiming; // a quién tiene por blanco (null: a nadie)
         std::vector<std::uint32_t> cell_start;
         std::vector<std::uint32_t> cell_units;
     };
@@ -129,6 +145,8 @@ private:
     void mark_auras(const entt::registry& registry);
     [[nodiscard]] bool is_enemy_target(const entt::registry& registry, entt::entity target, PlayerId me) const;
     [[nodiscard]] entt::entity acquire(std::size_t i, Fixed sight) const;
+    // Posición de la clase en combat.target_priority (menor = antes).
+    [[nodiscard]] std::size_t priority_of(TargetClass k) const noexcept;
     // Sin unidades enemigas a la vista: el edificio enemigo más cercano dentro de ella.
     [[nodiscard]] entt::entity acquire_building(const entt::registry& registry, const EconomySystem& economy,
                                                 std::size_t i, std::int32_t sight_tiles) const;
