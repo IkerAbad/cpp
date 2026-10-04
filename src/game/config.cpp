@@ -26,6 +26,7 @@ constexpr std::int64_t kMaxFootprint = 8;
 constexpr std::int64_t kMaxPlayers = 8;
 constexpr std::size_t kMaxReplaySpeeds = 8;
 constexpr std::size_t kMaxAiProfiles = 32;
+constexpr std::size_t kMaxLabelBytes = 4;  // iniciales cortas: caben sobre el marcador
 // Nombres de los módulos de IA en los datos, en el orden de sim::AiBehavior.
 constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior::Count)> kAiBehaviorNames{
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
@@ -405,6 +406,10 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             Reader ur(*(*types)[i].as_table(), source_name, std::format("unit[{}]", i), error);
             UnitInfo info;
             info.name = ur.get_string("name");
+            info.label = ur.get_string("label");
+            if (!error && (info.label.empty() || info.label.size() > kMaxLabelBytes)) {
+                ur.fail(std::format("'label' debe tener entre 1 y {} bytes", kMaxLabelBytes));
+            }
             // Radio hasta media casilla: la separación y la rejilla espacial suponen
             // que dos unidades que se tocan están en casillas vecinas.
             info.type.radius = sim::Fixed::from_ratio(ur.get_i32("radius_milli_tiles", 50, kMilli / 2), kMilli);

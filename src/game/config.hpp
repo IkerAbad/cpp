@@ -36,6 +36,7 @@ struct TerrainCatalog {
 
 struct UnitInfo {
     std::string name;
+    std::string label;  // inicial que se dibuja sobre el marcador
     sim::UnitType type;
     std::array<std::uint8_t, 3> color{};  // RGB provisional
 };

@@ -41,6 +41,7 @@ classes = ["infanteria", "edificio"]
 
 [[unit]]
 name = "lancero"
+label = "La"
 radius_milli_tiles = 300
 speed_milli_tiles_per_tick = 60
 color = [10, 20, 30]
@@ -67,6 +68,7 @@ undermine = false
 
 [[unit]]
 name = "peon"
+label = "Pe"
 radius_milli_tiles = 250
 speed_milli_tiles_per_tick = 50
 color = [1, 2, 3]

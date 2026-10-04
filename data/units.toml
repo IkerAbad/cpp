@@ -47,6 +47,7 @@ classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio", "asedio
 
 [[unit]]
 name = "aldeano"
+label = "Al"  # inicial sobre el marcador
 radius_milli_tiles = 250
 speed_milli_tiles_per_tick = 50
 color = [222, 214, 188]
@@ -73,6 +74,7 @@ undermine = false
 
 [[unit]]
 name = "leva"
+label = "Le"  # inicial sobre el marcador
 radius_milli_tiles = 300
 speed_milli_tiles_per_tick = 55
 color = [180, 190, 210]
@@ -99,6 +101,7 @@ undermine = false
 
 [[unit]]
 name = "hombre_armas"
+label = "HA"  # inicial sobre el marcador
 radius_milli_tiles = 300
 speed_milli_tiles_per_tick = 50
 color = [200, 200, 215]
@@ -125,6 +128,7 @@ undermine = false
 
 [[unit]]
 name = "arquero"
+label = "Aq"  # inicial sobre el marcador
 radius_milli_tiles = 250
 speed_milli_tiles_per_tick = 60
 color = [120, 200, 120]
@@ -151,6 +155,7 @@ undermine = false
 
 [[unit]]
 name = "ballestero"
+label = "Ba"  # inicial sobre el marcador
 radius_milli_tiles = 250
 speed_milli_tiles_per_tick = 55
 color = [90, 160, 150]
@@ -177,6 +182,7 @@ undermine = false
 
 [[unit]]
 name = "jinete"
+label = "Ji"  # inicial sobre el marcador
 radius_milli_tiles = 350
 speed_milli_tiles_per_tick = 110
 color = [214, 128, 72]
@@ -203,6 +209,7 @@ undermine = false
 
 [[unit]]
 name = "caballero"
+label = "Ca"  # inicial sobre el marcador
 radius_milli_tiles = 350
 speed_milli_tiles_per_tick = 95
 color = [230, 180, 90]
@@ -229,6 +236,7 @@ undermine = false
 
 [[unit]]
 name = "ariete"
+label = "Ar"  # inicial sobre el marcador
 radius_milli_tiles = 450
 speed_milli_tiles_per_tick = 28
 color = [110, 80, 50]
@@ -255,6 +263,7 @@ undermine = false
 
 [[unit]]
 name = "zapador"
+label = "Za"  # inicial sobre el marcador
 radius_milli_tiles = 280
 speed_milli_tiles_per_tick = 50
 color = [140, 120, 90]

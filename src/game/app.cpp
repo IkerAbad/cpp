@@ -398,6 +398,12 @@ private:
                     if (player_ && !renderer_.ui_wants_keyboard()) {
                         replay_key(event.key.scancode);
                     }
+                    if (event.key.scancode == SDL_SCANCODE_F1) {
+                        show_debug_ = !show_debug_;
+                    }
+                    if (event.key.scancode == SDL_SCANCODE_F2) {
+                        show_help_ = !show_help_;
+                    }
                     if (event.key.scancode == SDL_SCANCODE_ESCAPE && !renderer_.ui_wants_keyboard()) {
                         if (placing_) {
                             placing_.reset();
@@ -729,6 +735,20 @@ private:
 
     void draw_ui(const std::optional<sim::TileCoord>& hover) {
         const ImVec2 display = ImGui::GetIO().DisplaySize;
+        draw_resource_bar(display);
+        draw_selection_panel(display);
+        draw_outcome(display);
+        draw_replay_panel(display);
+        draw_help(display);
+        draw_hover_tooltip(hover);
+        draw_unit_labels();
+        if (show_debug_) {
+            draw_debug(display, hover);
+        }
+    }
+
+    // Paneles de depuración (F1): rendimiento, movimiento, combate y la casilla bajo el ratón.
+    void draw_debug(const ImVec2& display, const std::optional<sim::TileCoord>& hover) {
         ImGui::SetNextWindowPos({kPanelMarginPx, kPanelMarginPx}, ImGuiCond_FirstUseEver);
         ImGui::Begin("Depuración", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         ImGui::Text("Backend GPU: %s", renderer_.driver_name());
@@ -758,21 +778,10 @@ private:
         ImGui::Checkbox("Ruta", &show_paths_);
         ImGui::SameLine();
         ImGui::Checkbox("Campo de flujo", &show_flow_);
-        ImGui::Separator();
-        ImGui::TextDisabled("Arrastre: rectángulo · Mayús: añadir · Esc: limpiar");
-        ImGui::TextDisabled("Clic derecho: mover, atacar (enemigo), recoger (recurso), construir o descargar");
-        ImGui::TextDisabled("Ctrl + clic derecho: ataque-movimiento");
-        ImGui::TextDisabled("Mayús + clic derecho sobre un edificio propio: desmontarlo");
         const sim::CombatTickStats& cb = world_.combat().last_stats();
         ImGui::Text("Combate: %d golpes, %d proyectiles (%d aciertos, %d fallos), %d bajas en el último tick",
                     cb.melee_hits, cb.projectiles_fired, cb.projectiles_hit, cb.projectiles_missed, cb.kills);
-        ImGui::TextDisabled("Flechas/WASD o borde de ventana: desplazar");
         ImGui::End();
-
-        draw_resource_bar(display);
-        draw_selection_panel(display);
-        draw_outcome(display);
-        draw_replay_panel(display);
 
         // Arriba a la derecha, anclado por su esquina superior derecha.
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
@@ -799,6 +808,118 @@ private:
             ImGui::TextDisabled("Pasa el ratón sobre el mapa");
         }
         ImGui::End();
+    }
+
+    // Ayuda (F2): controles y leyenda de los marcadores.
+    void draw_help(const ImVec2& display) {
+        if (!show_help_) {
+            ImGui::SetNextWindowPos({display.x - kPanelMarginPx, display.y - kPanelMarginPx}, ImGuiCond_Always,
+                                    {1.0f, 1.0f});
+            ImGui::Begin("AyudaOculta", nullptr,
+                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoInputs);
+            ImGui::TextDisabled("F2: ayuda · F1: depuración");
+            ImGui::End();
+            return;
+        }
+        ImGui::SetNextWindowPos({display.x - kPanelMarginPx, display.y - kPanelMarginPx}, ImGuiCond_FirstUseEver,
+                                {1.0f, 1.0f});
+        ImGui::Begin("Ayuda (F2)", &show_help_, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::SeparatorText("Ratón");
+        ImGui::BulletText("Clic o arrastre: seleccionar tus unidades (Mayús: añadir)");
+        ImGui::BulletText("Clic en un edificio tuyo: ver su panel y entrenar unidades");
+        ImGui::BulletText("Clic derecho en el suelo: mover");
+        ImGui::BulletText("Clic derecho en un enemigo: atacar (sin asedio, a un edificio se le prende fuego)");
+        ImGui::BulletText("Clic derecho en un recurso o granja: recoger (aldeanos)");
+        ImGui::BulletText("Clic derecho en un edificio tuyo: construir, reparar o descargar");
+        ImGui::BulletText("Clic derecho en un edificio tuyo en llamas: apagarlo");
+        ImGui::BulletText("Ctrl + clic derecho: avanzar atacando lo que salga");
+        ImGui::BulletText("Mayús + clic derecho en un edificio tuyo: desmontarlo");
+        ImGui::SeparatorText("Teclado");
+        ImGui::BulletText("Flechas, WASD o borde de la ventana: mover la cámara");
+        ImGui::BulletText("Esc: cancelar colocación o soltar la selección");
+        ImGui::BulletText("F1: datos de depuración · F2: esta ayuda");
+        ImGui::SeparatorText("Leyenda");
+        ImGui::BulletText("Cada unidad lleva su inicial; el borde es el color del jugador");
+        ImGui::BulletText("Punto de color: lo que lleva un aldeano");
+        ImGui::BulletText("Pasa el ratón sobre algo para ver qué es");
+        ImGui::End();
+    }
+
+    // Texto del dueño visto por el jugador local.
+    [[nodiscard]] static std::string owner_text(sim::PlayerId owner) {
+        return owner == kLocalPlayer ? std::string("tuyo") : std::format("enemigo (jugador {})", owner);
+    }
+
+    // Nombre de lo que hay bajo el ratón: la unidad más cercana dentro del radio de clic
+    // o, si no hay, el edificio o recurso de la casilla.
+    void draw_hover_tooltip(const std::optional<sim::TileCoord>& hover) {
+        if (!hover || selection_.dragging()) {
+            return;
+        }
+        const platform::MouseState mouse = window_.mouse();
+        const render::Vec2 at{mouse.x, mouse.y};
+        const auto radius = static_cast<float>(data_.engine.selection.click_radius_px);
+        const sim::SnapshotEntity* best = nullptr;
+        float best_d = radius * radius;
+        for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
+            const render::Vec2 d = screen_entities_[i].pos - at;
+            const float dist = d.x * d.x + d.y * d.y;
+            if (dist <= best_d) {
+                best_d = dist;
+                best = &curr_.entities[screen_index_[i]];
+            }
+        }
+        if (best != nullptr) {
+            const UnitInfo& u = data_.units.types[best->type];
+            ImGui::BeginTooltip();
+            ImGui::Text("%s · %s", u.name.c_str(), owner_text(best->owner).c_str());
+            ImGui::Text("vida %d/%d · nivel %d", best->hp, best->max_hp, best->level);
+            if (best->carried > 0) {
+                ImGui::Text("lleva %d de %s", best->carried, std::string(resource_key(best->carry_kind)).c_str());
+            }
+            ImGui::EndTooltip();
+            return;
+        }
+        const sim::SnapshotObject* o = object_under(*hover);
+        if (o == nullptr) {
+            return;
+        }
+        ImGui::BeginTooltip();
+        if (o->kind == sim::ObjectKind::Resource) {
+            const NodeInfo& n = data_.nodes.types[o->type];
+            ImGui::Text("%s: quedan %d de %s", n.name.c_str(), o->amount,
+                        std::string(resource_key(n.type.kind)).c_str());
+        } else {
+            const BuildingInfo& b = data_.buildings.types[o->type];
+            ImGui::Text("%s · %s", b.name.c_str(), owner_text(o->owner).c_str());
+            ImGui::Text("vida %d/%d%s", o->hp, b.type.hp, o->complete ? "" : " · en obra");
+            if (o->fire > 0) {
+                ImGui::TextColored({1.0f, 0.5f, 0.1f, 1.0f}, "en llamas");
+            } else if (o->burned) {
+                ImGui::TextColored({0.8f, 0.6f, 0.4f, 1.0f}, "quemado: no funciona");
+            }
+        }
+        ImGui::EndTooltip();
+    }
+
+    // Inicial del tipo junto a cada unidad (a la derecha del marcador, para no tapar su
+    // color ni la barra de vida), sobre un recuadro oscuro que se lee en cualquier terreno.
+    // Va en la capa de fondo de ImGui: encima de la escena y debajo de los paneles.
+    void draw_unit_labels() {
+        ImDrawList* draw = ImGui::GetBackgroundDrawList();
+        constexpr ImU32 kBack = IM_COL32(0, 0, 0, 170);
+        constexpr ImU32 kText = IM_COL32(255, 255, 255, 255);
+        constexpr float kPadPx = 1.0f;
+        const auto radius = static_cast<float>(data_.engine.view.marker_radius_px);
+        for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
+            const std::string& label = data_.units.types[curr_.entities[screen_index_[i]].type].label;
+            const ImVec2 size = ImGui::CalcTextSize(label.c_str());
+            const render::Vec2 p = screen_entities_[i].pos;
+            const ImVec2 at{std::round(p.x + radius + kPadPx * 2.0f), std::round(p.y - size.y * 0.5f)};
+            draw->AddRectFilled({at.x - kPadPx, at.y}, {at.x + size.x + kPadPx, at.y + size.y}, kBack);
+            draw->AddText(at, kText, label.c_str());
+        }
     }
 
     // Reproductor: tiempo, pausa, velocidad y estado de la verificación en curso.
@@ -1163,6 +1284,8 @@ private:
     sim::Tick replay_end_ = 0;
     bool paused_ = false;
     std::size_t speed_index_ = 0;
+    bool show_debug_ = false;  // F1
+    bool show_help_ = true;    // F2
     bool show_portals_ = false;
     bool show_paths_ = true;
     bool show_flow_ = false;
