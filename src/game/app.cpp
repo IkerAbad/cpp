@@ -1195,8 +1195,9 @@ int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem
                  per_tick);
     for (std::size_t p = 0; p < snap.players.size(); ++p) {
         const sim::PlayerState& ps = snap.players[p];
-        spdlog::info("headless: jugador {}: comida {} madera {} piedra {} oro {}, población {}/{}", p, ps.stock[0],
-                     ps.stock[1], ps.stock[2], ps.stock[3], ps.population, ps.population_cap);
+        spdlog::info("headless: jugador {}: comida {} madera {} piedra {} oro {} hierro {}, población {}/{}", p,
+                     ps.stock[0], ps.stock[1], ps.stock[2], ps.stock[3], ps.stock[4], ps.population,
+                     ps.population_cap);
     }
     // Formato estable: la CI lo compara entre plataformas.
     spdlog::info("state_hash={:016x}", world.state_hash());

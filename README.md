@@ -152,7 +152,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 
 ### Economía (M3)
 
-- **Jugadores.** `PlayerState` guarda las existencias de los 4 recursos (comida, madera, piedra y oro), la población y el tope, todo en enteros. Cada unidad y cada edificio llevan un `Owner`. Una orden sobre entidades de otro jugador se ignora.
+- **Jugadores.** `PlayerState` guarda las existencias de los 5 recursos (comida, madera, piedra, oro y hierro), la población y el tope, todo en enteros. Cada unidad y cada edificio llevan un `Owner`. Una orden sobre entidades de otro jugador se ignora.
 - **Objetos estáticos.**
   - Los nodos de recurso (árbol, arbusto, minas de 2×2) y los edificios son entidades con una huella (`Footprint`).
   - La huella bloquea sus casillas en una capa de ocupación de `PassGrid`. El `TileMap` del terreno no cambia nunca, así que los snapshots lo siguen compartiendo sin copiarlo.
@@ -245,6 +245,19 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 - **Reproductor.** `rts --replay`: pausa, x1/x2/x4/x8, sin órdenes, con el estado de la verificación en pantalla. No hay retroceso.
 - **Límite conocido.** Si cambia el formato de los datos (por ejemplo, los perfiles de IA), las repeticiones anteriores no se pueden cargar y el error dice qué clave falta.
 - **Límite conocido.** El fichero no guarda la versión del código. Si cambia la simulación, las repeticiones antiguas divergen y se avisa; no se reproducen mal en silencio.
+
+### Unidades con criterio histórico (fase 1 del rediseño)
+
+Los papeles y costes reflejan el equipo y la instrucción de cada tipo, que es lo que después tendrá que mover la logística (hierro para armas y armaduras, oro para la paga, comida para el sustento):
+
+| Unidad | Coste | Instrucción | Papel |
+|---|---|---|---|
+| Leva | comida, madera | 15 s | Lanza y escudo; masa barata; bonus contra caballería |
+| Hombre de armas | comida, hierro, oro | 35 s | Armadura de hierro; choque contra infantería |
+| Arquero | comida, madera | 45 s | Mucho volumen de tiro; flojo contra armadura |
+| Ballestero | comida, madera, hierro | 17 s | Recarga lenta; mucho daño por disparo, perfora armadura |
+| Jinete | comida, oro | 30 s | Rápido; exploración e incursiones |
+| Caballero | comida, hierro, oro | 55 s | Armadura y carga; carísimo |
 
 ### Convenciones de `data/`
 

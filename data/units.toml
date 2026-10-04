@@ -2,13 +2,15 @@
 # Magnitudes en enteros con la unidad en el nombre de la clave (_milli = milésimas):
 #   radius_milli_tiles = 300           -> radio de 0,3 casillas
 #   speed_milli_tiles_per_tick = 60    -> 0,06 casillas/tick = 1,2 casillas/s a 20 Hz
-# cost: recursos que cuesta entrenarla (claves: comida, madera, piedra, oro; las
-#   ausentes valen 0). train_ticks: tiempo de entrenamiento (20 ticks = 1 s).
+# cost: recursos que cuesta entrenarla (claves: comida, madera, piedra, oro, hierro;
+#   las ausentes valen 0). El coste refleja el equipo (hierro: armas y armaduras;
+#   oro: la paga de profesionales; comida: sustento y forraje) y train_ticks, la
+#   instrucción que necesita. train_ticks: tiempo de entrenamiento (20 ticks = 1 s).
 # population: plazas de población que ocupa.
 # worker: recoge recursos y construye; carry_capacity = unidades que lleva encima.
 # color: RGB provisional (0-255) hasta que haya arte.
 #
-# Combate (M4). Daño por golpe, estilo del género:
+# Combate. Daño por golpe:
 #   max(1, max(0, ataque.cuerpo - armadura.cuerpo)
 #          + max(0, ataque.proyectil - armadura.proyectil) + bonus[clase del blanco])
 # hp: vida. class: clase de armadura (de "classes"). bonus: daño extra contra clases.
@@ -18,9 +20,18 @@
 #   proyectil hacia donde está el blanco al disparar (se puede esquivar moviéndose).
 # auto_attack: si busca blancos solo (los aldeanos no).
 #
-# Valores de diseño propios, a ajustar jugando: no proceden de ningún juego.
+# Papeles con criterio histórico (valores de diseño propios, a ajustar jugando):
+# - leva: lanza y escudo, la base de cualquier ejército; barata, se instruye en
+#   días; en formación frena a la caballería (bonus contra caballería).
+# - hombre de armas: profesional con armadura de hierro; caro y lento de formar.
+# - arquero: arco; barato en material pero exige años de práctica (instrucción muy
+#   larga); flojo contra armadura.
+# - ballestero: ballesta (madera y hierro); se aprende rápido; recarga lenta pero
+#   perfora armadura (mucho ataque por disparo).
+# - jinete: caballería ligera; exploración e incursiones.
+# - caballero: caballería pesada con armadura; carísimo; carga.
 
-classes = ["aldeano", "infanteria", "arquero", "caballeria", "edificio"]
+classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio"]
 
 [[unit]]
 name = "aldeano"
@@ -44,64 +55,43 @@ projectile_speed_milli_tiles_per_tick = 0
 auto_attack = false
 
 [[unit]]
-name = "milicia"
+name = "leva"
 radius_milli_tiles = 300
-speed_milli_tiles_per_tick = 60
-color = [236, 206, 96]
-cost = { comida = 60, oro = 20 }
-train_ticks = 420
+speed_milli_tiles_per_tick = 55
+color = [180, 190, 210]
+cost = { comida = 40, madera = 15 }
+train_ticks = 300
 population = 1
 worker = false
 carry_capacity = 0
-hp = 45
-attack = { cuerpo = 6 }
-armor = { cuerpo = 1, proyectil = 1 }
+hp = 40
+attack = { cuerpo = 4 }
+armor = { cuerpo = 1, proyectil = 2 }
 class = "infanteria"
-bonus = { edificio = 2 }
-range_milli_tiles = 150
+bonus = { caballeria = 8 }
+range_milli_tiles = 250
 reload_ticks = 40
 sight_tiles = 6
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true
 
 [[unit]]
-name = "explorador"
-radius_milli_tiles = 350
-speed_milli_tiles_per_tick = 110
-color = [214, 128, 72]
-cost = { comida = 80 }
-train_ticks = 600
+name = "hombre_armas"
+radius_milli_tiles = 300
+speed_milli_tiles_per_tick = 50
+color = [200, 200, 215]
+cost = { comida = 60, hierro = 40, oro = 30 }
+train_ticks = 700
 population = 1
 worker = false
 carry_capacity = 0
-hp = 45
-attack = { cuerpo = 3 }
-armor = { proyectil = 2 }
-class = "caballeria"
-bonus = {}
+hp = 70
+attack = { cuerpo = 9 }
+armor = { cuerpo = 4, proyectil = 4 }
+class = "infanteria"
+bonus = {  }
 range_milli_tiles = 150
 reload_ticks = 40
-sight_tiles = 8
-projectile_speed_milli_tiles_per_tick = 0
-auto_attack = true
-
-[[unit]]
-name = "lancero"
-radius_milli_tiles = 300
-speed_milli_tiles_per_tick = 55
-color = [180, 190, 210]
-cost = { comida = 35, madera = 25 }
-train_ticks = 440
-population = 1
-worker = false
-carry_capacity = 0
-hp = 45
-attack = { cuerpo = 3 }
-armor = { proyectil = 1 }
-class = "infanteria"
-bonus = { caballeria = 15, edificio = 1 }
-range_milli_tiles = 250
-reload_ticks = 60
 sight_tiles = 6
 projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true
@@ -109,20 +99,83 @@ auto_attack = true
 [[unit]]
 name = "arquero"
 radius_milli_tiles = 250
-speed_milli_tiles_per_tick = 55
+speed_milli_tiles_per_tick = 60
 color = [120, 200, 120]
-cost = { madera = 25, oro = 45 }
-train_ticks = 700
+cost = { comida = 30, madera = 35 }
+train_ticks = 900
 population = 1
 worker = false
 carry_capacity = 0
 hp = 30
-attack = { proyectil = 4 }
-armor = {}
-class = "arquero"
-bonus = { infanteria = 1 }
-range_milli_tiles = 4000
+attack = { proyectil = 5 }
+armor = {  }
+class = "tirador"
+bonus = {  }
+range_milli_tiles = 5000
 reload_ticks = 40
 sight_tiles = 7
 projectile_speed_milli_tiles_per_tick = 350
+auto_attack = true
+
+[[unit]]
+name = "ballestero"
+radius_milli_tiles = 250
+speed_milli_tiles_per_tick = 55
+color = [90, 160, 150]
+cost = { comida = 30, madera = 25, hierro = 25 }
+train_ticks = 350
+population = 1
+worker = false
+carry_capacity = 0
+hp = 35
+attack = { proyectil = 10 }
+armor = { cuerpo = 1, proyectil = 1 }
+class = "tirador"
+bonus = {  }
+range_milli_tiles = 4500
+reload_ticks = 90
+sight_tiles = 7
+projectile_speed_milli_tiles_per_tick = 450
+auto_attack = true
+
+[[unit]]
+name = "jinete"
+radius_milli_tiles = 350
+speed_milli_tiles_per_tick = 110
+color = [214, 128, 72]
+cost = { comida = 70, oro = 30 }
+train_ticks = 600
+population = 1
+worker = false
+carry_capacity = 0
+hp = 55
+attack = { cuerpo = 5 }
+armor = { cuerpo = 1, proyectil = 2 }
+class = "caballeria"
+bonus = {  }
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 8
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = true
+
+[[unit]]
+name = "caballero"
+radius_milli_tiles = 350
+speed_milli_tiles_per_tick = 95
+color = [230, 180, 90]
+cost = { comida = 80, hierro = 60, oro = 70 }
+train_ticks = 1100
+population = 1
+worker = false
+carry_capacity = 0
+hp = 110
+attack = { cuerpo = 11 }
+armor = { cuerpo = 4, proyectil = 5 }
+class = "caballeria"
+bonus = {  }
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 8
+projectile_speed_milli_tiles_per_tick = 0
 auto_attack = true

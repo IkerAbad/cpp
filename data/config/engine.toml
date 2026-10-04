@@ -74,7 +74,7 @@ ai_profile = "normal"
 # unidades del tipo indicado, del jugador indicado, en casillas transitables de un
 # cuadrado centrado en el mapa. En la partida normal, ninguna.
 seed = 20260924
-unit = "milicia"
+unit = "leva"
 player = 0
 count = 0
 area_tiles = 32
@@ -145,7 +145,7 @@ name = "basica"
 behaviors = ["defensa", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
 villager_target = 25
 # Reparto deseado de los aldeanos que recogen (suma 100).
-gather_percent = { comida = 40, madera = 35, oro = 15, piedra = 10 }
+gather_percent = { comida = 35, madera = 30, oro = 15, piedra = 5, hierro = 15 }
 # Casa nueva cuando le quedan 3 plazas o menos de población.
 house_margin = 3
 barracks_at_villagers = 10
@@ -174,7 +174,7 @@ attack_ratio_percent = 130
 retreat_ratio_percent = 60
 min_attack_army = 6
 engage_radius_tiles = 8
-army = ["milicia", "lancero", "arquero"]
+army = ["leva", "hombre_armas", "arquero"]
 
 # Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
 # rival, ataque cuando su fuerza supera a la enemiga (y retirada si pierde la
@@ -183,7 +183,7 @@ army = ["milicia", "lancero", "arquero"]
 name = "normal"
 behaviors = ["defensa", "concentrar", "ataque_fuerza", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
 villager_target = 30
-gather_percent = { comida = 40, madera = 35, oro = 15, piedra = 10 }
+gather_percent = { comida = 35, madera = 30, oro = 15, piedra = 5, hierro = 15 }
 house_margin = 5
 barracks_at_villagers = 8
 dropoff_distance_tiles = 12
@@ -206,7 +206,7 @@ attack_ratio_percent = 130
 retreat_ratio_percent = 60
 min_attack_army = 6
 engage_radius_tiles = 8
-army = ["milicia", "lancero", "arquero", "explorador"]
+army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero"]
 
 [setup]
 seed = 20260924

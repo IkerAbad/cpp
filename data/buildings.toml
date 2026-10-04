@@ -99,7 +99,7 @@ accepts = []
 population = 0
 armor = { cuerpo = 3, proyectil = 8 }
 class = "edificio"
-trains = ["milicia", "lancero", "arquero", "explorador"]
+trains = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero"]
 farm_food = 0
 vital = false
 color = [150, 70, 60]
