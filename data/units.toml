@@ -45,15 +45,19 @@
 #
 # Logística (engine.toml, [supply]):
 # rations: raciones que lleva encima; ration_ticks: lo que dura cada una. Un soldado
-#   lleva para 5 min. La caballería gasta el triple (el forraje del caballo pesa más
-#   que la comida del jinete), así que lleva más pero dura menos. Los aldeanos comen
-#   en casa: llevan poco y lo reponen al descargar; con hambre trabajan más despacio.
+#   come 1 ración por minuto y lleva para 6 min. La caballería gasta el triple (el
+#   forraje del caballo pesa más que la comida del jinete): lleva el doble y le dura
+#   4 min. Los aldeanos comen en casa: 1 ración cada 2 min, la reponen al descargar;
+#   con hambre trabajan más despacio. El bagaje come de su propia carga.
 # starves: sin raciones acaba perdiendo vida (los aldeanos, no).
 # ammo: disparos que lleva (0 = cuerpo a cuerpo). Las flechas se servían en haces de
 #   24; aquí se reponen de 6 en 6 (ammo_bundle) pagando ammo_cost cada vez: astiles de
 #   madera; los virotes de ballesta, además, punta de hierro.
+# convoy_capacity: bagaje que lleva suministros (0 = no es bagaje). La acémila carga
+#   como un hombre y medio y va a su paso; la carreta de bueyes carga cinco veces más
+#   pero va a la mitad de velocidad. Sus animales comen de la carga.
 
-classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio", "asedio"]
+classes = ["aldeano", "infanteria", "tirador", "caballeria", "edificio", "asedio", "bagaje"]
 
 [[unit]]
 name = "aldeano"
@@ -81,12 +85,13 @@ extinguish = 8
 siege = false
 buildings_only = false
 undermine = false
-rations = 6
-ration_ticks = 600
+rations = 3
+ration_ticks = 2400
 starves = false
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 
 [[unit]]
 name = "leva"
@@ -114,12 +119,13 @@ extinguish = 3
 siege = false
 buildings_only = false
 undermine = false
-rations = 10
-ration_ticks = 600
+rations = 6
+ration_ticks = 1200
 starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 
 [[unit]]
 name = "hombre_armas"
@@ -147,12 +153,13 @@ extinguish = 3
 siege = false
 buildings_only = false
 undermine = false
-rations = 10
-ration_ticks = 600
+rations = 6
+ration_ticks = 1200
 starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 
 [[unit]]
 name = "arquero"
@@ -180,12 +187,13 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
-rations = 10
-ration_ticks = 600
+rations = 6
+ration_ticks = 1200
 starves = true
 ammo = 24
 ammo_bundle = 6
 ammo_cost = { madera = 1 }
+convoy_capacity = 0
 
 [[unit]]
 name = "ballestero"
@@ -213,12 +221,13 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
-rations = 10
-ration_ticks = 600
+rations = 6
+ration_ticks = 1200
 starves = true
 ammo = 24
 ammo_bundle = 6
 ammo_cost = { madera = 1, hierro = 1 }
+convoy_capacity = 0
 
 [[unit]]
 name = "jinete"
@@ -246,12 +255,13 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
-rations = 20
-ration_ticks = 200
+rations = 12
+ration_ticks = 400
 starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 
 [[unit]]
 name = "caballero"
@@ -279,12 +289,13 @@ extinguish = 2
 siege = false
 buildings_only = false
 undermine = false
-rations = 20
-ration_ticks = 200
+rations = 12
+ration_ticks = 400
 starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 
 [[unit]]
 name = "ariete"
@@ -312,12 +323,13 @@ extinguish = 0
 siege = true
 buildings_only = true
 undermine = false
-rations = 10
-ration_ticks = 600
+rations = 6
+ration_ticks = 1200
 starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 
 [[unit]]
 name = "zapador"
@@ -345,9 +357,80 @@ extinguish = 3
 siege = false
 buildings_only = true
 undermine = true
-rations = 10
+rations = 6
+ration_ticks = 1200
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
+convoy_capacity = 0
+
+# Bagaje. Sin armas (no busca pelea); vulnerable: cortar convoyes es la forma de
+# rendir a un ejército sin combatir.
+[[unit]]
+name = "acemila"
+label = "Ac"  # inicial sobre el marcador
+radius_milli_tiles = 300
+speed_milli_tiles_per_tick = 55
+color = [150, 120, 90]
+cost = { comida = 30, oro = 25 }
+train_ticks = 300
+population = 1
+worker = false
+carry_capacity = 0
+hp = 30
+attack = {}
+armor = {}
+class = "bagaje"
+bonus = {}
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 4
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = false
+ignite = 0
+extinguish = 2
+siege = false
+buildings_only = false
+undermine = false
+rations = 12
 ration_ticks = 600
 starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 30
+
+[[unit]]
+name = "carreta"
+label = "Cr"  # inicial sobre el marcador
+radius_milli_tiles = 450
+speed_milli_tiles_per_tick = 30
+color = [130, 100, 70]
+cost = { comida = 40, madera = 60 }
+train_ticks = 500
+population = 2
+worker = false
+carry_capacity = 0
+hp = 90
+attack = {}
+armor = { cuerpo = 1, proyectil = 4 }
+class = "bagaje"
+bonus = {}
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 4
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = false
+ignite = 0
+extinguish = 2
+siege = false
+buildings_only = false
+undermine = false
+rations = 12
+ration_ticks = 400
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
+convoy_capacity = 150

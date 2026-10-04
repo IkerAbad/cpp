@@ -8,8 +8,11 @@
 // determinista: el mismo torneo da el mismo resultado en cualquier máquina.
 //
 // Uso: rts_ai_match --data <carpeta> --a <perfil> --b <perfil> [--games N] [--ticks T]
-//                   [--min-win-percent P]
+//                   [--min-win-percent P] [--trace SEGUNDOS]
 // Con --min-win-percent, termina con código 1 si A gana menos del P % de las partidas.
+// Con --trace, cada tantos segundos de partida imprime el estado de cada jugador
+// (aldeanos, ejército, bagaje, campamentos, hambre, almacén): para entender por qué
+// gana o pierde un perfil.
 
 #include <charconv>
 #include <cstdint>
@@ -32,7 +35,7 @@ bool parse_arg(std::string_view value, std::int64_t& out) {
 int usage() {
     std::fprintf(stderr,
                  "Uso: rts_ai_match --data <carpeta> --a <perfil> --b <perfil> [--games N] [--ticks T] "
-                 "[--min-win-percent P]\n");
+                 "[--min-win-percent P] [--trace SEGUNDOS]\n");
     return 2;
 }
 
@@ -63,6 +66,53 @@ std::int64_t live_value(const rts::sim::World& world, const rts::sim::WorldParam
     return value;
 }
 
+// Una línea por jugador con lo que importa para entender la partida.
+void trace(const rts::sim::World& world, const rts::sim::WorldParams& params, char a_or_b0, std::int64_t t) {
+    rts::sim::Snapshot s;
+    world.write_snapshot(s);
+    for (rts::sim::PlayerId p = 0; p < 2; ++p) {
+        std::int64_t villagers = 0;
+        std::int64_t army = 0;
+        std::int64_t carriers = 0;
+        std::int64_t hungry = 0;
+        std::int64_t no_ammo = 0;
+        for (const auto& e : s.entities) {
+            if (e.owner != p) {
+                continue;
+            }
+            const rts::sim::UnitType& u = params.unit_types[e.type];
+            villagers += u.worker ? 1 : 0;
+            carriers += u.convoy_capacity > 0 ? 1 : 0;
+            army += !u.worker && u.convoy_capacity == 0 ? 1 : 0;
+            hungry += e.hungry ? 1 : 0;
+            no_ammo += u.supply.ammo > 0 && e.ammo <= 0 ? 1 : 0;
+        }
+        std::int64_t camps = 0;
+        std::int64_t camp_store = 0;
+        std::int64_t buildings = 0;
+        for (const auto& o : s.objects) {
+            if (o.kind != rts::sim::ObjectKind::Building || o.owner != p) {
+                continue;
+            }
+            ++buildings;
+            if (params.building_types[o.type].store_capacity > 0) {
+                ++camps;
+                camp_store += cost_sum(o.store);
+            }
+        }
+        const auto& st = world.player_state(p).stock;
+        const char who = p == 0 ? a_or_b0 : (a_or_b0 == 'A' ? 'B' : 'A');
+        std::printf("  %lld:%02lld %c: aldeanos %lld, ejército %lld (hambre %lld, sin munición %lld), bagaje %lld, "
+                    "campamentos %lld (%lld), edificios %lld, almacén %d/%d/%d/%d/%d\n",
+                    static_cast<long long>(t / rts::sim::kTicksPerSecond / kSecondsPerMinute),
+                    static_cast<long long>(t / rts::sim::kTicksPerSecond % kSecondsPerMinute), who,
+                    static_cast<long long>(villagers), static_cast<long long>(army), static_cast<long long>(hungry),
+                    static_cast<long long>(no_ammo), static_cast<long long>(carriers), static_cast<long long>(camps),
+                    static_cast<long long>(camp_store), static_cast<long long>(buildings), st[0], st[1], st[2], st[3],
+                    st[4]);
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -72,6 +122,7 @@ int main(int argc, char** argv) {
     std::int64_t games = 20;
     std::int64_t ticks = 36'000;  // 30 minutos
     std::int64_t min_win = -1;
+    std::int64_t trace_seconds = 0;
     for (int i = 1; i + 1 < argc; i += 2) {
         const std::string_view key = argv[i];
         const std::string_view value = argv[i + 1];
@@ -88,6 +139,8 @@ int main(int argc, char** argv) {
             ok = parse_arg(value, ticks) && ticks > 0;
         } else if (key == "--min-win-percent") {
             ok = parse_arg(value, min_win) && min_win <= kPercent;
+        } else if (key == "--trace") {
+            ok = parse_arg(value, trace_seconds) && trace_seconds > 0;
         } else {
             ok = false;
         }
@@ -138,6 +191,9 @@ int main(int argc, char** argv) {
         std::int64_t t = 0;
         for (; t < ticks && !world.player_state(0).defeated && !world.player_state(1).defeated; ++t) {
             world.step();
+            if (trace_seconds > 0 && (t + 1) % (trace_seconds * rts::sim::kTicksPerSecond) == 0) {
+                trace(world, params, a_first ? 'A' : 'B', t + 1);
+            }
         }
         const bool p0_lost = world.player_state(0).defeated;
         const bool p1_lost = world.player_state(1).defeated;

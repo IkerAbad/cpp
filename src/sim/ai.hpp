@@ -44,6 +44,7 @@ enum class AiBehavior : std::uint8_t {
     Extinguish,      // aldeanos a apagar los fuegos de sus edificios
     Raid,            // incursiones de jinetes a quemar edificios de madera enemigos sin defensa
     Resupply,        // tropas cortas de víveres o munición vuelven a abastecerse
+    Logistics,       // campamento avanzado camino del objetivo, abastecido por convoyes
     Count,
 };
 
@@ -87,6 +88,18 @@ struct AiProfile {
     // abastecer: una unidad que no pelea vuelve a abastecerse cuando sus víveres o su
     // munición bajan de este % de lo que puede llevar.
     std::int32_t resupply_percent = 0;
+    // Reserva para las raciones: no gasta en otra cosa este % del coste de una ración
+    // por cada unidad propia que come (si se lo gasta todo, nadie podrá comer).
+    std::int32_t upkeep_reserve_percent = 0;
+    // logistica: si el objetivo queda a más de camp_distance_tiles de toda fuente de
+    // suministro propia, campamento a camp_offset_tiles de él (de camino desde la
+    // base), abastecido por convoy_carriers unidades de bagaje.
+    // camp_distance_tiles = 0: sin campamentos. El bagaje (convoy_carriers unidades)
+    // sigue al ejército en campaña baggage_offset_tiles por detrás, hacia la base.
+    std::int32_t camp_distance_tiles = 0;
+    std::int32_t camp_offset_tiles = 0;
+    std::int32_t convoy_carriers = 0;
+    std::int32_t baggage_offset_tiles = 0;
     std::vector<UnitTypeId> army;            // ciclo de entrenamiento en el cuartel
 };
 
@@ -99,6 +112,8 @@ struct AiParams {
     BuildingTypeId barracks = 0;
     BuildingTypeId farm = 0;
     std::optional<BuildingTypeId> workshop;  // taller de asedio (módulo taller)
+    std::optional<BuildingTypeId> camp;      // campamento de campaña (módulo logistica)
+    std::optional<UnitTypeId> carrier;       // bagaje de los convoyes (módulo logistica)
     std::array<BuildingTypeId, kResourceCount> dropoff{};  // almacén para cada recurso
     std::vector<AiProfile> profiles;
 };

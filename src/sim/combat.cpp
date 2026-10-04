@@ -145,6 +145,7 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
             return;
         case CommandType::Extinguish:
         case CommandType::Demolish:
+        case CommandType::Convoy:
         case CommandType::Move:
         case CommandType::Stop:
         case CommandType::Gather:

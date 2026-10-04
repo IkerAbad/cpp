@@ -116,6 +116,15 @@ std::int64_t strength(const UnitType& u, std::int32_t hp) noexcept {
     return static_cast<std::int64_t>(hp) * attack * kScoreScale / std::max(u.combat.reload_ticks, 1);
 }
 
+// Bagaje propio: dónde está, qué lleva y si está parado sin ruta.
+struct CarrierView {
+    entt::entity entity = entt::null;
+    TileCoord tile;
+    Stock load{};
+    bool idle = false;
+    std::optional<TileCoord> goal;  // destino de su movimiento en curso
+};
+
 // --- Percepción ---------------------------------------------------------------------
 // Lo que el jugador de la IA sabe del mundo, rehecho en cada decisión. Es el único
 // sitio que decide qué ve la IA: cuando haya niebla de guerra, se filtrará aquí con la
@@ -150,7 +159,10 @@ struct AiView {
     // Edificios propios que producen (terminados y en uso) con su cola.
     std::vector<std::pair<entt::entity, std::int32_t>> trainers;
     std::vector<entt::entity> own_fires;  // edificios propios en llamas
-    std::vector<Footprint> supply_sources;  // edificios propios que abastecen (en uso)
+    std::vector<std::pair<Footprint, entt::entity>> supply_sources;  // edificios propios que abastecen (en uso)
+    std::vector<TileCoord> camps;          // campamentos propios (también en obra)
+    std::optional<entt::entity> camp;      // el primer campamento propio terminado
+    std::vector<CarrierView> carriers;     // bagaje propio
 };
 
 // Una decisión de un jugador: lo que sabe, lo que puede gastar y las órdenes que da.
@@ -297,7 +309,13 @@ bool perceive(Decision& d) {
             v.dropoffs.emplace_back(f, bt.accepts);
         }
         if (bt.supplies && b.working()) {
-            v.supply_sources.push_back(f);
+            v.supply_sources.emplace_back(f, e);
+        }
+        if (bt.store_capacity > 0) {
+            v.camps.push_back(center_of(f));
+            if (b.working() && !v.camp) {
+                v.camp = e;
+            }
         }
     }
 
@@ -335,6 +353,15 @@ bool perceive(Decision& d) {
                     n += b == w->building ? 1 : 0;
                 }
             }
+            continue;
+        }
+        if (const Carrier* cr = registry.try_get<Carrier>(e)) {
+            // El bagaje no es ejército: no se manda a pelear.
+            CarrierView cv{e, t, cr->load, cr->task == ConvoyTask::Idle, std::nullopt};
+            if (goal != nullptr && !goal->arrived) {
+                cv.goal = goal->tile;
+            }
+            v.carriers.push_back(cv);
             continue;
         }
         v.army.push_back(e);
@@ -832,30 +859,46 @@ void raid(Decision& d) {
 // con el morral vacío). Las que pelean siguen peleando.
 void resupply(Decision& d) {
     AiView& v = d.v;
-    if (v.supply_sources.empty() || d.profile.resupply_percent <= 0) {
+    if ((v.supply_sources.empty() && v.carriers.empty()) || d.profile.resupply_percent <= 0) {
         return;
     }
     const std::int32_t reach = d.supply.resupply_radius_tiles;
-    const auto distance = [](const Footprint& f, TileCoord t) { return chebyshev(clamp_to(f, t), t); };
     std::vector<entt::entity> busy;
-    std::vector<std::vector<std::uint32_t>> going(v.supply_sources.size());
+    std::vector<std::pair<TileCoord, std::vector<std::uint32_t>>> going;  // destino, unidades
     for (const UnitSeen& s : v.soldiers) {
         if (s.supply_percent >= kPercent || s.target != entt::null) {
             continue;
         }
-        std::size_t best = 0;
-        for (std::size_t i = 1; i < v.supply_sources.size(); ++i) {
-            if (distance(v.supply_sources[i], s.tile) < distance(v.supply_sources[best], s.tile)) {
-                best = i;
+        // La fuente más cercana que puede darle algo: un edificio (paga el almacén del
+        // campamento o, si no lo es, el del jugador; un campamento vacío no sirve) o
+        // un bagaje con carga.
+        const Stock& ammo_cost = d.catalog().units[s.type].supply.ammo_cost;
+        const auto can_give = [&](const Stock& pays) {
+            return (s.needs_rations && affordable(pays, d.supply.ration_cost)) ||
+                   (s.needs_ammo && affordable(pays, ammo_cost));
+        };
+        std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
+        TileCoord best_at;
+        for (const auto& [f, e] : v.supply_sources) {
+            const SupplyStore* store = d.registry.try_get<SupplyStore>(e);
+            const std::int32_t dist = chebyshev(clamp_to(f, s.tile), s.tile);
+            if (dist < best_d && can_give(store != nullptr ? store->stock : d.ps.stock)) {
+                best_d = dist;
+                best_at = center_of(f);
             }
         }
-        const Footprint& f = v.supply_sources[best];
-        if (distance(f, s.tile) <= reach) {
-            const Stock& ammo_cost = d.catalog().units[s.type].supply.ammo_cost;
-            if ((s.needs_rations && affordable(d.ps.stock, d.supply.ration_cost)) ||
-                (s.needs_ammo && affordable(d.ps.stock, ammo_cost))) {
-                busy.push_back(s.entity);  // se está abasteciendo: que termine
+        for (const CarrierView& c : v.carriers) {
+            const std::int32_t dist = chebyshev(c.tile, s.tile);
+            if (dist < best_d && can_give(c.load)) {
+                best_d = dist;
+                best_at = c.tile;
             }
+        }
+        if (best_d == std::numeric_limits<std::int32_t>::max()) {
+            continue;  // nadie puede darle nada ahora
+        }
+        if (best_d <= reach) {
+            busy.push_back(s.entity);  // se está abasteciendo: que termine
             continue;
         }
         if (s.supply_percent >= d.profile.resupply_percent) {
@@ -863,21 +906,188 @@ void resupply(Decision& d) {
         }
         busy.push_back(s.entity);
         const MoveGoal* g = d.registry.try_get<MoveGoal>(s.entity);
-        if (g != nullptr && !g->arrived && distance(f, g->tile) <= reach) {
+        if (g != nullptr && !g->arrived && chebyshev(g->tile, best_at) <= reach) {
             continue;  // ya va hacia allí
         }
-        going[best].push_back(entt::to_integral(s.entity));
-    }
-    for (std::size_t i = 0; i < going.size(); ++i) {
-        if (going[i].empty()) {
-            continue;
+        auto it = std::ranges::find(going, best_at, &std::pair<TileCoord, std::vector<std::uint32_t>>::first);
+        if (it == going.end()) {
+            going.emplace_back(best_at, std::vector<std::uint32_t>{});
+            it = going.end() - 1;
         }
+        it->second.push_back(entt::to_integral(s.entity));
+    }
+    for (auto& [at, units] : going) {
         Command c = d.order(CommandType::Move);
-        c.target = center_of(v.supply_sources[i]);
-        c.units = std::move(going[i]);
+        c.target = at;
+        c.units = std::move(units);
         d.out.push_back(std::move(c));
     }
     std::erase_if(v.idle_army, [&](entt::entity e) { return std::ranges::find(busy, e) != busy.end(); });
+}
+
+// Objetivo de los ataques: el edificio vital enemigo más cercano (su caída decide la
+// partida); si no se conoce ninguno, el edificio enemigo más cercano; si no, la unidad.
+std::optional<TileCoord> attack_target(const Decision& d) {
+    const AiView& v = d.v;
+    std::vector<TileCoord> vital;
+    for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
+        if (d.catalog().buildings[v.enemy_building_types[i]].vital) {
+            vital.push_back(v.enemy_buildings[i]);
+        }
+    }
+    auto target = nearest(vital, v.base);
+    if (!target) {
+        target = nearest(v.enemy_buildings, v.base);
+    }
+    if (!target) {
+        target = nearest(v.enemy_units, v.base);
+    }
+    return target;
+}
+
+// Centro del ejército en campaña: las tropas que pelean o avanzan atacando lejos de
+// la base.
+std::optional<TileCoord> field_center(const Decision& d) {
+    std::int64_t sx = 0;
+    std::int64_t sy = 0;
+    std::int64_t n = 0;
+    for (const UnitSeen& s : d.v.soldiers) {
+        if ((s.target != entt::null || s.attack_move) && chebyshev(s.tile, d.v.base) > d.profile.defend_radius_tiles) {
+            sx += s.tile.x;
+            sy += s.tile.y;
+            ++n;
+        }
+    }
+    if (n == 0) {
+        return std::nullopt;
+    }
+    return TileCoord{static_cast<std::int32_t>(sx / n), static_cast<std::int32_t>(sy / n)};
+}
+
+// Punto a k casillas de from sobre la recta hacia to (from si están más cerca).
+TileCoord toward(TileCoord from, TileCoord to, std::int32_t k) {
+    const std::int32_t span = chebyshev(from, to);
+    if (span <= k) {
+        return to;
+    }
+    return {from.x + (to.x - from.x) * k / span, from.y + (to.y - from.y) * k / span};
+}
+
+std::int32_t stock_total(const Stock& s) {
+    std::int32_t sum = 0;
+    for (const std::int32_t v : s) {
+        sum += v;
+    }
+    return sum;
+}
+
+// Logística. El bagaje sigue al ejército: mantiene convoy_carriers unidades cuando
+// tiene ejército para atacar; la que lleva menos de media carga vuelve a cargar a
+// casa; la cargada va baggage_offset_tiles por detrás del ejército en campaña (hacia
+// la base) o, sin campaña, espera en casa. Con camp_distance_tiles > 0, además, si el
+// objetivo queda más lejos que eso de toda fuente de suministro, campamento a
+// camp_offset_tiles de él y el bagaje en ruta de convoy hacia allí.
+void logistics(Decision& d) {
+    AiView& v = d.v;
+    if (!d.params.carrier) {
+        return;
+    }
+    const UnitTypeId carrier = *d.params.carrier;
+    const std::int32_t capacity = d.catalog().units[carrier].convoy_capacity;
+    const bool campaigning = std::cmp_greater_equal(v.army.size(), d.profile.min_attack_army);
+    const Stock& cost = d.catalog().units[carrier].cost;
+    if (campaigning && std::cmp_less(v.carriers.size(), d.profile.convoy_carriers) && v.town_center &&
+        v.town_center_queue < d.profile.villager_queue && d.population < d.ps.population_cap &&
+        affordable(d.budget, cost)) {
+        Command c = d.order(CommandType::Train);
+        c.object = entt::to_integral(*v.town_center);
+        c.kind = carrier;
+        d.out.push_back(std::move(c));
+        spend(d.budget, cost);
+        ++v.town_center_queue;
+    }
+
+    // Campamento (opcional).
+    const auto target = attack_target(d);
+    if (d.params.camp && d.profile.camp_distance_tiles > 0 && target) {
+        std::int32_t nearest_source = std::numeric_limits<std::int32_t>::max();
+        for (const auto& [f, e] : v.supply_sources) {
+            nearest_source = std::min(nearest_source, chebyshev(clamp_to(f, *target), *target));
+        }
+        for (const TileCoord c : v.camps) {
+            nearest_source = std::min(nearest_source, chebyshev(c, *target));
+        }
+        if (nearest_source > d.profile.camp_distance_tiles && !v.threatened && campaigning &&
+            chebyshev(*target, v.base) > d.profile.camp_offset_tiles) {
+            d.place(*d.params.camp, toward(*target, v.base, d.profile.camp_offset_tiles));
+        }
+    }
+
+    // Edificio de casa que abastece más cercano a un punto (para cargar).
+    const auto nearest_home = [&](TileCoord t) -> std::optional<entt::entity> {
+        std::optional<entt::entity> best;
+        std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
+        for (const auto& [f, e] : v.supply_sources) {
+            const std::int32_t dist = chebyshev(clamp_to(f, t), t);
+            if (!d.registry.all_of<SupplyStore>(e) && dist < best_d) {
+                best_d = dist;
+                best = e;
+            }
+        }
+        return best;
+    };
+    const auto field = field_center(d);
+    std::vector<std::pair<entt::entity, std::vector<std::uint32_t>>> loads;  // edificio, bagaje
+    std::vector<std::uint32_t> to_camp;
+    std::vector<std::uint32_t> follow;
+    std::vector<std::uint32_t> home;
+    const TileCoord rear = field ? toward(*field, v.base, d.profile.baggage_offset_tiles) : v.base;
+    constexpr std::int32_t kSlackTiles = 3;  // no se reordena por menos de esto
+    for (const CarrierView& c : v.carriers) {
+        if (!c.idle) {
+            continue;  // cargando o en ruta de convoy
+        }
+        if (v.camp) {
+            to_camp.push_back(entt::to_integral(c.entity));
+            continue;
+        }
+        if (stock_total(c.load) * 2 < capacity) {
+            if (const auto b = nearest_home(c.tile)) {
+                auto it = std::ranges::find(loads, *b, &std::pair<entt::entity, std::vector<std::uint32_t>>::first);
+                if (it == loads.end()) {
+                    loads.emplace_back(*b, std::vector<std::uint32_t>{});
+                    it = loads.end() - 1;
+                }
+                it->second.push_back(entt::to_integral(c.entity));
+            }
+            continue;
+        }
+        const TileCoord want = field ? rear : v.base;
+        const TileCoord going = c.goal ? *c.goal : c.tile;
+        if (chebyshev(going, want) > (field ? kSlackTiles : d.profile.defend_radius_tiles / 2)) {
+            (field ? follow : home).push_back(entt::to_integral(c.entity));
+        }
+    }
+    for (auto& [b, units] : loads) {
+        Command c = d.order(CommandType::Convoy);
+        c.object = entt::to_integral(b);
+        c.units = std::move(units);
+        d.out.push_back(std::move(c));
+    }
+    if (!to_camp.empty()) {
+        Command c = d.order(CommandType::Convoy);
+        c.object = entt::to_integral(*v.camp);
+        c.units = std::move(to_camp);
+        d.out.push_back(std::move(c));
+    }
+    for (auto* group : {&follow, &home}) {
+        if (!group->empty()) {
+            Command c = d.order(CommandType::Move);
+            c.target = group == &follow ? rear : v.base;
+            c.units = std::move(*group);
+            d.out.push_back(std::move(c));
+        }
+    }
 }
 
 // Ataque por fuerza, con retirada. Primero, si el ejército en campaña pierde su
@@ -924,19 +1134,7 @@ void attack_strength(Decision& d) {
         }
     }
 
-    std::vector<TileCoord> vital;
-    for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
-        if (d.catalog().buildings[v.enemy_building_types[i]].vital) {
-            vital.push_back(v.enemy_buildings[i]);
-        }
-    }
-    auto target = nearest(vital, v.base);
-    if (!target) {
-        target = nearest(v.enemy_buildings, v.base);
-    }
-    if (!target) {
-        target = nearest(v.enemy_units, v.base);
-    }
+    const auto target = attack_target(d);
     if (!target) {
         return;
     }
@@ -1038,7 +1236,7 @@ void focus_fire(Decision& d) {
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
-    army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply,
+    army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics,
 };
 
 }  // namespace
@@ -1068,6 +1266,15 @@ void AiSystem::think(const entt::registry& registry, const EconomySystem& econom
                    ps.stock, ps.population};
         if (!perceive(d)) {
             continue;  // derrotado
+        }
+        // Reserva para las raciones de los que comen: fuera del presupuesto.
+        std::int64_t eaters = 0;
+        for (const auto [e, s, o] : registry.view<const Supply, const Owner>().each()) {
+            eaters += o.player == ai.player && economy.catalog().units[registry.get<Unit>(e).type].supply.rations > 0;
+        }
+        for (std::size_t r = 0; r < kResourceCount; ++r) {
+            const std::int64_t reserve = eaters * supply_.ration_cost[r] * d.profile.upkeep_reserve_percent / kPercent;
+            d.budget[r] = static_cast<std::int32_t>(std::max<std::int64_t>(d.budget[r] - reserve, 0));
         }
         for (const AiBehavior b : d.profile.behaviors) {
             kBehaviors[static_cast<std::size_t>(b)](d);

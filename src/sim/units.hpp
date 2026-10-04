@@ -85,6 +85,8 @@ struct UnitType {
     std::int32_t carry_capacity = 0;
     CombatStats combat;
     SupplyStats supply;
+    // Bagaje (acémila, carreta): lleva suministros para las tropas; 0 = no es bagaje.
+    std::int32_t convoy_capacity = 0;
 };
 
 // Víveres y munición que lleva una unidad. Hambrienta: sin raciones.
@@ -187,6 +189,9 @@ enum class CommandType : std::uint8_t {
     SetStance,    // units adoptan la postura kind (sim::Stance)
     Extinguish,   // units -> object (edificio propio en llamas): apagarlo
     Demolish,     // units -> object (edificio propio): desmontarlo; deja escombros recuperables
+    // units (acémilas, carretas) -> object: a un campamento, ruta de convoy (cargar en
+    // casa, descargar allí, repetir); a otro edificio que abastece, cargar y quedarse.
+    Convoy,
     Count,        // número de tipos (no es una orden)
 };
 

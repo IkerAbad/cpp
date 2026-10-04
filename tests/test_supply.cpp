@@ -16,6 +16,7 @@ using rts::sim::Combatant;
 using rts::sim::Command;
 using rts::sim::CommandType;
 using rts::sim::Health;
+using rts::sim::Stock;
 using rts::sim::Supply;
 using rts::sim::World;
 using rts::sim::WorldParams;
@@ -195,4 +196,139 @@ TEST_CASE("Suministro: un aldeano hambriento recoge a la mitad de ritmo") {
     CHECK(fed > 20);
     CHECK(hungry * 2 >= fed - 2);
     CHECK(hungry * 2 <= fed + 2);
+}
+
+namespace {
+
+constexpr rts::sim::UnitTypeId kMule = 4;  // tras los tipos de test_unit_types()
+constexpr std::int32_t kMuleLoad = 20;
+constexpr std::int32_t kCampStore = 100;
+
+// Con bagaje (acémila) y campamento de campaña.
+struct ConvoyWorld {
+    WorldParams params = supplied_world();
+    rts::sim::BuildingTypeId camp = 0;
+
+    ConvoyWorld() {
+        rts::sim::UnitType mule = params.unit_types[kVillager];
+        mule.worker = false;
+        mule.carry_capacity = 0;
+        mule.convoy_capacity = kMuleLoad;
+        mule.speed = rts::sim::Fixed::from_ratio(1, 5);
+        mule.supply.rations = 0;  // sin hambre propia salvo que la prueba la pida
+        params.unit_types.push_back(mule);
+        rts::sim::BuildingType c = params.building_types[kHouse];
+        c.population = 0;
+        c.supplies = true;
+        c.store_capacity = kCampStore;
+        camp = static_cast<rts::sim::BuildingTypeId>(params.building_types.size());
+        params.building_types.push_back(c);
+        params.supply.convoy_mix = stock(50, 30, 0, 0, 20);
+        params.supply.load_ticks = 5;
+        params.supply.convoy_reach = rts::sim::Fixed::from_ratio(4, 5);
+    }
+};
+
+const rts::sim::Carrier& carrier_of(const World& w, std::uint32_t id) {
+    return w.registry().get<rts::sim::Carrier>(ent(id));
+}
+
+}  // namespace
+
+TEST_CASE("Convoy: el bagaje carga en casa según el reparto, pagando del almacén, y se queda") {
+    ConvoyWorld cw;
+    World world(cw.params);
+    world.set_stock(0, stock(1000, 1000, 0, 0, 1000));
+    const auto center = *world.spawn_building(0, kCenter, {104, 99}, true);
+    const auto mule = world.spawn_unit(0, kMule, {95, 100});
+    world.step();
+    world.issue(order(CommandType::Convoy, 0, {mule}, center));
+    run(world, 400);
+    const auto& c = carrier_of(world, mule);
+    CHECK(c.load == stock(10, 6, 0, 0, 4));  // 50 % · 30 % · 20 % de 20
+    CHECK(c.task == rts::sim::ConvoyTask::Idle);
+    CHECK(world.player_state(0).stock == stock(990, 994, 0, 0, 996));
+}
+
+TEST_CASE("Convoy: la ruta llena el campamento, que abastece sin tocar el almacén del jugador") {
+    ConvoyWorld cw;
+    World world(cw.params);
+    world.set_stock(0, stock(1000, 1000, 0, 0, 1000));
+    REQUIRE(world.spawn_building(0, kCenter, {104, 99}, true));
+    const auto camp = *world.spawn_building(0, cw.camp, {80, 100}, true);
+    const auto mule = world.spawn_unit(0, kMule, {100, 100});
+    world.step();
+    world.issue(order(CommandType::Convoy, 0, {mule}, camp));
+    run(world, 1500);
+    const auto& store = world.registry().get<rts::sim::SupplyStore>(ent(camp)).stock;
+    CHECK(store[0] >= 20);  // al menos dos viajes de comida
+    // Un soldado hambriento junto al campamento come de su almacén.
+    const Stock before = world.player_state(0).stock;
+    const std::int32_t store_food = store[0];
+    const auto soldier = world.spawn_unit(0, kSoldier, {79, 103});
+    world.issue(order(CommandType::Stop, 0, {mule}, rts::sim::kNoObject));  // que no traiga más
+    run(world, 3);
+    CHECK(supply_of(world, soldier).rations == kRations);  // nació lleno: no gasta nada
+    run(world, kRationTicks * 2 + 1);                       // gasta dos y las repone
+    CHECK(supply_of(world, soldier).rations >= kRations - 1);
+    CHECK(world.registry().get<rts::sim::SupplyStore>(ent(camp)).stock[0] < store_food);
+    CHECK(world.player_state(0).stock == before);
+}
+
+TEST_CASE("Convoy: un bagaje cargado y parado abastece a las tropas de alrededor con su carga") {
+    ConvoyWorld cw;
+    cw.params.unit_types[kMule].supply.rations = 2;  // sus animales comen de la carga
+    cw.params.unit_types[kMule].supply.ration_ticks = 100;
+    World world(cw.params);
+    world.set_stock(0, stock(1000, 1000, 0, 0, 1000));
+    const auto center = *world.spawn_building(0, kCenter, {104, 99}, true);
+    const auto mule = world.spawn_unit(0, kMule, {100, 100});
+    world.step();
+    world.issue(order(CommandType::Convoy, 0, {mule}, center));
+    run(world, 200);
+    REQUIRE(carrier_of(world, mule).load[0] == 10);
+    // Lejos de cualquier edificio.
+    Command go = order(CommandType::Move, 0, {mule}, rts::sim::kNoObject);
+    go.target = {60, 100};
+    world.issue(go);
+    run(world, 400);
+    const std::int32_t food = carrier_of(world, mule).load[0];
+    CHECK(food < 10);  // sus animales comieron de la carga
+    CHECK_FALSE(supply_of(world, mule).hungry());
+    const auto soldier = world.spawn_unit(0, kSoldier, {59, 101});
+    run(world, kRationTicks * kRations * 2);  // sin abastecerse, ya pasaría hambre
+    CHECK_FALSE(supply_of(world, soldier).hungry());
+    CHECK(carrier_of(world, mule).load[0] < food);
+}
+
+TEST_CASE("Convoy: otra orden deja la ruta y conserva la carga; perdido el campamento, se para") {
+    ConvoyWorld cw;
+    World world(cw.params);
+    world.set_stock(0, stock(1000, 1000, 0, 0, 1000));
+    REQUIRE(world.spawn_building(0, kCenter, {104, 99}, true));
+    const auto camp = *world.spawn_building(0, cw.camp, {60, 100}, true);
+    const auto mule = world.spawn_unit(0, kMule, {100, 100});
+    world.step();
+    world.issue(order(CommandType::Convoy, 0, {mule}, camp));
+    run(world, 60);  // cargado y en camino
+    REQUIRE(carrier_of(world, mule).task == rts::sim::ConvoyTask::Unload);
+    world.issue(order(CommandType::Stop, 0, {mule}, rts::sim::kNoObject));
+    run(world, 2);
+    CHECK(carrier_of(world, mule).task == rts::sim::ConvoyTask::Idle);
+    CHECK(carrier_of(world, mule).load[0] == 10);
+
+    world.issue(order(CommandType::Convoy, 0, {mule}, camp));
+    run(world, 2);
+    REQUIRE(carrier_of(world, mule).task == rts::sim::ConvoyTask::Unload);
+    // Unos aldeanos desmontan el campamento antes de que llegue.
+    const auto v1 = world.spawn_unit(0, kVillager, {59, 99});
+    const auto v2 = world.spawn_unit(0, kVillager, {62, 99});
+    world.issue(order(CommandType::Demolish, 0, {v1, v2}, camp));
+    for (std::int32_t t = 0; t < 2000 && world.registry().valid(ent(camp)); ++t) {
+        world.step();
+    }
+    REQUIRE_FALSE(world.registry().valid(ent(camp)));
+    run(world, 2);
+    CHECK(carrier_of(world, mule).task == rts::sim::ConvoyTask::Idle);
+    CHECK(carrier_of(world, mule).load[0] == 10);
 }

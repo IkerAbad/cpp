@@ -7,6 +7,7 @@
 
 #include "sim/fire.hpp"
 #include "sim/state_hash.hpp"
+#include "sim/supply.hpp"
 
 namespace rts::sim {
 
@@ -173,6 +174,9 @@ entt::entity EconomySystem::spawn_unit(entt::registry& registry, PlayerId player
     if (ut.supply.rations > 0 || ut.supply.ammo > 0) {
         registry.emplace<Supply>(e, ut.supply.rations, 0, 0, ut.supply.ammo);  // sale con todo
     }
+    if (ut.convoy_capacity > 0) {
+        registry.emplace<Carrier>(e);  // sale vacío: hay que cargarlo
+    }
     return e;
 }
 
@@ -288,6 +292,7 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
         case CommandType::Attack:
         case CommandType::AttackMove:
         case CommandType::Extinguish:
+        case CommandType::Convoy:
             for (const entt::entity e : units) {
                 if (Worker* w = registry.try_get<Worker>(e)) {
                     w->task = WorkerTask::Idle;

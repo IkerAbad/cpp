@@ -141,6 +141,12 @@ resupply_interval_ticks = 20
 ration_cost = { comida = 1 }
 # Hambre (sin raciones): ataque al 60 %, los aldeanos trabajan a la mitad. Tras 1 min
 # de hambre las tropas pierden 1 de vida cada 3 s hasta morir; los aldeanos, no.
+# Convoyes: la carga de una acémila o carreta es 70 % comida, 20 % madera y 10 %
+# hierro (raciones y munición); cargar o descargar lleva 3 s; basta con estar a 0,8
+# casillas del borde del edificio.
+convoy_mix = { comida = 70, madera = 20, hierro = 10 }
+load_ticks = 60
+convoy_reach_milli_tiles = 800
 hungry_attack_percent = 60
 hungry_work_percent = 50
 starve_after_ticks = 1200
@@ -183,13 +189,16 @@ barracks = "cuartel"
 farm = "granja"
 # Taller de asedio (módulo taller).
 workshop = "taller_asedio"
+# Logística (módulo logistica): campamento de campaña y bagaje de los convoyes.
+camp = "campamento"
+carrier = "acemila"
 dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero", hierro = "campamento_minero" }
 
 # Perfiles: cada jugador de la IA elige uno con ai_profile en [[player]]. La
 # dificultad sale de qué módulos usa y de sus umbrales, nunca de ventajas económicas.
 # Módulos: defensa, aldeanos, casas, cuartel, granjas, almacenes, obras,
 # recoleccion, ejercito, ataque, ejercito_contra, ataque_fuerza, concentrar, taller,
-# apagar, incendiar, abastecer. Se ejecutan en el orden de la lista.
+# apagar, incendiar, abastecer, logistica. Se ejecutan en el orden de la lista.
 [[ai.profile]]
 name = "basica"
 behaviors = ["defensa", "abastecer", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
@@ -233,6 +242,13 @@ raid_safe_radius_tiles = 0
 # abastecer: la tropa que no pelea vuelve a abastecerse con menos del 30 % de víveres
 # o munición (y espera junto al almacén a llenarse).
 resupply_percent = 30
+# Guarda comida para media ración por cada unidad que come.
+upkeep_reserve_percent = 50
+# Sin campamentos ni convoyes (no usa logistica).
+camp_distance_tiles = 0
+camp_offset_tiles = 0
+convoy_carriers = 0
+baggage_offset_tiles = 0
 army = ["leva", "hombre_armas", "arquero"]
 
 # Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
@@ -240,7 +256,7 @@ army = ["leva", "hombre_armas", "arquero"]
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
 [[ai.profile]]
 name = "normal"
-behaviors = ["defensa", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
+behaviors = ["defensa", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
@@ -274,6 +290,14 @@ raid_unit = "jinete"
 raid_group = 3
 raid_safe_radius_tiles = 10
 resupply_percent = 30
+upkeep_reserve_percent = 50
+# logistica: 2 acémilas siguen al ejército en campaña 4 casillas por detrás y
+# vuelven a casa a cargar. Sin campamentos (medido: levantarlo junto al enemigo lo
+# pierde enseguida y cuesta más de lo que aporta).
+camp_distance_tiles = 0
+camp_offset_tiles = 0
+convoy_carriers = 2
+baggage_offset_tiles = 4
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 [setup]

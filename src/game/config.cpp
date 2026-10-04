@@ -31,7 +31,7 @@ constexpr std::size_t kMaxLabelBytes = 4;  // iniciales cortas: caben sobre el m
 constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior::Count)> kAiBehaviorNames{
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
-    "taller",      "apagar",   "incendiar",     "abastecer",
+    "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -463,6 +463,10 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             sup.ammo = ur.get_i32("ammo", 0, kMaxAmount);
             sup.ammo_bundle = ur.get_i32("ammo_bundle", 1, kMaxAmount);
             sup.ammo_cost = ur.get_stock("ammo_cost");
+            info.type.convoy_capacity = ur.get_i32("convoy_capacity", 0, kMaxAmount);
+            if (!error && info.type.convoy_capacity > 0 && info.type.worker) {
+                ur.fail("un aldeano no puede ser bagaje ('convoy_capacity' debe ser 0)");
+            }
             if (!error && sup.ammo > 0 && sup.ammo_bundle > sup.ammo) {
                 ur.fail("'ammo_bundle' no puede superar 'ammo'");
             }
@@ -539,6 +543,10 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.farm_food = br.get_i32("farm_food", 0, kMaxAmount);
         info.type.vital = br.get_bool("vital");
         info.type.supplies = br.get_bool("supplies");
+        info.type.store_capacity = br.get_i32("store_capacity", 0, kMaxAmount);
+        if (!error && info.type.store_capacity > 0 && !info.type.supplies) {
+            br.fail("un campamento ('store_capacity' > 0) debe abastecer ('supplies = true')");
+        }
         const std::string material = br.get_string("material");
         if (material == "madera") {
             info.type.material = sim::Material::Wood;
@@ -800,6 +808,16 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     sp.starve_after_ticks = r.get_i32("supply.starve_after_ticks", 0, kMaxTicks);
     sp.starve_hp_interval_ticks = r.get_i32("supply.starve_hp_interval_ticks", 1, kMaxTicks);
     eco.hungry_work_percent = r.get_i32("supply.hungry_work_percent", 0, 100);
+    sp.convoy_mix = r.get_stock("supply.convoy_mix");
+    std::int32_t mix_sum = 0;
+    for (const std::int32_t v : sp.convoy_mix) {
+        mix_sum += v;
+    }
+    if (!error && mix_sum != sim::kPercent) {
+        r.fail("'supply.convoy_mix' debe sumar 100");
+    }
+    sp.load_ticks = r.get_i32("supply.load_ticks", 0, kMaxTicks);
+    sp.convoy_reach = sim::Fixed::from_ratio(r.get_i32("supply.convoy_reach_milli_tiles", 0, 4 * kMilli), kMilli);
 
     sim::CombatParams& cb = cfg.world.combat;
     cb.acquire_interval_ticks = r.get_i32("combat.acquire_interval_ticks", 1, 1000);
@@ -827,6 +845,21 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     ai.barracks = r.get_named("ai.barracks", catalogs.buildings, "buildings.toml");
     ai.farm = r.get_named("ai.farm", catalogs.buildings, "buildings.toml");
     ai.workshop = r.get_named("ai.workshop", catalogs.buildings, "buildings.toml");
+    // Logística (módulo logistica): "" en los dos = sin campamentos ni convoyes.
+    const std::string camp = r.get_string("ai.camp");
+    const std::string carrier = r.get_string("ai.carrier");
+    if (!error && camp.empty() != carrier.empty()) {
+        r.fail("'ai.camp' y 'ai.carrier' van juntos: los dos con nombre o los dos vacíos");
+    }
+    if (!error && !camp.empty()) {
+        ai.camp = catalogs.buildings.find(camp);
+        ai.carrier = units.find(carrier);
+        if (!ai.camp || catalogs.buildings.types[*ai.camp].type.store_capacity <= 0 || !ai.carrier ||
+            units.types[*ai.carrier].type.convoy_capacity <= 0) {
+            r.fail("'ai.camp' debe nombrar un campamento (store_capacity > 0) y 'ai.carrier', un bagaje "
+                   "(convoy_capacity > 0)");
+        }
+    }
     for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
         ai.dropoff[i] = r.get_named(std::format("ai.dropoff.{}", kResourceKeys[i]), catalogs.buildings, "buildings.toml");
     }
@@ -886,6 +919,11 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.raid_group = pr.get_i32("raid_group", 1, 1000);
         p.raid_safe_radius_tiles = pr.get_i32("raid_safe_radius_tiles", 0, 256);
         p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);
+        p.upkeep_reserve_percent = pr.get_i32("upkeep_reserve_percent", 0, 1000);
+        p.camp_distance_tiles = pr.get_i32("camp_distance_tiles", 0, 1024);
+        p.camp_offset_tiles = pr.get_i32("camp_offset_tiles", 0, 1024);
+        p.convoy_carriers = pr.get_i32("convoy_carriers", 0, 64);
+        p.baggage_offset_tiles = pr.get_i32("baggage_offset_tiles", 0, 64);
         for (const std::string& name : pr.get_string_list("army")) {
             if (const auto id = units.find(name)) {
                 p.army.push_back(*id);

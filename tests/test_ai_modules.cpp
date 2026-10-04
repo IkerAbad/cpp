@@ -338,3 +338,109 @@ TEST_CASE("IA: la tropa corta de víveres vuelve a abastecerse; la que ya está 
     CHECK(out[0].target == rts::sim::TileCoord{151, 151});  // centro del centro urbano
     CHECK(std::ranges::find(out[0].units, near) == out[0].units.end());
 }
+
+namespace {
+
+// Mundo con bagaje (acémila, tipo 4) y una IA que lo usa.
+struct BaggageSetup {
+    WorldParams params = flat_two_players();
+    AiParams ai = test_ai_params();
+    rts::sim::UnitTypeId mule = 0;
+
+    BaggageSetup() {
+        rts::sim::UnitType m = params.unit_types[kVillager];
+        m.worker = false;
+        m.carry_capacity = 0;
+        m.convoy_capacity = 20;
+        mule = static_cast<rts::sim::UnitTypeId>(params.unit_types.size());
+        params.unit_types.push_back(m);
+        params.building_types[kCenter].trains.push_back(mule);
+        params.building_types[kCenter].supplies = true;
+        params.unit_types[kSoldier].supply.rations = 10;
+        params.unit_types[kSoldier].supply.ration_ticks = 1;
+        params.supply.resupply_radius_tiles = 3;
+        params.supply.resupply_interval_ticks = 1000;
+        params.supply.ration_cost = stock(1, 0, 0, 0);
+        params.supply.convoy_mix = stock(100, 0, 0, 0);
+        params.supply.convoy_reach = rts::sim::Fixed::from_ratio(4, 5);
+        ai.carrier = mule;
+        auto& p = ai.profiles[1];
+        p.behaviors = {AiBehavior::Resupply, AiBehavior::Logistics};
+        p.resupply_percent = 30;
+        p.convoy_carriers = 2;
+        p.baggage_offset_tiles = 4;
+        p.min_attack_army = 2;
+    }
+
+    std::vector<Command> think(const World& world) const {
+        AiSystem system(ai, params.supply, {{kAi, 1}});
+        std::vector<Command> out;
+        system.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+        return out;
+    }
+};
+
+const Command* find_order(const std::vector<Command>& out, CommandType type) {
+    const auto it = std::ranges::find(out, type, &Command::type);
+    return it != out.end() ? &*it : nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("IA: con ejército para atacar entrena bagaje; el vacío va a cargar a casa") {
+    BaggageSetup s;
+    World world(s.params);
+    ai_base(world);
+    world.spawn_unit(kAi, kSoldier, {140, 150});
+    world.spawn_unit(kAi, kSoldier, {141, 150});
+    const auto mule = world.spawn_unit(kAi, s.mule, {145, 155});
+    world.step();
+    const auto out = s.think(world);
+    const Command* train = find_order(out, CommandType::Train);
+    REQUIRE(train != nullptr);
+    CHECK(train->kind == s.mule);
+    const Command* convoy = find_order(out, CommandType::Convoy);
+    REQUIRE(convoy != nullptr);
+    CHECK(convoy->units == std::vector<std::uint32_t>{mule});
+}
+
+TEST_CASE("IA: el bagaje cargado sigue al ejército en campaña por detrás; las tropas se abastecen en él") {
+    BaggageSetup s;
+    World world(s.params);
+    ai_base(world);
+    world.set_stock(kAi, stock(1000, 0, 0, 0));
+    const auto mule = world.spawn_unit(kAi, s.mule, {150, 160});
+    world.step();
+    world.issue([&] {
+        Command c;
+        c.type = CommandType::Convoy;
+        c.player = kAi;
+        c.units = {mule};
+        c.object = *world.object_at({150, 150});
+        return c;
+    }());
+    for (std::int32_t t = 0; t < 300; ++t) {
+        world.step();
+    }
+    REQUIRE(world.registry().get<rts::sim::Carrier>(static_cast<entt::entity>(mule)).load[0] == 20);
+    // Ejército en campaña lejos de la base, avanzando hacia el enemigo.
+    std::vector<std::uint32_t> army;
+    for (std::int32_t i = 0; i < 3; ++i) {
+        army.push_back(world.spawn_unit(kAi, kSoldier, {100 + i, 100}));
+    }
+    Command go;
+    go.type = CommandType::AttackMove;
+    go.player = kAi;
+    go.units = army;
+    go.target = {60, 60};
+    world.issue(go);
+    world.step();
+    const auto out = s.think(world);
+    const auto follows = std::ranges::find_if(out, [&](const Command& c) {
+        return c.type == CommandType::Move && c.units == std::vector<std::uint32_t>{mule};
+    });
+    REQUIRE(follows != out.end());
+    // Detrás del ejército, hacia la base: más cerca de la base que el ejército.
+    CHECK(follows->target.x > 101);
+    CHECK(follows->target.y > 100);
+}

@@ -14,7 +14,7 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M4 | Combate con proyectiles esquivables, experiencia por unidad y héroes | hecho |
 | M7 (adelantado) | IA básica que juega con las mismas reglas que un humano; victoria y derrota | hecho |
 | M5 | Repeticiones deterministas: grabación automática, reproductor y verificación | hecho |
-| M6 | Logística | — |
+| M6 | Logística: víveres, munición, bagaje, convoyes y campamentos | en curso (falta el trabuquete) |
 | M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | — |
 | M8 | Multijugador lockstep | — |
 
@@ -283,6 +283,29 @@ Una incursión quema y empobrece; solo un asedio conquista.
 - **Escombros.** Lo derribado por asedio deja en su solar un nodo con el 50 % del coste de su material (`salvage_percent`): piedra si era de piedra, madera si era de madera. Bloquea el solar hasta que los aldeanos lo recogen y lo llevan a un almacén, como cualquier recurso (también el enemigo puede saquearlo). Lo que arde no deja nada aprovechable.
 - **Demolición controlada.** Mayús + clic derecho con aldeanos sobre un edificio propio: lo desmontan al ritmo de construir y queda en escombros para transportar, no como reembolso instantáneo.
 - **Zapador** (taller de asedio). Mina bajo la piedra: su ataque ignora la armadura de los muros, y bajo tierra las flechas apenas le alcanzan. Es más lento que el ariete. Contra la madera solo prende fuego, como cualquiera.
+
+### Logística (M6)
+
+Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipedia.org/wiki/Military_logistics) («Ammunition could not as a rule be obtained locally») y ["English longbow"](https://en.wikipedia.org/wiki/English_longbow) (flechas «supplied in sheaves normally of 24 arrows»).
+
+- **Víveres.** Cada unidad lleva raciones (`rations`, `ration_ticks` en `units.toml`): un soldado come 1 por minuto y lleva para 6 min. La caballería gasta el triple, por el forraje. Los aldeanos comen 1 cada 2 min y la reponen donde descargan.
+- **Munición.** Los tiradores llevan 24 disparos (`ammo`). Sin munición no disparan ni buscan blancos.
+- **Hambre.** Sin raciones, el ataque baja al 60 % y los aldeanos trabajan a la mitad. Tras 1 min de hambre las tropas pierden vida hasta morir; los aldeanos, no.
+- **Reposición.** Poco a poco, junto a una fuente propia que paga lo que da (`[supply]` en `engine.toml`):
+  - un edificio que abastece (`supplies`: centro urbano, molino, cuartel) paga del almacén del jugador: comida por ración; madera, y hierro para los virotes, por munición;
+  - un campamento de campaña (`store_capacity`) paga de su propio almacén, que llenan los convoyes;
+  - una acémila o carreta cargada (`convoy_capacity`) paga de su carga. Es un depósito móvil, y sus animales también comen de ella.
+- **Convoyes.** Bagaje + clic derecho:
+  - sobre un campamento: ruta de convoy (carga en casa, descarga allí y repite);
+  - sobre otro edificio que abastece: carga y se queda.
+
+  La acémila carga como un hombre y medio; la carreta, cinco veces más, a la mitad de velocidad.
+- **IA:**
+  - `abastecer`: la tropa que no pelea y baja del 30 % vuelve a la fuente más cercana que puede darle algo (edificio o bagaje) y espera a llenarse.
+  - `logistica`: dos acémilas siguen al ejército en campaña unas casillas por detrás y vuelven a casa a cargar.
+  - Ambos perfiles guardan comida para las raciones (`upkeep_reserve_percent`).
+  - El campamento avanzado de la IA existe, pero está apagado (`camp_distance_tiles = 0`): medido en el torneo, levantarlo junto al enemigo lo pierde enseguida y cuesta más de lo que aporta.
+- **Torneo con traza:** `rts_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos y almacén de cada jugador.
 
 ### Convenciones de `data/`
 

@@ -99,6 +99,8 @@ struct SnapshotEntity {
     std::int32_t rations = 0;      // víveres que lleva (máximo: SupplyStats del tipo)
     std::int32_t ammo = 0;         // munición que lleva
     bool hungry = false;           // necesita víveres y no le quedan
+    Stock load{};                  // bagaje: lo que lleva
+    ConvoyTask convoy = ConvoyTask::Idle;
 };
 
 enum class ObjectKind : std::uint8_t { Building, Resource };
@@ -119,6 +121,7 @@ struct SnapshotObject {
     std::int32_t queue_progress = 0; // ticks del primero de la cola
     std::int32_t fire = 0;           // edificios: intensidad del fuego (0 = sin fuego)
     bool burned = false;             // edificios de piedra quemados (inutilizados)
+    Stock store{};                   // campamentos: su almacén de suministros
 };
 
 // Copia de solo lectura del estado que se presenta. El render nunca toca el registro.

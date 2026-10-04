@@ -541,6 +541,28 @@ private:
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
             c.type = sim::CommandType::Build;
             c.object = o->id;
+            // El bagaje, a un edificio que abastece: ruta de convoy (campamento) o cargar
+            // y quedarse; el resto de la selección, la orden de siempre.
+            if (data_.buildings.types[o->type].type.supplies) {
+                sim::Command convoy = local_command(sim::CommandType::Convoy);
+                convoy.object = o->id;
+                convoy.units.clear();
+                std::erase_if(c.units, [&](std::uint32_t id) {
+                    const auto it = std::ranges::find(curr_.entities, id, &sim::SnapshotEntity::id);
+                    const bool carrier =
+                        it != curr_.entities.end() && data_.units.types[it->type].type.convoy_capacity > 0;
+                    if (carrier) {
+                        convoy.units.push_back(id);
+                    }
+                    return carrier;
+                });
+                if (!convoy.units.empty()) {
+                    issue(std::move(convoy));
+                }
+                if (c.units.empty()) {
+                    return;
+                }
+            }
         } else {
             c.target = tile;
         }
@@ -811,6 +833,29 @@ private:
         ImGui::End();
     }
 
+    // Recursos no nulos de un almacén o una carga, p. ej. "comida 21 · madera 6".
+    [[nodiscard]] static std::string stock_text(const sim::Stock& s) {
+        std::string out;
+        for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
+            if (s[r] != 0) {
+                out += std::format("{}{} {}", out.empty() ? "" : " · ", resource_key(static_cast<sim::Resource>(r)), s[r]);
+            }
+        }
+        return out.empty() ? std::string("nada") : out;
+    }
+
+    [[nodiscard]] static const char* convoy_text(sim::ConvoyTask t) {
+        switch (t) {
+            case sim::ConvoyTask::Load:
+                return "va a cargar";
+            case sim::ConvoyTask::Unload:
+                return "lleva la carga al campamento";
+            case sim::ConvoyTask::Idle:
+                break;
+        }
+        return "parada: abastece a las tropas de alrededor";
+    }
+
     [[nodiscard]] bool out_of_ammo(const sim::SnapshotEntity& e) const {
         return data_.units.types[e.type].type.supply.ammo > 0 && e.ammo <= 0;
     }
@@ -871,8 +916,11 @@ private:
         ImGui::BulletText("Inicial en rojo: con hambre o sin munición");
         ImGui::SeparatorText("Logística");
         ImGui::BulletText("Las tropas gastan víveres; los tiradores, munición");
-        ImGui::BulletText("Se reponen junto al centro urbano, el molino o el cuartel");
+        ImGui::BulletText("Se reponen junto al centro urbano, el molino, el cuartel o un campamento");
         ImGui::BulletText("Cada ración cuesta comida; la munición, madera (y hierro)");
+        ImGui::BulletText("Campamento: almacén avanzado que llenan acémilas y carretas");
+        ImGui::BulletText("Bagaje + clic derecho en un campamento: ruta de convoy");
+        ImGui::BulletText("Bagaje cargado y parado: abastece a las tropas de alrededor");
         ImGui::BulletText("Pasa el ratón sobre algo para ver qué es");
         ImGui::End();
     }
@@ -1093,6 +1141,11 @@ private:
                     ImGui::Text("%s · vida %d/%d · nivel %d (%d de experiencia)", u.name.c_str(), it->hp, it->max_hp,
                                 it->level, it->xp);
                     draw_supply_text(*it);
+                    if (u.type.convoy_capacity > 0) {
+                        ImGui::Text("carga %s (de %d)", stock_text(it->load).c_str(), u.type.convoy_capacity);
+                        ImGui::TextDisabled("%s", convoy_text(it->convoy));
+                        ImGui::TextDisabled("Clic derecho en un campamento: ruta de convoy; en otro almacén: cargar");
+                    }
                     if (it->hero_name >= 0 && !data_.engine.hero_names.empty()) {
                         const auto n = static_cast<std::size_t>(it->hero_name) % data_.engine.hero_names.size();
                         ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, "Héroe: %s", data_.engine.hero_names[n].c_str());
@@ -1148,6 +1201,12 @@ private:
         }
         const BuildingInfo& info = data_.buildings.types[o->type];
         ImGui::Text("%s · vida %d/%d", info.name.c_str(), o->hp, info.type.hp);
+        if (info.type.store_capacity > 0) {
+            ImGui::Text("suministros %s (de %d)", stock_text(o->store).c_str(), info.type.store_capacity);
+            ImGui::TextDisabled("Se llena con acémilas o carretas: clic derecho sobre él con ellas");
+        } else if (info.type.supplies) {
+            ImGui::TextDisabled("Abastece a las tropas cercanas con víveres y munición");
+        }
         if (o->fire > 0) {
             ImGui::TextColored({1.0f, 0.5f, 0.1f, 1.0f}, "En llamas (%d %%): clic derecho con unidades para apagarlo",
                                o->fire * kPercent / data_.engine.world.fire.max_intensity);

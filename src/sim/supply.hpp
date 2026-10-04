@@ -1,24 +1,34 @@
 #pragma once
 
-// Suministro (M6): víveres y munición. Cada unidad gasta raciones con el tiempo (la
-// caballería, también forraje) y los tiradores, munición al disparar. Se reponen poco
-// a poco junto a un edificio propio que abastece (centro urbano, almacén, campamento),
-// pagando del almacén del jugador: un ejército lejos de casa vive de lo que lleva.
+// Suministro (M6): víveres, munición y convoyes. Cada unidad gasta raciones con el
+// tiempo (la caballería, también forraje) y los tiradores, munición al disparar. Se
+// reponen poco a poco junto a una fuente propia, que paga lo que da:
+//   - un edificio que abastece (centro urbano, molino, cuartel): del almacén del jugador;
+//   - un campamento de campaña: de su propio almacén, que llenan los convoyes;
+//   - una acémila o carreta cargada: de su carga (depósito móvil; sus animales
+//     también comen de ella).
+// Un ejército lejos de casa vive de lo que lleva y de lo que le llega.
 //
 // Sin raciones, la unidad está hambrienta: su ataque baja (CombatParams) y los
 // aldeanos trabajan más despacio (EconomyParams). Si el hambre dura, las tropas
 // pierden vida hasta morir; los aldeanos, no.
 //
-// Determinismo: recorrido en el orden de la vista; cada unidad mira si puede
+// Convoyes: la orden Convoy a un campamento hace que el bagaje cargue en el edificio
+// de casa que abastece más cercano, descargue en el campamento y repita; a otro
+// edificio que abastece, que cargue allí y se quede.
+//
+// Determinismo: recorrido en el orden de las vistas; cada unidad mira si puede
 // reabastecerse una vez cada resupply_interval_ticks, repartidas por id.
 
 #include <cstdint>
+#include <span>
 #include <vector>
 
 #include <entt/entity/registry.hpp>
 
 #include "sim/economy.hpp"
 #include "sim/fixed.hpp"
+#include "sim/movement.hpp"
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
@@ -28,25 +38,53 @@ class StateHasher;
 
 // data/config/engine.toml, sección [supply].
 struct SupplyParams {
-    std::int32_t resupply_radius_tiles = 0;    // distancia máxima a la huella del edificio que abastece
+    std::int32_t resupply_radius_tiles = 0;    // distancia máxima a la fuente (huella o bagaje)
     std::int32_t resupply_interval_ticks = 1;  // cada unidad se reabastece como mucho una vez por intervalo
     Stock ration_cost{};                       // coste de cada ración repuesta
     std::int32_t starve_after_ticks = 0;       // hambre que se aguanta sin perder vida
     std::int32_t starve_hp_interval_ticks = 1; // después, 1 de vida cada tantos ticks
+    // Convoyes: reparto de la carga por recurso (en %, suma 100), ticks que se tarda en
+    // cargar o descargar y holgura entre el bagaje y la huella del edificio.
+    Stock convoy_mix{};
+    std::int32_t load_ticks = 0;
+    Fixed convoy_reach;
+};
+
+// Almacén propio de un campamento de campaña.
+struct SupplyStore {
+    Stock stock{};
+};
+
+enum class ConvoyTask : std::uint8_t { Idle, Load, Unload };
+
+// Bagaje: lo que lleva y su ruta.
+struct Carrier {
+    Stock load{};
+    ConvoyTask task = ConvoyTask::Idle;
+    entt::entity home = entt::null;  // edificio donde carga (null: el más cercano que abastece)
+    entt::entity camp = entt::null;  // campamento al que lleva (null: se queda donde cargó)
+    std::int32_t timer = 0;          // ticks cargando o descargando
+    std::uint32_t move_order = 0;    // desplazamiento propio en curso (0 = ninguno)
 };
 
 struct SupplyTickStats {
     std::int32_t rations_issued = 0;
     std::int32_t ammo_issued = 0;
     std::int32_t hungry = 0;
-    std::int32_t starved = 0;  // muertas de hambre este tick
+    std::int32_t starved = 0;   // muertas de hambre este tick
+    std::int32_t loaded = 0;    // cargas de bagaje completadas
+    std::int32_t unloaded = 0;  // descargas en campamentos
 };
 
 class SupplySystem {
 public:
     SupplySystem(const SupplyParams& params, std::vector<UnitType> units, std::vector<BuildingType> buildings);
 
-    void update(entt::registry& registry, EconomySystem& economy, Tick tick);
+    // Convoy asigna la ruta al bagaje; cualquier otra orden la cancela (conserva la carga).
+    void apply(entt::registry& registry, MovementSystem& movement, const Command& command,
+               std::span<const entt::entity> units, std::uint32_t& next_order_id, Tick tick);
+    void update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
+                std::uint32_t& next_order_id, Tick tick);
 
     // Edificio propio que abastece al alcance de la unidad, o null. Los aldeanos comen
     // también donde descargan: les vale cualquier almacén propio en uso.
@@ -58,10 +96,29 @@ public:
     void hash_into(StateHasher& h, const entt::registry& registry) const;
 
 private:
+    struct CarrierSeen {
+        entt::entity entity;
+        PlayerId owner;
+        FVec2 pos;
+    };
+
+    void update_carriers(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
+                         std::uint32_t& next_order_id, Tick tick);
+    // Al alcance de la huella; si no, se acerca (una orden propia cada vez que la pierde).
+    bool approach(entt::registry& registry, MovementSystem& movement, entt::entity e, Carrier& c,
+                  const Footprint& f, std::uint32_t& next_order_id, Tick tick) const;
+    [[nodiscard]] bool is_home(const entt::registry& registry, entt::entity b, PlayerId player) const;
+    [[nodiscard]] bool is_camp(const entt::registry& registry, entt::entity b, PlayerId player) const;
+    [[nodiscard]] entt::entity nearest_home(const entt::registry& registry, PlayerId player, FVec2 pos) const;
+    void resupply(entt::registry& registry, EconomySystem& economy, entt::entity e, PlayerId player, FVec2 pos,
+                  Supply& s, const SupplyStats& st);
+
     SupplyParams params_;
     std::vector<UnitType> units_;
     std::vector<BuildingType> buildings_;
     std::vector<entt::entity> dead_;
+    std::vector<entt::entity> scratch_;
+    std::vector<CarrierSeen> carriers_;  // bagaje cargado de este tick (fuentes móviles)
     SupplyTickStats stats_;
 };
 

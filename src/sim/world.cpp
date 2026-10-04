@@ -236,6 +236,7 @@ void World::apply_command(const Command& command) {
     economy_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     combat_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     fire_.apply(registry_, movement_, command, units, next_order_id_, tick_);
+    supply_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     if (command.type == CommandType::Move) {
         movement_.order_move(registry_, units, command.target, next_order_id_++, tick_);
     } else if (command.type == CommandType::Stop) {
@@ -263,7 +264,7 @@ void World::step() {
     pending_.erase(pending_.begin(), rest.begin());
 
     economy_.update(registry_, movement_, next_order_id_, tick_);
-    supply_.update(registry_, economy_, tick_);
+    supply_.update(registry_, movement_, economy_, next_order_id_, tick_);
     combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_);
     fire_.update(registry_, movement_, economy_, next_order_id_, tick_);
     // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
@@ -383,6 +384,10 @@ void World::write_snapshot(Snapshot& out) const {
             s.ammo = sp->ammo;
             s.hungry = economy_.catalog().units[unit.type].supply.rations > 0 && sp->hungry();
         }
+        if (const Carrier* c = registry_.try_get<Carrier>(e)) {
+            s.load = c->load;
+            s.convoy = c->task;
+        }
         out.entities.push_back(s);
     });
     out.objects.clear();
@@ -410,6 +415,9 @@ void World::write_snapshot(Snapshot& out) const {
             }
             if (const ResourceNode* n = registry_.try_get<ResourceNode>(e)) {
                 o.amount = n->amount;
+            }
+            if (const SupplyStore* st = registry_.try_get<SupplyStore>(e)) {
+                o.store = st->stock;
             }
         } else if (const ResourceNode* n = registry_.try_get<ResourceNode>(e)) {
             o.kind = ObjectKind::Resource;

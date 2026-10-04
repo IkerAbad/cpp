@@ -71,6 +71,7 @@ starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 
 [[unit]]
 name = "peon"
@@ -104,6 +105,7 @@ starves = true
 ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
+convoy_capacity = 0
 )";
 
 constexpr const char* kNodes = R"(
@@ -145,6 +147,7 @@ requires = []
 farm_food = 0
 vital = false
 supplies = true
+store_capacity = 0
 material = "madera"
 color = [9, 9, 9]
 
@@ -163,6 +166,7 @@ requires = []
 farm_food = 0
 vital = false
 supplies = true
+store_capacity = 0
 material = "madera"
 color = [8, 8, 8]
 )";
@@ -242,6 +246,9 @@ extinguish_reach_milli_tiles = 800
 resupply_radius_tiles = 4
 resupply_interval_ticks = 20
 ration_cost = { comida = 1 }
+convoy_mix = { comida = 70, madera = 20, hierro = 10 }
+load_ticks = 60
+convoy_reach_milli_tiles = 800
 hungry_attack_percent = 60
 hungry_work_percent = 50
 starve_after_ticks = 1200
@@ -269,6 +276,8 @@ house = "choza"
 barracks = "fuerte"
 farm = "choza"
 workshop = "fuerte"
+camp = ""
+carrier = ""
 dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
@@ -301,6 +310,11 @@ raid_unit = ""
 raid_group = 1
 raid_safe_radius_tiles = 0
 resupply_percent = 30
+upkeep_reserve_percent = 50
+camp_distance_tiles = 0
+camp_offset_tiles = 0
+convoy_carriers = 0
+baggage_offset_tiles = 0
 army = ["lancero"]
 
 [setup]

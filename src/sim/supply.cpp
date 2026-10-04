@@ -1,6 +1,7 @@
 #include "sim/supply.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <limits>
 #include <utility>
@@ -26,6 +27,25 @@ void pay(Stock& stock, const Stock& cost) noexcept {
     }
 }
 
+std::int32_t total(const Stock& s) noexcept {
+    std::int32_t sum = 0;
+    for (const std::int32_t v : s) {
+        sum += v;
+    }
+    return sum;
+}
+
+// Primera fuente que puede pagar cost; la paga. false si ninguna puede.
+bool pay_from(std::span<Stock* const> payers, const Stock& cost) noexcept {
+    for (Stock* p : payers) {
+        if (affordable(*p, cost)) {
+            pay(*p, cost);
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 SupplySystem::SupplySystem(const SupplyParams& params, std::vector<UnitType> units,
@@ -33,6 +53,149 @@ SupplySystem::SupplySystem(const SupplyParams& params, std::vector<UnitType> uni
     : params_(params), units_(std::move(units)), buildings_(std::move(buildings)) {
     assert(params_.resupply_interval_ticks > 0);
     assert(params_.starve_hp_interval_ticks > 0);
+}
+
+bool SupplySystem::is_home(const entt::registry& registry, entt::entity b, PlayerId player) const {
+    if (b == entt::null || !registry.valid(b) || !registry.all_of<Building, Owner, Footprint>(b)) {
+        return false;
+    }
+    const Building& bd = registry.get<Building>(b);
+    const BuildingType& bt = buildings_[bd.type];
+    return registry.get<Owner>(b).player == player && bd.working() && bt.supplies && bt.store_capacity == 0;
+}
+
+bool SupplySystem::is_camp(const entt::registry& registry, entt::entity b, PlayerId player) const {
+    if (b == entt::null || !registry.valid(b) || !registry.all_of<Building, Owner, Footprint, SupplyStore>(b)) {
+        return false;
+    }
+    const Building& bd = registry.get<Building>(b);
+    return registry.get<Owner>(b).player == player && bd.working() && buildings_[bd.type].store_capacity > 0;
+}
+
+entt::entity SupplySystem::nearest_home(const entt::registry& registry, PlayerId player, FVec2 pos) const {
+    entt::entity best = entt::null;
+    std::int64_t best_d = std::numeric_limits<std::int64_t>::max();
+    for (const entt::entity b : registry.view<const Building, const Owner, const Footprint>()) {
+        if (!is_home(registry, b, player)) {
+            continue;
+        }
+        const std::int64_t d = distance_sq_to(registry.get<Footprint>(b), pos);
+        if (d < best_d) {
+            best_d = d;
+            best = b;
+        }
+    }
+    return best;
+}
+
+void SupplySystem::apply(entt::registry& registry, MovementSystem& /*movement*/, const Command& command,
+                         std::span<const entt::entity> units, std::uint32_t& /*next_order_id*/, Tick /*tick*/) {
+    if (command.type == CommandType::SetStance) {
+        return;  // la postura no interrumpe nada
+    }
+    const auto object = static_cast<entt::entity>(command.object);
+    const bool camp = command.type == CommandType::Convoy && is_camp(registry, object, command.player);
+    const bool home = command.type == CommandType::Convoy && is_home(registry, object, command.player);
+    for (const entt::entity e : units) {
+        Carrier* c = registry.try_get<Carrier>(e);
+        if (c == nullptr) {
+            continue;
+        }
+        c->timer = 0;
+        c->move_order = 0;
+        if (camp) {
+            c->camp = object;
+            c->home = entt::null;
+            c->task = total(c->load) > 0 ? ConvoyTask::Unload : ConvoyTask::Load;
+        } else if (home) {
+            c->home = object;
+            c->camp = entt::null;
+            c->task = ConvoyTask::Load;
+        } else {
+            c->task = ConvoyTask::Idle;  // otra orden: deja la ruta y conserva la carga
+        }
+    }
+}
+
+bool SupplySystem::approach(entt::registry& registry, MovementSystem& movement, entt::entity e, Carrier& c,
+                            const Footprint& f, std::uint32_t& next_order_id, Tick tick) const {
+    const Position& p = registry.get<Position>(e);
+    const Fixed reach = registry.get<Unit>(e).radius + params_.convoy_reach;
+    const MoveGoal* g = registry.try_get<MoveGoal>(e);
+    if (distance_sq_to(f, {p.x, p.y}) <= mul_wide(reach, reach)) {
+        if (g != nullptr && g->order_id == c.move_order) {
+            registry.remove<MoveGoal, PathFollow>(e);
+        }
+        c.move_order = 0;
+        return true;
+    }
+    if (g == nullptr || g->order_id != c.move_order || g->arrived) {
+        c.move_order = next_order_id++;
+        const std::array<entt::entity, 1> one{e};
+        movement.order_move(registry, one, clamp_to(f, tile_of(p)), c.move_order, tick);
+    }
+    return false;
+}
+
+void SupplySystem::update_carriers(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
+                                   std::uint32_t& next_order_id, Tick tick) {
+    scratch_.clear();
+    for (const entt::entity e : registry.view<Carrier>()) {
+        scratch_.push_back(e);
+    }
+    for (const entt::entity e : scratch_) {
+        Carrier& c = registry.get<Carrier>(e);
+        const PlayerId player = registry.get<Owner>(e).player;
+        const Position& p = registry.get<Position>(e);
+        if (c.task == ConvoyTask::Load) {
+            if (!is_home(registry, c.home, player)) {
+                c.home = nearest_home(registry, player, {p.x, p.y});
+                c.move_order = 0;
+                if (c.home == entt::null) {
+                    c.task = ConvoyTask::Idle;  // nada en casa que abastezca
+                    continue;
+                }
+            }
+            if (!approach(registry, movement, e, c, registry.get<Footprint>(c.home), next_order_id, tick) ||
+                ++c.timer < params_.load_ticks) {
+                continue;
+            }
+            c.timer = 0;
+            // Carga según el reparto, hasta su capacidad y lo que haya en el almacén.
+            const std::int32_t capacity = units_[registry.get<Unit>(e).type].convoy_capacity;
+            Stock& stock = economy.player_state(player).stock;
+            for (std::size_t r = 0; r < kResourceCount; ++r) {
+                const std::int32_t want = capacity * params_.convoy_mix[r] / kPercent - c.load[r];
+                const std::int32_t take = std::clamp(want, 0, std::max(stock[r], 0));
+                stock[r] -= take;
+                c.load[r] += take;
+            }
+            ++stats_.loaded;
+            c.task = is_camp(registry, c.camp, player) ? ConvoyTask::Unload : ConvoyTask::Idle;
+        } else if (c.task == ConvoyTask::Unload) {
+            if (!is_camp(registry, c.camp, player)) {
+                c.camp = entt::null;
+                c.task = ConvoyTask::Idle;  // campamento perdido: se queda con la carga
+                continue;
+            }
+            if (!approach(registry, movement, e, c, registry.get<Footprint>(c.camp), next_order_id, tick) ||
+                ++c.timer < params_.load_ticks) {
+                continue;
+            }
+            c.timer = 0;
+            Stock& store = registry.get<SupplyStore>(c.camp).stock;
+            std::int32_t room =
+                buildings_[registry.get<Building>(c.camp).type].store_capacity - total(store);
+            for (std::size_t r = 0; r < kResourceCount; ++r) {
+                const std::int32_t moved = std::clamp(c.load[r], 0, std::max(room, 0));
+                c.load[r] -= moved;
+                store[r] += moved;
+                room -= moved;
+            }
+            ++stats_.unloaded;
+            c.task = ConvoyTask::Load;  // vuelta a casa a por más
+        }
+    }
 }
 
 entt::entity SupplySystem::source_near(const entt::registry& registry, const EconomySystem& economy,
@@ -62,9 +225,66 @@ entt::entity SupplySystem::source_near(const entt::registry& registry, const Eco
     return entt::null;
 }
 
-void SupplySystem::update(entt::registry& registry, EconomySystem& economy, Tick tick) {
+void SupplySystem::resupply(entt::registry& registry, EconomySystem& economy, entt::entity e, PlayerId player,
+                            FVec2 pos, Supply& s, const SupplyStats& st) {
+    // Fuentes al alcance, en orden: el edificio (almacén del jugador o del campamento)
+    // y después el bagaje cargado cercano. Cada cosa la paga la primera que puede.
+    constexpr std::size_t kMaxPayers = 8;
+    std::array<Stock*, kMaxPayers> payers{};
+    std::size_t n = 0;
+    const entt::entity b = source_near(registry, economy, player, pos, units_[registry.get<Unit>(e).type].worker);
+    if (b != entt::null) {
+        SupplyStore* store = registry.try_get<SupplyStore>(b);
+        payers[n++] = store != nullptr ? &store->stock : &economy.player_state(player).stock;
+    }
+    const Fixed reach = Fixed::from_int(params_.resupply_radius_tiles);
+    const std::int64_t reach_sq = mul_wide(reach, reach);
+    for (const CarrierSeen& c : carriers_) {
+        if (n == kMaxPayers) {
+            break;
+        }
+        if (c.owner == player && length_sq_wide(c.pos - pos) <= reach_sq) {
+            payers[n++] = &registry.get<Carrier>(c.entity).load;
+        }
+    }
+    if (n == 0) {
+        return;
+    }
+    const std::span<Stock* const> sources(payers.data(), n);
+    if (s.rations < st.rations && pay_from(sources, params_.ration_cost)) {
+        ++s.rations;
+        ++stats_.rations_issued;
+    }
+    if (s.ammo < st.ammo && pay_from(sources, st.ammo_cost)) {
+        s.ammo = std::min(s.ammo + st.ammo_bundle, st.ammo);
+        ++stats_.ammo_issued;
+    }
+}
+
+void SupplySystem::update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
+                          std::uint32_t& next_order_id, Tick tick) {
     stats_ = SupplyTickStats{};
     dead_.clear();
+
+    // Campamentos terminados: su almacén propio, vacío.
+    scratch_.clear();
+    for (const auto [e, b] : registry.view<const Building>(entt::exclude<SupplyStore>).each()) {
+        if (b.complete && buildings_[b.type].store_capacity > 0) {
+            scratch_.push_back(e);
+        }
+    }
+    for (const entt::entity e : scratch_) {
+        registry.emplace<SupplyStore>(e);
+    }
+
+    update_carriers(registry, movement, economy, next_order_id, tick);
+    carriers_.clear();
+    for (const auto [e, c, o, p] : registry.view<const Carrier, const Owner, const Position>().each()) {
+        if (total(c.load) > 0) {
+            carriers_.push_back({e, o.player, {p.x, p.y}});
+        }
+    }
+
     const auto interval = static_cast<std::uint32_t>(params_.resupply_interval_ticks);
     const auto view = registry.view<Supply, const Unit, const Owner, const Position, Health>();
     for (const entt::entity e : view) {
@@ -94,29 +314,12 @@ void SupplySystem::update(entt::registry& registry, EconomySystem& economy, Tick
             }
         }
 
-        // 2. Reabastecimiento junto a un edificio propio que abastece.
-        const bool need_rations = s.rations < st.rations;
-        const bool need_ammo = s.ammo < st.ammo;
-        if ((!need_rations && !need_ammo) || (entt::to_integral(e) + tick) % interval != 0) {
+        // 2. Reabastecimiento junto a una fuente propia.
+        if ((s.rations >= st.rations && s.ammo >= st.ammo) || (entt::to_integral(e) + tick) % interval != 0) {
             continue;
         }
-        const PlayerId player = view.get<const Owner>(e).player;
         const Position& p = view.get<const Position>(e);
-        const bool worker = units_[view.get<const Unit>(e).type].worker;
-        if (source_near(registry, economy, player, {p.x, p.y}, worker) == entt::null) {
-            continue;
-        }
-        Stock& stock = economy.player_state(player).stock;
-        if (need_rations && affordable(stock, params_.ration_cost)) {
-            pay(stock, params_.ration_cost);
-            ++s.rations;
-            ++stats_.rations_issued;
-        }
-        if (need_ammo && affordable(stock, st.ammo_cost)) {
-            pay(stock, st.ammo_cost);
-            s.ammo = std::min(s.ammo + st.ammo_bundle, st.ammo);
-            ++stats_.ammo_issued;
-        }
+        resupply(registry, economy, e, view.get<const Owner>(e).player, {p.x, p.y}, s, st);
     }
     for (const entt::entity e : dead_) {
         registry.destroy(e);
@@ -131,6 +334,23 @@ void SupplySystem::hash_into(StateHasher& h, const entt::registry& registry) con
         h.add_i32(s.ration_timer);
         h.add_i32(s.hungry_ticks);
         h.add_i32(s.ammo);
+    }
+    for (const auto [e, c] : registry.view<const Carrier>().each()) {
+        h.add_u32(entt::to_integral(e));
+        for (const std::int32_t v : c.load) {
+            h.add_i32(v);
+        }
+        h.add_u32(static_cast<std::uint32_t>(c.task));
+        h.add_u32(entt::to_integral(c.home));
+        h.add_u32(entt::to_integral(c.camp));
+        h.add_i32(c.timer);
+        h.add_u32(c.move_order);
+    }
+    for (const auto [e, st] : registry.view<const SupplyStore>().each()) {
+        h.add_u32(entt::to_integral(e));
+        for (const std::int32_t v : st.stock) {
+            h.add_i32(v);
+        }
     }
 }
 
