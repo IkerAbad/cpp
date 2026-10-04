@@ -65,6 +65,8 @@ struct BuildingType {
     // Campamento de campaña: no tira del almacén del jugador sino de uno propio, con
     // esta capacidad, que llenan los convoyes (0 = no es campamento).
     std::int32_t store_capacity = 0;
+    // Lo que los convoyes procuran tener en ese almacén (suma <= store_capacity).
+    Stock store_target{};
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {

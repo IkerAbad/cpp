@@ -221,6 +221,8 @@ struct ConvoyWorld {
         c.population = 0;
         c.supplies = true;
         c.store_capacity = kCampStore;
+        c.store_target = stock(60, 30, 0, 0, 10);
+        c.hp = 60;  // se desmonta deprisa en la prueba de campamento perdido
         camp = static_cast<rts::sim::BuildingTypeId>(params.building_types.size());
         params.building_types.push_back(c);
         params.supply.convoy_mix = stock(50, 30, 0, 0, 20);
@@ -310,12 +312,14 @@ TEST_CASE("Convoy: otra orden deja la ruta y conserva la carga; perdido el campa
     const auto mule = world.spawn_unit(0, kMule, {100, 100});
     world.step();
     world.issue(order(CommandType::Convoy, 0, {mule}, camp));
-    run(world, 60);  // cargado y en camino
+    run(world, 60);  // cargado (lo que le falta al campamento: comida primero) y en camino
     REQUIRE(carrier_of(world, mule).task == rts::sim::ConvoyTask::Unload);
+    const Stock load = carrier_of(world, mule).load;
+    CHECK(load[0] == kMuleLoad);
     world.issue(order(CommandType::Stop, 0, {mule}, rts::sim::kNoObject));
     run(world, 2);
     CHECK(carrier_of(world, mule).task == rts::sim::ConvoyTask::Idle);
-    CHECK(carrier_of(world, mule).load[0] == 10);
+    CHECK(carrier_of(world, mule).load == load);
 
     world.issue(order(CommandType::Convoy, 0, {mule}, camp));
     run(world, 2);
@@ -330,5 +334,70 @@ TEST_CASE("Convoy: otra orden deja la ruta y conserva la carga; perdido el campa
     REQUIRE_FALSE(world.registry().valid(ent(camp)));
     run(world, 2);
     CHECK(carrier_of(world, mule).task == rts::sim::ConvoyTask::Idle);
-    CHECK(carrier_of(world, mule).load[0] == 10);
+    CHECK(carrier_of(world, mule).load == load);
+}
+
+TEST_CASE("Trabuquete: se monta en el campamento con lo traído en convoy, no se mueve y derriba desde lejos") {
+    ConvoyWorld cw;
+    // Trabuquete de prueba: el ariete, inmóvil y con alcance largo.
+    rts::sim::UnitType treb = cw.params.unit_types[kRam];
+    treb.speed = rts::sim::Fixed{};
+    treb.cost = stock(0, 50, 0, 0, 10);
+    treb.train_ticks = 10;
+    treb.combat.range = rts::sim::Fixed::from_int(8);
+    treb.combat.sight_tiles = 8;
+    treb.combat.projectile_speed = rts::sim::Fixed::from_ratio(1, 4);
+    treb.supply = {};
+    const auto treb_type = static_cast<rts::sim::UnitTypeId>(cw.params.unit_types.size());
+    cw.params.unit_types.push_back(treb);
+    auto& camp_type = cw.params.building_types[cw.camp];
+    camp_type.trains = {treb_type};
+    camp_type.store_target = stock(20, 50, 0, 0, 10);
+    World world(cw.params);
+    world.set_stock(0, stock(1000, 1000, 0, 0, 1000));
+    REQUIRE(world.spawn_building(0, kCenter, {104, 99}, true));
+    const auto camp = *world.spawn_building(0, cw.camp, {80, 100}, true);
+    const auto enemy = *world.spawn_building(1, kHouse, {72, 101}, true);
+    std::vector<std::uint32_t> mules;
+    for (std::int32_t i = 0; i < 3; ++i) {
+        mules.push_back(world.spawn_unit(0, kMule, {100, 100 + i}));
+    }
+    world.step();
+    world.issue(order(CommandType::Convoy, 0, mules, camp));
+    // Los convoyes llevan lo que le falta al campamento: madera y hierro incluidos.
+    for (std::int32_t t = 0; t < 4000; ++t) {
+        world.step();
+        const auto& store = world.registry().get<rts::sim::SupplyStore>(ent(camp)).stock;
+        if (store[1] >= 50 && store[4] >= 10) {
+            break;
+        }
+    }
+    const auto& store = world.registry().get<rts::sim::SupplyStore>(ent(camp)).stock;
+    REQUIRE(store[1] >= 50);
+    REQUIRE(store[4] >= 10);
+    world.issue(order(CommandType::Stop, 0, mules, rts::sim::kNoObject));
+    const Stock player_before = world.player_state(0).stock;
+    Command train = order(CommandType::Train, 0, {}, camp);
+    train.kind = treb_type;
+    world.issue(train);
+    run(world, 30);
+    CHECK(world.player_state(0).stock == player_before);  // lo pagó el campamento
+    rts::sim::Snapshot snap;
+    world.write_snapshot(snap);
+    const auto it = std::ranges::find(snap.entities, treb_type, &rts::sim::SnapshotEntity::type);
+    REQUIRE(it != snap.entities.end());
+    const auto treb_id = it->id;
+    const auto where = it->pos;
+    // No se mueve.
+    Command go = order(CommandType::Move, 0, {treb_id}, rts::sim::kNoObject);
+    go.target = {120, 120};
+    world.issue(go);
+    run(world, 100);
+    const auto& pos = world.registry().get<rts::sim::Position>(ent(treb_id));
+    CHECK(pos.x == where.x);
+    CHECK(pos.y == where.y);
+    // Derriba desde lejos la casa enemiga (a unas 7 casillas).
+    const std::int32_t full = world.registry().get<Health>(ent(enemy)).hp;
+    run(world, 600);
+    CHECK((!world.registry().valid(ent(enemy)) || world.registry().get<Health>(ent(enemy)).hp < full));
 }

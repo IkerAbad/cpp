@@ -53,6 +53,11 @@
 # ammo: disparos que lleva (0 = cuerpo a cuerpo). Las flechas se servían en haces de
 #   24; aquí se reponen de 6 en 6 (ammo_bundle) pagando ammo_cost cada vez: astiles de
 #   madera; los virotes de ballesta, además, punta de hierro.
+# - trabuquete (de contrapeso): se transportaba desmontado en carros y lo volvía a
+#   montar en el sitio un maestro de ingenios. Aquí se monta en un campamento de
+#   campaña, pagado con lo que han traído los convoyes; montado no se mueve
+#   (velocidad 0). Más lento que el ariete, pero derriba desde lejos y no hay que
+#   arrimarlo al muro.
 # convoy_capacity: bagaje que lleva suministros (0 = no es bagaje). La acémila carga
 #   como un hombre y medio y va a su paso; la carreta de bueyes carga cinco veces más
 #   pero va a la mitad de velocidad. Sus animales comen de la carga.
@@ -434,3 +439,37 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 150
+
+[[unit]]
+name = "trabuquete"
+label = "Tb"  # inicial sobre el marcador
+radius_milli_tiles = 480
+speed_milli_tiles_per_tick = 0
+color = [110, 80, 50]
+cost = { madera = 120, hierro = 30 }
+train_ticks = 1200
+population = 3
+worker = false
+carry_capacity = 0
+hp = 150
+attack = { cuerpo = 100 }
+armor = { cuerpo = 2, proyectil = 10 }
+class = "asedio"
+bonus = {}
+range_milli_tiles = 10000
+reload_ticks = 300
+sight_tiles = 10
+projectile_speed_milli_tiles_per_tick = 250
+auto_attack = true
+ignite = 0
+extinguish = 0
+siege = true
+buildings_only = true
+undermine = false
+rations = 6
+ration_ticks = 1200
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
+convoy_capacity = 0

@@ -137,6 +137,9 @@ void MovementSystem::order_move(entt::registry& registry, std::span<const entt::
     };
     std::vector<Resolved> resolved;
     for (const entt::entity e : units) {
+        if (registry.get<Unit>(e).speed.raw() <= 0) {
+            continue;  // inmóvil (un trabuquete montado): no recibe desplazamientos
+        }
         const Position& p = registry.get<Position>(e);
         const std::uint32_t comp = grid_.component(tile_of(FVec2{p.x, p.y}));
         // Si el destino no es alcanzable desde aquí (agua, otra isla), la casilla

@@ -14,7 +14,7 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M4 | Combate con proyectiles esquivables, experiencia por unidad y héroes | hecho |
 | M7 (adelantado) | IA básica que juega con las mismas reglas que un humano; victoria y derrota | hecho |
 | M5 | Repeticiones deterministas: grabación automática, reproductor y verificación | hecho |
-| M6 | Logística: víveres, munición, bagaje, convoyes y campamentos | en curso (falta el trabuquete) |
+| M6 | Logística: víveres, munición, bagaje, convoyes, campamentos y trabuquete | hecho |
 | M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | — |
 | M8 | Multijugador lockstep | — |
 
@@ -300,6 +300,9 @@ Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipe
   - sobre otro edificio que abastece: carga y se queda.
 
   La acémila carga como un hombre y medio; la carreta, cinco veces más, a la mitad de velocidad.
+- **Trabuquete** (de contrapeso). Se transportaba desmontado en carros y lo volvía a montar un maestro de ingenios ([Trebuchet](https://en.wikipedia.org/wiki/Trebuchet): «deconstructed for transportation to their destination, whether on carts or by ship»).
+  - Aquí se monta en un campamento de campaña, pagado con su almacén: madera y hierro traídos en convoy. Cada viaje lleva lo que le falta al campamento para su `store_target`, contando lo que ya está en camino.
+  - Montado no se mueve (velocidad 0). Más lento que el ariete, pero derriba a 10 casillas sin arrimarse al muro.
 - **IA:**
   - `abastecer`: la tropa que no pelea y baja del 30 % vuelve a la fuente más cercana que puede darle algo (edificio o bagaje) y espera a llenarse.
   - `logistica`: dos acémilas siguen al ejército en campaña unas casillas por detrás y vuelven a casa a cargar.

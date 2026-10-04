@@ -472,6 +472,10 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             c.target = entt::null;  // mantener posición: no persigue
             continue;
         }
+        if (unit.speed.raw() <= 0) {
+            clear_target(registry, movement, e, c, next_order_id, tick);  // inmóvil: no puede perseguir
+            continue;
+        }
         const TileCoord target_tile = tile_of(aim_point(registry, c.target));
         const bool chasing = c.chase_order != 0 && goal != nullptr && goal->order_id == c.chase_order && !goal->arrived;
         const bool target_moved = chebyshev(target_tile, c.chase_tile) >= params_.repath_tiles;

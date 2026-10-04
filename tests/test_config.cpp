@@ -148,6 +148,7 @@ farm_food = 0
 vital = false
 supplies = true
 store_capacity = 0
+store_target = {}
 material = "madera"
 color = [9, 9, 9]
 
@@ -167,6 +168,7 @@ farm_food = 0
 vital = false
 supplies = true
 store_capacity = 0
+store_target = {}
 material = "madera"
 color = [8, 8, 8]
 )";

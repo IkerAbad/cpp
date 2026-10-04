@@ -413,7 +413,7 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             // Radio hasta media casilla: la separación y la rejilla espacial suponen
             // que dos unidades que se tocan están en casillas vecinas.
             info.type.radius = sim::Fixed::from_ratio(ur.get_i32("radius_milli_tiles", 50, kMilli / 2), kMilli);
-            info.type.speed = sim::Fixed::from_ratio(ur.get_i32("speed_milli_tiles_per_tick", 1, kMilli / 2), kMilli);
+            info.type.speed = sim::Fixed::from_ratio(ur.get_i32("speed_milli_tiles_per_tick", 0, kMilli / 2), kMilli);
             info.color = ur.get_color<3>("color");
             info.type.cost = ur.get_stock("cost");
             info.type.train_ticks = ur.get_i32("train_ticks", 1, kMaxTicks);
@@ -544,6 +544,14 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.vital = br.get_bool("vital");
         info.type.supplies = br.get_bool("supplies");
         info.type.store_capacity = br.get_i32("store_capacity", 0, kMaxAmount);
+        info.type.store_target = br.get_stock("store_target");
+        std::int64_t target_sum = 0;
+        for (const std::int32_t v : info.type.store_target) {
+            target_sum += v;
+        }
+        if (!error && target_sum > info.type.store_capacity) {
+            br.fail("'store_target' no puede sumar más que 'store_capacity'");
+        }
         if (!error && info.type.store_capacity > 0 && !info.type.supplies) {
             br.fail("un campamento ('store_capacity' > 0) debe abastecer ('supplies = true')");
         }

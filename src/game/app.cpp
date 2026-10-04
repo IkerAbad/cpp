@@ -921,6 +921,7 @@ private:
         ImGui::BulletText("Campamento: almacén avanzado que llenan acémilas y carretas");
         ImGui::BulletText("Bagaje + clic derecho en un campamento: ruta de convoy");
         ImGui::BulletText("Bagaje cargado y parado: abastece a las tropas de alrededor");
+        ImGui::BulletText("Trabuquete: se monta en un campamento con lo traído en convoy");
         ImGui::BulletText("Pasa el ratón sobre algo para ver qué es");
         ImGui::End();
     }
@@ -1235,9 +1236,14 @@ private:
             }
         }
         const bool full = std::cmp_greater_equal(o->queue.size(), data_.engine.world.economy.queue_capacity);
+        // Un campamento paga con su propio almacén (lo traído en convoy).
+        const sim::Stock& pays = info.type.store_capacity > 0 ? o->store : stock;
+        if (info.type.store_capacity > 0) {
+            ImGui::TextDisabled("Se paga con el almacén del campamento");
+        }
         for (const sim::UnitTypeId t : info.type.trains) {
             const UnitInfo& u = data_.units.types[t];
-            ImGui::BeginDisabled(full || !affordable(stock, u.type.cost));
+            ImGui::BeginDisabled(full || !affordable(pays, u.type.cost));
             if (ImGui::Button(std::format("{} ({})", u.name, cost_text(u.type.cost)).c_str())) {
                 sim::Command c = local_command(sim::CommandType::Train);
                 c.units.clear();

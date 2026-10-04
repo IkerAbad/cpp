@@ -161,14 +161,36 @@ void SupplySystem::update_carriers(entt::registry& registry, MovementSystem& mov
                 continue;
             }
             c.timer = 0;
-            // Carga según el reparto, hasta su capacidad y lo que haya en el almacén.
+            // Hacia un campamento: lo que le falta para su objetivo de almacén, hasta la
+            // capacidad del bagaje. Si no: según el reparto. Siempre con lo que haya en casa.
             const std::int32_t capacity = units_[registry.get<Unit>(e).type].convoy_capacity;
             Stock& stock = economy.player_state(player).stock;
+            Stock want{};
+            if (is_camp(registry, c.camp, player)) {
+                // Sin contar dos veces lo que ya llevan hacia allí otros convoyes.
+                const Stock& target = buildings_[registry.get<Building>(c.camp).type].store_target;
+                Stock coming = registry.get<SupplyStore>(c.camp).stock;
+                for (const auto [o, other] : registry.view<const Carrier>().each()) {
+                    if (o != e && other.camp == c.camp && other.task == ConvoyTask::Unload) {
+                        for (std::size_t r = 0; r < kResourceCount; ++r) {
+                            coming[r] += other.load[r];
+                        }
+                    }
+                }
+                for (std::size_t r = 0; r < kResourceCount; ++r) {
+                    want[r] = std::max(target[r] - coming[r], 0);
+                }
+            } else {
+                for (std::size_t r = 0; r < kResourceCount; ++r) {
+                    want[r] = capacity * params_.convoy_mix[r] / kPercent;
+                }
+            }
+            std::int32_t room = capacity - total(c.load);
             for (std::size_t r = 0; r < kResourceCount; ++r) {
-                const std::int32_t want = capacity * params_.convoy_mix[r] / kPercent - c.load[r];
-                const std::int32_t take = std::clamp(want, 0, std::max(stock[r], 0));
+                const std::int32_t take = std::clamp(std::min(want[r] - c.load[r], room), 0, std::max(stock[r], 0));
                 stock[r] -= take;
                 c.load[r] += take;
+                room -= take;
             }
             ++stats_.loaded;
             c.task = is_camp(registry, c.camp, player) ? ConvoyTask::Unload : ConvoyTask::Idle;

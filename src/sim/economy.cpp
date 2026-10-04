@@ -406,12 +406,14 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             const auto& trains = catalog_.buildings[b.type].trains;
             ProductionQueue& q = registry.get<ProductionQueue>(object);
             const Stock& cost = catalog_.units[command.kind].cost;
-            PlayerState& ps = players_[player];
+            // Un campamento de campaña paga con su propio almacén (lo traído en convoy).
+            SupplyStore* store = registry.try_get<SupplyStore>(object);
+            Stock& pays = store != nullptr ? store->stock : players_[player].stock;
             if (!b.working() || std::ranges::find(trains, command.kind) == trains.end() ||
-                std::cmp_greater_equal(q.items.size(), params_.queue_capacity) || !affordable(ps.stock, cost)) {
+                std::cmp_greater_equal(q.items.size(), params_.queue_capacity) || !affordable(pays, cost)) {
                 return;
             }
-            add_stock(ps.stock, cost, -1);  // se cobra al encolar
+            add_stock(pays, cost, -1);  // se cobra al encolar
             q.items.push_back(command.kind);
             return;
         }
@@ -425,7 +427,9 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             if (q.items.empty()) {
                 return;
             }
-            add_stock(players_[player].stock, catalog_.units[q.items.back()].cost, 1);  // reembolso íntegro
+            SupplyStore* store = registry.try_get<SupplyStore>(object);
+            add_stock(store != nullptr ? store->stock : players_[player].stock, catalog_.units[q.items.back()].cost,
+                      1);  // reembolso íntegro, a quien pagó
             q.items.pop_back();
             if (q.items.empty()) {
                 q.progress = 0;
