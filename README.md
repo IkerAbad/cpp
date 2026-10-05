@@ -15,8 +15,10 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M7 (adelantado) | IA básica que juega con las mismas reglas que un humano; victoria y derrota | hecho |
 | M5 | Repeticiones deterministas: grabación automática, reproductor y verificación | hecho |
 | M6 | Logística: víveres, munición, bagaje, convoyes, campamentos y trabuquete | hecho |
-| M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | — |
+| M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | en curso: percepción con niebla, 18 módulos |
 | M8 | Multijugador lockstep | — |
+
+El plan completo, con lo que falta y en qué orden, está en [docs/PLAN.md](docs/PLAN.md).
 
 ## Requisitos
 
