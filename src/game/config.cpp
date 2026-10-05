@@ -465,6 +465,7 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             sup.ammo_cost = ur.get_stock("ammo_cost");
             info.type.convoy_capacity = ur.get_i32("convoy_capacity", 0, kMaxAmount);
             info.type.treatable = ur.get_bool("treatable");
+            info.type.care_skill = ur.get_i32("care_skill", 0, 1000);
             if (!error && info.type.convoy_capacity > 0 && info.type.worker) {
                 ur.fail("un aldeano no puede ser bagaje ('convoy_capacity' debe ser 0)");
             }

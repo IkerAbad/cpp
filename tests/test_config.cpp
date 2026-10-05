@@ -73,6 +73,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 [[unit]]
 name = "peon"
@@ -108,6 +109,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 )";
 
 constexpr const char* kNodes = R"(

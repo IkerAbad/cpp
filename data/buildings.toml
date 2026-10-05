@@ -291,7 +291,7 @@ accepts = []
 population = 0
 armor = { cuerpo = 2, proyectil = 6 }
 class = "edificio"
-trains = []
+trains = ["cirujano"]
 requires = ["cuartel"]
 farm_food = 0
 vital = false
@@ -315,7 +315,7 @@ accepts = []
 population = 0
 armor = { cuerpo = 15, proyectil = 8 }
 class = "edificio"
-trains = []
+trains = ["cirujano"]
 requires = []
 farm_food = 0
 vital = false

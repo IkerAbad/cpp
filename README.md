@@ -329,7 +329,7 @@ Fuentes:
 
 **Cómo funciona** (`[medicine]` en `engine.toml`):
 - **Ingreso:** heridos + clic derecho sobre el puesto. Ingresado, el paciente queda inoperativo y sin bienes (pierde víveres y munición). Se le puede atacar y, si el puesto cae, muere. Si no hay cama libre, espera a la puerta.
-- **Cuidados:** cura el tiempo (reposo) y, sobre todo, los enfermeros: aldeanos + clic derecho sobre el puesto. Cada enfermero atiende a 3 pacientes. Un soldado con 30 de herida tarda unos 45 s atendido en un hospital de campaña y unos 5 min sin atender.
+- **Cuidados:** cura el tiempo (reposo) y, sobre todo, el personal: aldeanos o cirujanos + clic derecho sobre el puesto. Cada miembro atiende a 3 pacientes con su pericia (`care_skill`). El aldeano hace de enfermero (100). El barbero cirujano (`cirujano`), oficio de pago que se forma en los hospitales, cura con 250 y ocupa antes que nadie las plazas de personal del puesto. Fuente: [Barber surgeon](https://en.wikipedia.org/wiki/Barber_surgeon), que documenta barberos cirujanos en la Valencia del siglo XV. Un soldado con 30 de herida tarda unos 45 s atendido en un hospital de campaña y unos 5 min sin atender.
 - **Comida:** los pacientes comen como un aldeano, del almacén del jugador; sin comida no mejoran.
 - **Alta:** sale sin víveres ni munición y tarda 20 s en reorganizarse antes de poder atacar. Cualquier otra orden lo saca antes de tiempo, con la misma reorganización.
 - **Curación natural:** fuera de los puestos solo sanan solas las heridas leves (70 % de vida o más), con la unidad comida y 10 s sin recibir daño. Las graves no.

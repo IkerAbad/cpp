@@ -90,6 +90,17 @@ struct UnitType {
     // Se le puede curar en un puesto médico y sus heridas leves sanan solas (personas;
     // no animales ni ingenios).
     bool treatable = false;
+    // Pericia atendiendo heridos (% del cuidado de un enfermero; 0 = no sabe): el
+    // aldeano, 100; el barbero cirujano, más.
+    std::int32_t care_skill = 0;
+};
+
+// Personal sanitario que no es aldeano (cirujano) atendiendo un puesto médico (los
+// aldeanos usan su tarea de enfermero).
+struct Carer {
+    entt::entity post = entt::null;
+    std::uint32_t move_order = 0;
+    std::int32_t approaches = 0;  // llegadas sin alcanzarlo (a la segunda, desiste)
 };
 
 // Herido en un puesto médico. Hasta que ingresa (hay cama y está al alcance) va hacia
@@ -220,7 +231,7 @@ enum class CommandType : std::uint8_t {
     Convoy,
     // units (heridos) -> object (puesto médico propio): ingresar para que los curen.
     Treat,
-    // units (aldeanos) -> object (puesto médico propio): atenderlo como enfermeros.
+    // units (aldeanos, cirujanos) -> object (puesto médico propio): atenderlo.
     Tend,
     Count,        // número de tipos (no es una orden)
 };

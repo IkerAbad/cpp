@@ -60,6 +60,9 @@
 #   arrimarlo al muro.
 # treatable: persona a la que se cura en un puesto médico y cuyas heridas leves sanan
 #   solas (no los animales del bagaje ni los ingenios, que se reparan o se pierden).
+# care_skill: pericia atendiendo heridos en un puesto médico (% del cuidado de un
+#   enfermero; 0 = no sabe). El aldeano hace de enfermero (100); el barbero cirujano,
+#   oficio de pago, cura mucho mejor.
 # convoy_capacity: bagaje que lleva suministros (0 = no es bagaje). La acémila carga
 #   como un hombre y medio y va a su paso; la carreta de bueyes carga cinco veces más
 #   pero va a la mitad de velocidad. Sus animales comen de la carga.
@@ -100,6 +103,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 100
 
 [[unit]]
 name = "leva"
@@ -135,6 +139,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 [[unit]]
 name = "hombre_armas"
@@ -170,6 +175,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 [[unit]]
 name = "arquero"
@@ -205,6 +211,7 @@ ammo_bundle = 6
 ammo_cost = { madera = 1 }
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 [[unit]]
 name = "ballestero"
@@ -240,6 +247,7 @@ ammo_bundle = 6
 ammo_cost = { madera = 1, hierro = 1 }
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 [[unit]]
 name = "jinete"
@@ -275,6 +283,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 [[unit]]
 name = "caballero"
@@ -310,6 +319,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 [[unit]]
 name = "ariete"
@@ -345,6 +355,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = false
+care_skill = 0
 
 [[unit]]
 name = "zapador"
@@ -380,6 +391,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = true
+care_skill = 0
 
 # Bagaje. Sin armas (no busca pelea); vulnerable: cortar convoyes es la forma de
 # rendir a un ejército sin combatir.
@@ -417,6 +429,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 30
 treatable = false
+care_skill = 0
 
 [[unit]]
 name = "carreta"
@@ -452,6 +465,7 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 150
 treatable = false
+care_skill = 0
 
 [[unit]]
 name = "trabuquete"
@@ -487,3 +501,43 @@ ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
 treatable = false
+care_skill = 0
+
+# Barbero cirujano: oficio de pago (oro), sin armas. Hubo barberos cirujanos en
+# Valencia en el siglo XV y, más tarde, uno por compañía en algunos ejércitos. Atiende
+# un puesto médico como un enfermero, con el doble y medio de pericia.
+[[unit]]
+name = "cirujano"
+label = "Ci"  # inicial sobre el marcador
+radius_milli_tiles = 250
+speed_milli_tiles_per_tick = 50
+color = [235, 235, 245]
+cost = { comida = 40, oro = 60 }
+train_ticks = 600
+population = 1
+worker = false
+carry_capacity = 0
+hp = 25
+attack = {}
+armor = {}
+class = "aldeano"
+bonus = {}
+range_milli_tiles = 150
+reload_ticks = 40
+sight_tiles = 4
+projectile_speed_milli_tiles_per_tick = 0
+auto_attack = false
+ignite = 0
+extinguish = 4
+siege = false
+buildings_only = false
+undermine = false
+rations = 6
+ration_ticks = 1200
+starves = true
+ammo = 0
+ammo_bundle = 1
+ammo_cost = {}
+convoy_capacity = 0
+treatable = true
+care_skill = 250

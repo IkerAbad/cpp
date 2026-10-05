@@ -107,6 +107,7 @@ struct SnapshotEntity {
     std::uint32_t care_post = kNoObject;  // puesto médico al que va o en el que está
     bool admitted = false;                // ingresado en él
     bool reorganizing = false;            // tras el alta, aún sin poder atacar
+    bool tending = false;                 // atiende el puesto médico work_building
 };
 
 enum class ObjectKind : std::uint8_t { Building, Resource };

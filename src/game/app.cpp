@@ -559,8 +559,8 @@ private:
                         return false;
                     }
                     const sim::UnitType& ut = data_.units.types[it->type].type;
-                    if (ut.worker) {
-                        tend.units.push_back(id);
+                    if (ut.worker || ut.care_skill > 0) {
+                        tend.units.push_back(id);  // aldeanos (enfermeros) y cirujanos
                         return true;
                     }
                     if (ut.treatable && it->hp < it->max_hp) {
@@ -973,7 +973,7 @@ private:
         ImGui::BulletText("Trabuquete: se monta en un campamento con lo traído en convoy");
         ImGui::SeparatorText("Sanidad");
         ImGui::BulletText("Heridos + clic derecho en un puesto médico: ingresan");
-        ImGui::BulletText("Aldeanos + clic derecho en él: enfermeros (curan más deprisa)");
+        ImGui::BulletText("Aldeanos o cirujanos + clic derecho en él: atienden (el cirujano cura mejor)");
         ImGui::BulletText("Socorro estabiliza; hospital de campaña y hospital curan del todo");
         ImGui::BulletText("Solo lo leve (%d %% de vida o más) sana solo; si cae el puesto, mueren",
                           data_.engine.world.medicine.light_wound_percent);
@@ -1265,14 +1265,13 @@ private:
             for (const sim::SnapshotEntity& e : curr_.entities) {
                 patients += e.admitted && e.care_post == id ? 1 : 0;
             }
-            // Enfermeros: aldeanos con esa tarea junto al puesto (los cuenta la simulación;
-            // aquí, los que tienen la tarea asignada).
+            // Personal asignado (enfermeros y cirujanos; cuidan los que están a su lado).
             for (const sim::SnapshotEntity& e : curr_.entities) {
-                nurses += e.owner == kLocalPlayer && e.task == sim::WorkerTask::Nurse && e.work_building == id ? 1 : 0;
+                nurses += e.owner == kLocalPlayer && e.tending && e.work_building == id ? 1 : 0;
             }
-            ImGui::Text("camas %d/%d · enfermeros %d/%d · cura hasta el %d %%", patients, info.type.beds, nurses,
+            ImGui::Text("camas %d/%d · personal %d/%d · cura hasta el %d %%", patients, info.type.beds, nurses,
                         info.type.nurses, info.type.heal_to_percent);
-            ImGui::TextDisabled("Clic derecho con heridos: ingresan; con aldeanos: enfermeros");
+            ImGui::TextDisabled("Clic derecho con heridos: ingresan; con aldeanos o cirujanos: atienden");
         }
         if (info.type.store_capacity > 0) {
             ImGui::Text("suministros %s (de %d)", stock_text(o->store).c_str(), info.type.store_capacity);

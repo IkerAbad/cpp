@@ -35,6 +35,7 @@ struct MedWorld {
         for (auto& u : params.unit_types) {
             u.treatable = u.combat.buildings_only == false;
         }
+        params.unit_types[kVillager].care_skill = 100;  // enfermero
         auto& archer = params.unit_types[kArcher].supply;
         archer.rations = 10;
         archer.ration_ticks = 1000;
@@ -264,4 +265,51 @@ TEST_CASE("Sanidad: lo leve sana solo en calma; lo grave no; el socorro estabili
     CHECK(hp(world, grave) == 28);
     run(world, 400);
     CHECK(hp(world, grave) == 40);
+}
+
+namespace {
+
+// Ticks hasta el alta de un soldado con 5 de vida atendido por el personal indicado
+// (tipos de unidad) en un puesto con una sola plaza de personal.
+std::int32_t ticks_with_staff(const std::vector<rts::sim::UnitTypeId>& staff_types) {
+    MedWorld mw;
+    rts::sim::UnitType surgeon = mw.params.unit_types[kVillager];
+    surgeon.worker = false;
+    surgeon.carry_capacity = 0;
+    surgeon.care_skill = 250;
+    const auto surgeon_type = static_cast<rts::sim::UnitTypeId>(mw.params.unit_types.size());
+    mw.params.unit_types.push_back(surgeon);
+    World world(mw.params);
+    world.set_stock(0, stock(1000, 0, 0, 0));
+    const auto post = *world.spawn_building(0, mw.hospital, {104, 99}, true);
+    const auto soldier = world.spawn_unit(0, kSoldier, {102, 100});
+    std::vector<std::uint32_t> staff;
+    std::int32_t y = 97;
+    for (const auto t : staff_types) {
+        staff.push_back(world.spawn_unit(0, t == kVillager ? kVillager : surgeon_type, {107, y++}));
+    }
+    world.issue(order(CommandType::Tend, 0, staff, post));
+    run(world, 300);  // el personal ya está en su sitio
+    world.set_hp(soldier, 5);
+    world.issue(order(CommandType::Treat, 0, {soldier}, post));
+    for (std::int32_t t = 0; t < 20'000; ++t) {
+        world.step();
+        if (world.registry().all_of<rts::sim::Reorganizing>(ent(soldier))) {
+            return t;
+        }
+    }
+    return -1;
+}
+
+}  // namespace
+
+TEST_CASE("Sanidad: el cirujano cura antes que un aldeano y, con una sola plaza, la ocupa él") {
+    constexpr rts::sim::UnitTypeId kSurgeon = 255;  // marca: el cirujano de la prueba
+    const std::int32_t nurse = ticks_with_staff({kVillager});
+    const std::int32_t surgeon = ticks_with_staff({kSurgeon});
+    const std::int32_t both = ticks_with_staff({kVillager, kSurgeon});
+    REQUIRE(nurse > 0);
+    REQUIRE(surgeon > 0);
+    CHECK(surgeon * 3 < nurse * 2);  // pericia 250 frente a 100
+    CHECK(both == surgeon);          // la única plaza es del más experto
 }

@@ -68,6 +68,33 @@ void MedicineSystem::apply(entt::registry& registry, MovementSystem& movement, c
     if (command.type == CommandType::SetStance) {
         return;
     }
+    if (command.type == CommandType::Tend) {
+        // Personal que no es aldeano (los aldeanos los lleva la economía).
+        const auto post = static_cast<entt::entity>(command.object);
+        if (command.object == kNoObject || !is_post(registry, post, command.player)) {
+            return;
+        }
+        std::vector<entt::entity> staff;
+        for (const entt::entity e : units) {
+            const UnitType& ut = units_[registry.get<Unit>(e).type];
+            if (!ut.worker && ut.care_skill > 0) {
+                staff.push_back(e);
+            }
+        }
+        if (staff.empty()) {
+            return;
+        }
+        const std::uint32_t order = next_order_id++;
+        movement.order_move(registry, staff, center_of(registry.get<Footprint>(post)), order, tick);
+        for (const entt::entity e : staff) {
+            registry.emplace_or_replace<Carer>(e, post, order, 0);
+            registry.remove<Patient>(e);
+        }
+        return;
+    }
+    for (const entt::entity e : units) {
+        registry.remove<Carer>(e);  // cualquier otra orden lo saca de su puesto
+    }
     if (command.type != CommandType::Treat) {
         // Cualquier otra orden saca del puesto (o del camino hacia él).
         for (const entt::entity e : units) {
@@ -121,16 +148,83 @@ void MedicineSystem::update_patients(entt::registry& registry, MovementSystem& m
             add_count(occupied, p.post);
         }
     }
-    std::vector<std::pair<entt::entity, std::int32_t>> nursing;
-    for (const auto [e, w, pos, u] : registry.view<const Worker, const Position, const Unit>().each()) {
-        if (w.task != WorkerTask::Nurse || !registry.valid(w.building) || !registry.all_of<Footprint>(w.building)) {
+    // Personal al alcance de cada puesto: aldeanos enfermeros y cirujanos. Los que no
+    // son aldeanos se acercan por su cuenta; si no lo alcanzan tras dos llegadas, desisten.
+    scratch_.clear();
+    for (const entt::entity e : registry.view<Carer>()) {
+        scratch_.push_back(e);
+    }
+    for (const entt::entity e : scratch_) {
+        Carer& c = registry.get<Carer>(e);
+        if (!is_post(registry, c.post, registry.get<Owner>(e).player)) {
+            registry.remove<Carer>(e);
             continue;
         }
-        const Fixed reach = u.radius + params_.care_reach;
-        if (distance_sq_to(registry.get<Footprint>(w.building), {pos.x, pos.y}) <= mul_wide(reach, reach)) {
-            add_count(nursing, w.building);
+        const Footprint& f = registry.get<Footprint>(c.post);
+        const Position& pos = registry.get<Position>(e);
+        const Fixed reach = registry.get<Unit>(e).radius + params_.care_reach;
+        if (distance_sq_to(f, {pos.x, pos.y}) <= mul_wide(reach, reach)) {
+            continue;
+        }
+        const MoveGoal* g = registry.try_get<MoveGoal>(e);
+        const bool arrived = g != nullptr && g->order_id == c.move_order && g->arrived;
+        if (arrived && ++c.approaches >= 2) {
+            registry.remove<Carer>(e);
+            continue;
+        }
+        if (g == nullptr || g->order_id != c.move_order || arrived) {
+            c.move_order = next_order_id++;
+            const std::array<entt::entity, 1> one{e};
+            movement.order_move(registry, one, clamp_to(f, tile_of(pos)), c.move_order, tick);
         }
     }
+    struct Staff {
+        entt::entity post;
+        std::int32_t skill;
+        entt::entity who;
+    };
+    std::vector<Staff> staff;
+    const auto add_staff = [&](entt::entity e, entt::entity post) {
+        if (!registry.valid(post) || !registry.all_of<Footprint>(post)) {
+            return;
+        }
+        const Position& pos = registry.get<Position>(e);
+        const Unit& u = registry.get<Unit>(e);
+        const Fixed reach = u.radius + params_.care_reach;
+        const std::int32_t skill = units_[u.type].care_skill;
+        if (skill > 0 && distance_sq_to(registry.get<Footprint>(post), {pos.x, pos.y}) <= mul_wide(reach, reach)) {
+            staff.push_back({post, skill, e});
+        }
+    };
+    for (const auto [e, w] : registry.view<const Worker>().each()) {
+        if (w.task == WorkerTask::Nurse) {
+            add_staff(e, w.building);
+        }
+    }
+    for (const auto [e, c] : registry.view<const Carer>().each()) {
+        add_staff(e, c.post);
+    }
+    // Por puesto, los más expertos primero (a igualdad, por entidad).
+    std::ranges::sort(staff, [](const Staff& a, const Staff& b) {
+        const auto pa = entt::to_integral(a.post);
+        const auto pb = entt::to_integral(b.post);
+        if (pa != pb) {
+            return pa < pb;
+        }
+        return a.skill != b.skill ? a.skill > b.skill : entt::to_integral(a.who) < entt::to_integral(b.who);
+    });
+    // Pericia del que atiende al paciente de rango rank en el puesto post (0 = nadie).
+    const auto carer_skill = [&](entt::entity post, std::int32_t rank, std::int32_t slots) {
+        const auto first = std::ranges::find(staff, post, &Staff::post);
+        const std::int32_t index = rank / params_.patients_per_nurse;
+        std::int32_t n = 0;
+        for (auto it = first; it != staff.end() && it->post == post && n < slots; ++it, ++n) {
+            if (n == index) {
+                return it->skill;
+            }
+        }
+        return 0;
+    };
 
     scratch_.clear();
     for (const entt::entity e : registry.view<Patient>()) {
@@ -205,8 +299,9 @@ void MedicineSystem::update_patients(entt::registry& registry, MovementSystem& m
         in_care.emplace_back(p.post, e);
     }
 
-    // Cuidados: en cada puesto, por orden de entidad, los primeros nurses ×
-    // patients_per_nurse pacientes están atendidos; todos reposan.
+    // Cuidados: todos reposan; en cada puesto, por orden de entidad, cada miembro del
+    // personal (hasta nurses, los más expertos primero) atiende a patients_per_nurse
+    // pacientes, con su pericia.
     std::ranges::sort(in_care, [](const auto& a, const auto& b) {
         const auto pa = entt::to_integral(a.first);
         const auto pb = entt::to_integral(b.first);
@@ -217,8 +312,7 @@ void MedicineSystem::update_patients(entt::registry& registry, MovementSystem& m
         const auto [post, e] = in_care[i];
         rank = i > 0 && in_care[i - 1].first == post ? rank + 1 : 0;
         const BuildingType& bt = buildings_[registry.get<Building>(post).type];
-        const std::int32_t nurses = std::min(count_of(nursing, post), bt.nurses);
-        const bool attended = rank < nurses * params_.patients_per_nurse;
+        const std::int32_t skill = carer_skill(post, rank, bt.nurses);
         Patient& p = registry.get<Patient>(e);
         ++stats_.patients;
         // Come como un aldeano, del almacén del jugador; sin comida no mejora.
@@ -235,9 +329,8 @@ void MedicineSystem::update_patients(entt::registry& registry, MovementSystem& m
         if (!p.fed) {
             continue;
         }
-        const std::int64_t rate =
-            std::int64_t{params_.bed_heal_milli_per_tick + (attended ? params_.nurse_heal_milli_per_tick : 0)} *
-            bt.care_percent / kPercent;
+        const std::int64_t care = std::int64_t{params_.nurse_heal_milli_per_tick} * skill / kPercent;
+        const std::int64_t rate = (params_.bed_heal_milli_per_tick + care) * bt.care_percent / kPercent;
         p.heal_acc += static_cast<std::int32_t>(rate);
         Health& hp = registry.get<Health>(e);
         const std::int32_t target = heal_target(bt, hp.max_hp);
@@ -311,6 +404,12 @@ void MedicineSystem::hash_into(StateHasher& h, const entt::registry& registry) c
     for (const auto [e, r] : registry.view<const Reorganizing>().each()) {
         h.add_u32(entt::to_integral(e));
         h.add_i32(r.ticks_left);
+    }
+    for (const auto [e, c] : registry.view<const Carer>().each()) {
+        h.add_u32(entt::to_integral(e));
+        h.add_u32(entt::to_integral(c.post));
+        h.add_u32(c.move_order);
+        h.add_i32(c.approaches);
     }
     for (const auto [e, hurt] : registry.view<const Hurt>().each()) {
         h.add_u32(entt::to_integral(e));

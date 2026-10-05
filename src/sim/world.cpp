@@ -405,6 +405,11 @@ void World::write_snapshot(Snapshot& out) const {
             s.admitted = p->admitted;
         }
         s.reorganizing = registry_.all_of<Reorganizing>(e);
+        if (const Carer* c = registry_.try_get<Carer>(e)) {
+            s.tending = true;
+            s.work_building = entt::to_integral(c->post);
+        }
+        s.tending = s.tending || s.task == WorkerTask::Nurse;
         out.entities.push_back(s);
     });
     out.objects.clear();
