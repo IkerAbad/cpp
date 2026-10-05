@@ -11,6 +11,9 @@ add_executable(rts_tests
     test_supply.cpp
     test_medicine.cpp
     test_vision.cpp
+    test_orders.cpp
+    test_minimap.cpp
+    test_alerts.cpp
     test_target_priority.cpp
     test_fixed.cpp
     test_fixed_step.cpp

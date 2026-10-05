@@ -233,10 +233,23 @@ enum class CommandType : std::uint8_t {
     Treat,
     // units (aldeanos, cirujanos) -> object (puesto médico propio): atenderlo.
     Tend,
+    // object (edificio propio que produce) -> target: punto de reunión de lo que
+    // produzca (kind = kClearRally: quitarlo).
+    SetRally,
     Count,        // número de tipos (no es una orden)
 };
 
 inline constexpr std::uint32_t kNoObject = 0xFFFF'FFFFU;
+// Move con este kind se encola tras el movimiento en curso (punto de paso, Mayús).
+inline constexpr std::uint8_t kQueueMove = 1;
+// SetRally con este kind quita el punto de reunión.
+inline constexpr std::uint8_t kClearRally = 1;
+
+// Puntos de paso pendientes: al llegar al destino en curso, va al siguiente. También
+// lleva al punto de reunión a lo recién producido.
+struct Waypoints {
+    std::vector<TileCoord> pending;
+};
 
 // Orden de un jugador, aplicada al inicio del tick indicado. Es la unidad de las
 // repeticiones (M5) y de la sincronización lockstep (M8). Una orden sobre entidades

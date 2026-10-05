@@ -356,6 +356,18 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             return;
         }
 
+        case CommandType::SetRally: {
+            if (!has_object || !registry.all_of<Building, Owner>(object) ||
+                registry.get<Owner>(object).player != player ||
+                catalog_.buildings[registry.get<Building>(object).type].trains.empty()) {
+                return;
+            }
+            Building& b = registry.get<Building>(object);
+            const bool clear = command.kind == kClearRally || !movement.grid().contains(command.target);
+            b.rally = clear ? TileCoord{-1, -1} : command.target;
+            return;
+        }
+
         case CommandType::Tend: {
             if (!has_object || !registry.all_of<Building, Owner, Footprint>(object) ||
                 registry.get<Owner>(object).player != player ||
@@ -999,7 +1011,10 @@ void EconomySystem::update_production(entt::registry& registry, const MovementSy
         if (!tile) {
             continue;  // rodeado: la unidad espera lista hasta que haya sitio
         }
-        spawn_unit(registry, player, type, tile_center(*tile));
+        const entt::entity unit = spawn_unit(registry, player, type, tile_center(*tile));
+        if (b.rally.x >= 0) {
+            registry.emplace<Waypoints>(unit, std::vector<TileCoord>{b.rally});  // al punto de reunión
+        }
         ++b.spawned;
         ps.population += ut.population;
         q.items.erase(q.items.begin());
@@ -1045,6 +1060,10 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
         h.add_u32(b.burned ? 1U : 0U);
         h.add_u64(static_cast<std::uint64_t>(b.repair_acc));
         h.add_u32(b.spawned);
+        if (b.rally.x >= 0) {  // solo si lo hay: sin él, el hash es el de siempre
+            h.add_i32(b.rally.x);
+            h.add_i32(b.rally.y);
+        }
     }
     for (const auto [e, q] : registry.view<const ProductionQueue>().each()) {
         h.add_u32(entt::to_integral(e));

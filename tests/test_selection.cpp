@@ -106,3 +106,11 @@ TEST_CASE("Cámara: teclado, borde y tope de velocidad") {
     d = rts::game::camera_scroll(cfg, both, screen, 1.0f);
     CHECK(static_cast<double>(d.x) == doctest::Approx(-1000.0));
 }
+
+TEST_CASE("Selección: set reemplaza la selección, ordenada y sin repetidos (grupos de control)") {
+    Selection s(kSel);
+    s.set({7, 3, 7, 5});
+    CHECK(s.selected() == std::vector<std::uint32_t>{3, 5, 7});
+    s.set({});
+    CHECK(s.selected().empty());
+}

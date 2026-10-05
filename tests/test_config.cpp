@@ -273,6 +273,12 @@ hungry_work_percent = 50
 starve_after_ticks = 1200
 starve_hp_interval_ticks = 60
 
+[alerts]
+cooldown_ticks = 400
+zone_tiles = 16
+show_ticks = 160
+max_shown = 4
+
 [vision]
 enabled = false
 interval_ticks = 10
@@ -434,6 +440,8 @@ burned_shade_percent = 30
 fog_unexplored_color = [8, 8, 12, 255]
 fog_explored_shade_percent = 55
 night_color = [10, 16, 48, 115]
+minimap_width_px = 240
+minimap_cells = 64
 
 [camera]
 scroll_keys_px_per_s = 1000

@@ -148,6 +148,7 @@ struct Building {
     bool burned = false;        // piedra quemada: no produce, no almacena ni da plazas
     std::int64_t repair_acc = 0;  // fracción de madera de la reparación aún sin cobrar
     std::uint32_t spawned = 0;  // unidades producidas: reparte las casillas de salida
+    TileCoord rally{-1, -1};    // punto de reunión de lo que produce (-1: ninguno)
 
     // Funciona: terminado y no quemado.
     [[nodiscard]] bool working() const noexcept { return complete && !burned; }

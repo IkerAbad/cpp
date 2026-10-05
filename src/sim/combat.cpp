@@ -142,6 +142,7 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
             return;
         }
         case CommandType::Count:
+        case CommandType::SetRally:
             return;
         case CommandType::Extinguish:
         case CommandType::Demolish:

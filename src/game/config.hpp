@@ -145,6 +145,14 @@ struct ReplayConfig {
     std::vector<std::int32_t> speeds;            // multiplicadores del reproductor
 };
 
+// data/config/engine.toml, sección [alerts] (avisos al jugador).
+struct AlertParams {
+    std::int32_t cooldown_ticks = 0;  // el mismo aviso, en la misma zona, no se repite antes
+    std::int32_t zone_tiles = 1;      // tamaño de zona para la espera
+    std::int32_t show_ticks = 0;      // tiempo en pantalla
+    std::int32_t max_shown = 1;
+};
+
 struct EngineConfig {
     WindowConfig window;
     LoopConfig loop;
@@ -153,6 +161,7 @@ struct EngineConfig {
     CameraConfig camera;
     SelectionConfig selection;
     ReplayConfig replay;
+    AlertParams alerts;
     std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
     std::vector<std::string> hero_names;                     // por índice de CombatParams
     std::vector<std::string> ai_profile_names;               // por índice de AiParams::profiles

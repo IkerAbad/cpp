@@ -79,6 +79,13 @@ bool Selection::is_selected(std::uint32_t id) const noexcept {
     return std::ranges::binary_search(selected_, id);
 }
 
+void Selection::set(std::vector<std::uint32_t> ids) {
+    std::ranges::sort(ids);
+    const auto dup = std::ranges::unique(ids);
+    ids.erase(dup.begin(), dup.end());
+    selected_ = std::move(ids);
+}
+
 void Selection::retain(std::span<const ScreenEntity> alive) {
     std::erase_if(selected_, [&](std::uint32_t id) {
         return std::ranges::none_of(alive, [id](const ScreenEntity& e) { return e.id == id; });

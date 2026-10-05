@@ -19,7 +19,9 @@
 #include <spdlog/spdlog.h>
 
 #include "game/camera_control.hpp"
+#include "game/alerts.hpp"
 #include "game/fixed_step.hpp"
+#include "game/minimap.hpp"
 #include "game/replay.hpp"
 #include "game/selection.hpp"
 #include "platform/profile.hpp"
@@ -395,12 +397,18 @@ private:
                     break;
                 case SDL_EVENT_MOUSE_BUTTON_UP:
                     if (event.button.button == SDL_BUTTON_LEFT && selection_.dragging()) {
-                        finish_selection({event.button.x, event.button.y});
+                        finish_selection({event.button.x, event.button.y}, event.button.clicks);
                     }
                     break;
                 case SDL_EVENT_KEY_DOWN:
                     if (player_ && !renderer_.ui_wants_keyboard()) {
                         replay_key(event.key.scancode);
+                    }
+                    if (!player_ && !renderer_.ui_wants_keyboard()) {
+                        control_group_key(event.key.scancode);
+                        if (event.key.scancode == SDL_SCANCODE_SPACE) {
+                            jump_to_alert();
+                        }
                     }
                     if (event.key.scancode == SDL_SCANCODE_F1) {
                         show_debug_ = !show_debug_;
@@ -422,6 +430,31 @@ private:
             }
         }
         return true;
+    }
+
+    // Grupos de control: Ctrl + 1…9 guarda la selección en ese grupo; 1…9 la recupera
+    // (solo lo que siga vivo).
+    void control_group_key(SDL_Scancode key) {
+        if (key < SDL_SCANCODE_1 || key > SDL_SCANCODE_9) {
+            return;
+        }
+        const auto index = static_cast<std::size_t>(key) - static_cast<std::size_t>(SDL_SCANCODE_1);
+        if (window_.ctrl_held()) {
+            groups_[index] = selection_.selected();
+            return;
+        }
+        std::vector<std::uint32_t> alive;
+        for (const std::uint32_t id : groups_[index]) {
+            const auto it = std::ranges::find(curr_.entities, id, &sim::SnapshotEntity::id);
+            if (it != curr_.entities.end() && it->owner == kLocalPlayer) {
+                alive.push_back(id);
+            }
+        }
+        groups_[index] = alive;
+        if (!alive.empty()) {
+            selected_building_.reset();
+            selection_.set(std::move(alive));
+        }
     }
 
     // Reproductor: espacio pausa; 1, 2, 3... eligen la velocidad de la lista de datos.
@@ -539,10 +572,26 @@ private:
     // Clic (sin rectángulo) sin unidades debajo: un edificio propio queda seleccionado.
     // Solo se seleccionan unidades propias; se usan las posiciones del último fotograma,
     // que es lo que el jugador veía.
-    void finish_selection(render::Vec2 at) {
+    void finish_selection(render::Vec2 at, std::uint8_t clicks) {
         const bool click = !selection_.has_visible_rect();
         selection_.end_drag(at, window_.shift_held(), own_screen_entities_);
         selected_building_.reset();
+        // Doble clic sobre una unidad propia: todas las suyas de ese tipo en pantalla.
+        if (click && clicks >= 2 && selection_.selected().size() == 1) {
+            const auto it = std::ranges::find(curr_.entities, selection_.selected().front(), &sim::SnapshotEntity::id);
+            if (it != curr_.entities.end()) {
+                const render::Vec2 screen = renderer_.screen_size();
+                std::vector<std::uint32_t> same;
+                for (const ScreenEntity& s : own_screen_entities_) {
+                    const auto e = std::ranges::find(curr_.entities, s.id, &sim::SnapshotEntity::id);
+                    if (e != curr_.entities.end() && e->type == it->type && s.pos.x >= 0.0f && s.pos.y >= 0.0f &&
+                        s.pos.x <= screen.x && s.pos.y <= screen.y) {
+                        same.push_back(s.id);
+                    }
+                }
+                selection_.set(std::move(same));
+            }
+        }
         if (click && selection_.selected().empty()) {
             const sim::SnapshotObject* o = object_under(tile_at(at));
             if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
@@ -590,6 +639,16 @@ private:
     // encuentre.
     void issue_context_order(render::Vec2 screen_pos) {
         if (selection_.selected().empty()) {
+            // Edificio que produce seleccionado: clic derecho fija su punto de reunión.
+            if (selected_building_) {
+                const sim::SnapshotObject* b = find_object(*selected_building_);
+                if (b != nullptr && !data_.buildings.types[b->type].type.trains.empty()) {
+                    sim::Command c = local_command(sim::CommandType::SetRally);
+                    c.object = *selected_building_;
+                    c.target = tile_at(screen_pos);
+                    issue(std::move(c));
+                }
+            }
             return;
         }
         const sim::TileCoord tile = tile_at(screen_pos);
@@ -681,6 +740,9 @@ private:
             }
         } else {
             c.target = tile;
+            if (window_.shift_held()) {
+                c.kind = sim::kQueueMove;  // Mayús: se encola tras el movimiento en curso
+            }
         }
         issue(std::move(c));
     }
@@ -707,6 +769,11 @@ private:
     // no presentación del juego, y no pasan por el snapshot.
     void build_overlays() {
         tints_.clear();
+        if (selected_building_) {
+            if (const sim::SnapshotObject* b = find_object(*selected_building_); b != nullptr && b->rally.x >= 0) {
+                tints_.push_back({b->rally, data_.engine.view.marker_selected_color});  // punto de reunión
+            }
+        }
         path_points_.clear();
         const sim::MovementSystem& mv = world_.movement();
         const auto& reg = world_.registry();
@@ -787,6 +854,9 @@ private:
                 recorder_->after_step(world_);
             }
             world_.write_snapshot(curr_);
+            if (!player_) {
+                alerts_.update(prev_, curr_, kLocalPlayer);
+            }
         }
         if (plan.ticks > 0) {
             const double per_tick = elapsed_ms(start) / plan.ticks;
@@ -882,6 +952,8 @@ private:
         draw_outcome(display);
         draw_replay_panel(display);
         draw_help(display);
+        draw_alerts(display);
+        draw_minimap();
         draw_hover_tooltip(hover);
         draw_night();
         draw_unit_labels();
@@ -1038,9 +1110,14 @@ private:
         ImGui::BulletText("Clic derecho en un edificio tuyo en llamas: apagarlo");
         ImGui::BulletText("Ctrl + clic derecho: avanzar atacando lo que salga");
         ImGui::BulletText("Mayús + clic derecho en un edificio tuyo: desmontarlo");
+        ImGui::BulletText("Mayús + clic derecho en el suelo: añadir un punto de paso");
+        ImGui::BulletText("Edificio seleccionado + clic derecho: punto de reunión");
+        ImGui::BulletText("Doble clic en una unidad: todas las de su tipo en pantalla");
         ImGui::SeparatorText("Teclado");
         ImGui::BulletText("Flechas, WASD o borde de la ventana: mover la cámara");
         ImGui::BulletText("Esc: cancelar colocación o soltar la selección");
+        ImGui::BulletText("Ctrl + 1-9: guardar grupo; 1-9: seleccionarlo");
+        ImGui::BulletText("Espacio: ir al último aviso");
         ImGui::BulletText("F1: datos de depuración · F2: esta ayuda");
         ImGui::SeparatorText("Leyenda");
         ImGui::BulletText("Cada unidad lleva su inicial; el borde es el color del jugador");
@@ -1132,6 +1209,143 @@ private:
     // Inicial del tipo junto a cada unidad (a la derecha del marcador, para no tapar su
     // color ni la barra de vida), sobre un recuadro oscuro que se lee en cualquier terreno.
     // Va en la capa de fondo de ImGui: encima de la escena y debajo de los paneles.
+    // Minimapa (arriba a la izquierda): terreno con la niebla del jugador que mira, lo
+    // que ve y recuerda, y el recuadro de la cámara. Clic o arrastre: mover la cámara.
+    void draw_minimap() {
+        if (!curr_.map) {
+            return;
+        }
+        const sim::TileMap& map = *curr_.map;
+        const render::ViewParams& view = data_.engine.view;
+        const auto width = static_cast<float>(view.minimap_width_px);
+        const float k = width / static_cast<float>(map.width() + map.height());  // píxeles por casilla
+        ImGui::SetNextWindowPos({kPanelMarginPx, kPanelMarginPx * 5.0f}, ImGuiCond_FirstUseEver);
+        ImGui::Begin("Mapa", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse);
+        const ImVec2 o = ImGui::GetCursorScreenPos();
+        const auto to_mini = [&](float tx, float ty) {
+            return ImVec2{o.x + (tx - ty) * k + width * 0.5f, o.y + (tx + ty) * k * 0.5f};
+        };
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const std::int32_t cells = view.minimap_cells;
+        const std::int32_t bw = std::max(1, (map.width() + cells - 1) / cells);
+        const std::int32_t bh = std::max(1, (map.height() + cells - 1) / cells);
+        const std::vector<std::uint8_t>* fog = view_fog();
+        for (std::int32_t by = 0; by < map.height(); by += bh) {
+            for (std::int32_t bx = 0; bx < map.width(); bx += bw) {
+                const sim::TileCoord t{bx + bw / 2, by + bh / 2};
+                const sim::TileCoord c{std::min(t.x, map.width() - 1), std::min(t.y, map.height() - 1)};
+                const auto& rgb = data_.terrain.types[map.terrain(c)].color;
+                render::Rgba col{rgb[0], rgb[1], rgb[2], 255};
+                if (fog != nullptr) {
+                    const auto f = static_cast<sim::Fog>(
+                        (*fog)[static_cast<std::size_t>(c.y) * static_cast<std::size_t>(map.width()) +
+                               static_cast<std::size_t>(c.x)]);
+                    if (f == sim::Fog::Unexplored) {
+                        col = view.fog_unexplored_color;
+                    } else if (f == sim::Fog::Explored) {
+                        col = shaded(col, view.fog_explored_shade_percent);
+                    }
+                }
+                const auto x0 = static_cast<float>(bx);
+                const auto y0 = static_cast<float>(by);
+                const auto x1 = static_cast<float>(bx + bw);
+                const auto y1 = static_cast<float>(by + bh);
+                dl->AddQuadFilled(to_mini(x0, y0), to_mini(x1, y0), to_mini(x1, y1), to_mini(x0, y1),
+                                  IM_COL32(col[0], col[1], col[2], 255));
+            }
+        }
+        std::vector<render::Rgba> players;
+        for (const auto& c : data_.engine.player_colors) {
+            players.push_back(opaque(c));
+        }
+        std::vector<render::Rgba> nodes;
+        for (const auto& n : data_.nodes.types) {
+            nodes.push_back(opaque(n.color));
+        }
+        for (const MinimapDot& d : minimap_dots(curr_, view_player_, players, nodes)) {
+            const auto x = static_cast<float>(d.origin.x);
+            const auto y = static_cast<float>(d.origin.y);
+            const auto s = static_cast<float>(std::max(d.size, 2));  // al menos 2 casillas: que se vea
+            dl->AddQuadFilled(to_mini(x, y), to_mini(x + s, y), to_mini(x + s, y + s), to_mini(x, y + s),
+                              IM_COL32(d.color[0], d.color[1], d.color[2], 255));
+        }
+        // Contorno del mapa (lo no explorado es casi negro).
+        const auto mw = static_cast<float>(map.width());
+        const auto mh = static_cast<float>(map.height());
+        dl->AddQuad(to_mini(0.0f, 0.0f), to_mini(mw, 0.0f), to_mini(mw, mh), to_mini(0.0f, mh),
+                    IM_COL32(120, 120, 130, 255));
+        // Recuadro de la cámara.
+        const render::Vec2 screen = renderer_.screen_size();
+        const auto corner = [&](float sx, float sy) {
+            const render::Vec2 t = proj_.world_to_tile(camera_.screen_to_world({sx, sy}));
+            return to_mini(t.x, t.y);
+        };
+        dl->AddQuad(corner(0.0f, 0.0f), corner(screen.x, 0.0f), corner(screen.x, screen.y), corner(0.0f, screen.y),
+                    IM_COL32(255, 255, 255, 200));
+        ImGui::InvisibleButton("minimapa", {width, width * 0.5f});
+        if (ImGui::IsItemActive()) {
+            const ImVec2 m = ImGui::GetIO().MousePos;
+            const float a = (m.x - o.x - width * 0.5f) / k;  // tx - ty
+            const float b = (m.y - o.y) * 2.0f / k;          // tx + ty
+            const render::Vec2 world = proj_.tile_to_world({(a + b) * 0.5f, (b - a) * 0.5f});
+            camera_.origin = world - screen * 0.5f;
+            camera_.clamp_to_map(proj_, map.width(), map.height(), screen);
+        }
+        ImGui::End();
+    }
+
+    [[nodiscard]] static const char* alert_text(AlertKind k) {
+        switch (k) {
+            case AlertKind::UnderAttack:
+                return "¡Te atacan!";
+            case AlertKind::Fire:
+                return "¡Un edificio arde!";
+            case AlertKind::Hunger:
+                return "Tus tropas pasan hambre";
+            case AlertKind::NoFood:
+                return "Sin comida para las raciones";
+            case AlertKind::UnitReady:
+                return "Unidad lista";
+            case AlertKind::Count:
+                break;
+        }
+        return "";
+    }
+
+    // Avisos bajo la barra de recursos, el más reciente arriba.
+    void draw_alerts(const ImVec2& display) {
+        const auto shown = alerts_.shown(curr_.tick);
+        if (shown.empty()) {
+            return;
+        }
+        constexpr float kBelowBarPx = 48.0f;
+        ImGui::SetNextWindowPos({display.x * 0.5f, kBelowBarPx}, ImGuiCond_Always, {0.5f, 0.0f});
+        ImGui::Begin("Avisos", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                         ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
+        for (const Alert& a : shown) {
+            const bool urgent = a.kind != AlertKind::UnitReady;
+            ImGui::TextColored(urgent ? kWarnColor : ImVec4{0.7f, 0.9f, 0.7f, 1.0f}, "%s", alert_text(a.kind));
+        }
+        ImGui::TextDisabled("Espacio: ir allí");
+        ImGui::End();
+    }
+
+    // Espacio: la cámara al último aviso que tiene lugar.
+    void jump_to_alert() {
+        for (const Alert& a : alerts_.shown(curr_.tick)) {
+            if (a.where.x >= 0) {
+                const render::Vec2 world = proj_.tile_to_world(
+                    {static_cast<float>(a.where.x) + 0.5f, static_cast<float>(a.where.y) + 0.5f});
+                const render::Vec2 screen = renderer_.screen_size();
+                camera_.origin = world - screen * 0.5f;
+                camera_.clamp_to_map(proj_, world_.map().width(), world_.map().height(), screen);
+                return;
+            }
+        }
+    }
+
     // Velo de la noche: más opaco cuanto menos luz (sobre la escena, bajo los paneles).
     void draw_night() const {
         const std::int32_t night = data_.engine.world.vision.night_sight_percent;
@@ -1409,6 +1623,19 @@ private:
         if (info.type.trains.empty()) {
             return;
         }
+        if (o->rally.x >= 0) {
+            ImGui::Text("Punto de reunión: (%d, %d)", o->rally.x, o->rally.y);
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Quitar")) {
+                sim::Command c = local_command(sim::CommandType::SetRally);
+                c.units.clear();
+                c.object = id;
+                c.kind = sim::kClearRally;
+                issue(std::move(c));
+            }
+        } else {
+            ImGui::TextDisabled("Clic derecho en el mapa: punto de reunión");
+        }
         ImGui::SeparatorText("Producción");
         for (std::size_t i = 0; i < o->queue.size(); ++i) {
             const UnitInfo& u = data_.units.types[o->queue[i]];
@@ -1611,6 +1838,8 @@ private:
     // Jugador cuya vista se muestra (niebla de guerra); sin valor, todo.
     std::optional<sim::PlayerId> view_player_ = kLocalPlayer;
     std::vector<sim::SnapshotObject> remembered_objects_;  // edificios recordados, no vistos ahora
+    std::array<std::vector<std::uint32_t>, 9> groups_;  // grupos de control 1…9
+    AlertTracker alerts_{data_.engine.alerts};
     bool show_debug_ = false;  // F1
     bool show_help_ = true;    // F2
     bool show_portals_ = false;

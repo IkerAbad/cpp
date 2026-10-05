@@ -55,17 +55,17 @@ esconden, y un asedio sin suministro fracasa.
 Objetivo: que una persona pueda abrir el juego, configurar una partida, jugarla con
 controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
-- [ ] **A1. Controles de mando.**
+- [x] **A1. Controles de mando.**
   - Grupos de control: Ctrl+1…9 asigna el grupo y 1…9 lo selecciona.
   - Doble clic selecciona las unidades de ese tipo que hay en pantalla.
   - Mayús+clic derecho encola movimientos (puntos de paso).
   - Puntos de reunión: clic derecho con un edificio seleccionado.
   - *Terminado:* pruebas de la cola de puntos de paso y del punto de reunión en la
     simulación; los grupos se prueban en la selección.
-- [ ] **A2. Minimapa con niebla.** Terreno, unidades y edificios propios, enemigos
+- [x] **A2. Minimapa con niebla.** Terreno, unidades y edificios propios, enemigos
   vistos o recordados; clic para mover la cámara.
   - *Terminado:* prueba de que lo no visto no aparece; se ve en la captura.
-- [ ] **A3. Avisos.** Mensajes en pantalla, con salto de cámara, cuando:
+- [x] **A3. Avisos.** Mensajes en pantalla, con salto de cámara, cuando:
   - atacan la base;
   - un edificio arde;
   - no queda comida para las raciones;

@@ -133,6 +133,7 @@ struct SnapshotObject {
     bool burned = false;             // edificios de piedra quemados (inutilizados)
     Stock store{};                   // campamentos: su almacén de suministros
     std::uint8_t seen_by = 0xFF;     // bit p: lo ve ahora el jugador p (niebla de guerra)
+    TileCoord rally{-1, -1};         // edificios que producen: punto de reunión (-1: ninguno)
 };
 
 // Copia de solo lectura del estado que se presenta. El render nunca toca el registro.
@@ -199,6 +200,9 @@ private:
     void setup_game(const SetupParams& setup);
     void spawn_demo_units(const DemoParams& demo);
     void apply_command(const Command& command);
+    // Puntos de paso: quien llegó a su destino (o está parado) va al siguiente; un
+    // aldeano cuyo punto es un recurso que puede explotar se pone a recogerlo.
+    void advance_waypoints();
 
     std::shared_ptr<TileMap> map_;
     MovementSystem movement_;

@@ -838,6 +838,11 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     sp.load_ticks = r.get_i32("supply.load_ticks", 0, kMaxTicks);
     sp.convoy_reach = sim::Fixed::from_ratio(r.get_i32("supply.convoy_reach_milli_tiles", 0, 4 * kMilli), kMilli);
 
+    cfg.alerts.cooldown_ticks = r.get_i32("alerts.cooldown_ticks", 0, kMaxTicks);
+    cfg.alerts.zone_tiles = r.get_i32("alerts.zone_tiles", 1, 256);
+    cfg.alerts.show_ticks = r.get_i32("alerts.show_ticks", 1, kMaxTicks);
+    cfg.alerts.max_shown = r.get_i32("alerts.max_shown", 1, 16);
+
     sim::VisionParams& vp = cfg.world.vision;
     vp.enabled = r.get_bool("vision.enabled");
     vp.interval_ticks = r.get_i32("vision.interval_ticks", 1, kMaxTicks);
@@ -1095,6 +1100,8 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.view.fog_unexplored_color = r.get_color<4>("view.fog_unexplored_color");
     cfg.view.fog_explored_shade_percent = r.get_i32("view.fog_explored_shade_percent", 0, 100);
     cfg.view.night_color = r.get_color<4>("view.night_color");
+    cfg.view.minimap_width_px = r.get_i32("view.minimap_width_px", 32, 1024);
+    cfg.view.minimap_cells = r.get_i32("view.minimap_cells", 8, 256);
 
     cfg.camera.scroll_keys_px_per_s = r.get_i32("camera.scroll_keys_px_per_s", 0, 100'000);
     cfg.camera.scroll_edge_px_per_s = r.get_i32("camera.scroll_edge_px_per_s", 0, 100'000);

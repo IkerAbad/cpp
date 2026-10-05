@@ -1,6 +1,7 @@
 #include "sim/world.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdlib>
 #include <memory>
@@ -235,6 +236,26 @@ void World::apply_command(const Command& command) {
             units.push_back(e);
         }
     }
+    // Movimiento encolado (Mayús): quien ya va a algún sitio lo añade a sus puntos de
+    // paso sin dejar lo que hace; el resto obedece como a un movimiento normal.
+    if (command.type == CommandType::Move && command.kind == kQueueMove) {
+        std::erase_if(units, [&](entt::entity e) {
+            const MoveGoal* g = registry_.try_get<MoveGoal>(e);
+            Waypoints* w = registry_.try_get<Waypoints>(e);
+            if ((g == nullptr || g->arrived) && (w == nullptr || w->pending.empty())) {
+                return false;
+            }
+            if (w == nullptr) {
+                w = &registry_.emplace<Waypoints>(e);
+            }
+            w->pending.push_back(command.target);
+            return true;
+        });
+    } else if (command.type != CommandType::SetStance) {
+        for (const entt::entity e : units) {
+            registry_.remove<Waypoints>(e);  // otra orden: se olvidan los puntos de paso
+        }
+    }
     economy_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     combat_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     fire_.apply(registry_, movement_, command, units, next_order_id_, tick_);
@@ -266,6 +287,7 @@ void World::step() {
         apply_command(*it);
     }
     pending_.erase(pending_.begin(), rest.begin());
+    advance_waypoints();
 
     economy_.update(registry_, movement_, next_order_id_, tick_);
     supply_.update(registry_, movement_, economy_, next_order_id_, tick_);
@@ -276,6 +298,44 @@ void World::step() {
     movement_.commit_grid_changes(registry_);
     movement_.update(registry_, tick_);
     ++tick_;
+}
+
+void World::advance_waypoints() {
+    std::vector<entt::entity> ready;
+    for (const auto [e, w] : registry_.view<Waypoints>().each()) {
+        const MoveGoal* g = registry_.try_get<MoveGoal>(e);
+        if (g == nullptr || g->arrived) {
+            ready.push_back(e);
+        }
+    }
+    for (const entt::entity e : ready) {
+        Waypoints& w = registry_.get<Waypoints>(e);
+        if (w.pending.empty()) {
+            registry_.remove<Waypoints>(e);
+            continue;
+        }
+        const TileCoord next = w.pending.front();
+        w.pending.erase(w.pending.begin());
+        if (w.pending.empty()) {
+            registry_.remove<Waypoints>(e);
+        }
+        const PlayerId player = registry_.get<Owner>(e).player;
+        const entt::entity node = economy_.occupant(next);
+        if (registry_.all_of<Worker>(e) && node != entt::null && registry_.all_of<ResourceNode>(node) &&
+            EconomySystem::can_gather(registry_, node, player)) {
+            // Aldeano a un recurso: a recogerlo (como si se lo hubieran ordenado).
+            Command gather;
+            gather.tick = tick_;
+            gather.player = player;
+            gather.type = CommandType::Gather;
+            gather.units = {entt::to_integral(e)};
+            gather.object = entt::to_integral(node);
+            apply_command(gather);
+            continue;
+        }
+        const std::array<entt::entity, 1> one{e};
+        movement_.order_move(registry_, one, next, next_order_id_++, tick_);
+    }
 }
 
 bool World::can_place(BuildingTypeId type, TileCoord origin) const {
@@ -351,6 +411,13 @@ std::uint64_t World::state_hash() const {
             h.add_u64(f->segment.size());
             h.add_u32(f->next_tile);
             h.add_u32(f->waiting ? 1U : 0U);
+        }
+        if (const Waypoints* w = registry_.try_get<Waypoints>(e)) {
+            h.add_u64(w->pending.size());
+            for (const TileCoord t : w->pending) {
+                h.add_i32(t.x);
+                h.add_i32(t.y);
+            }
         }
     }
     economy_.hash_into(h, registry_);
@@ -439,6 +506,7 @@ void World::write_snapshot(Snapshot& out) const {
             o.progress = b->progress;
             o.complete = b->complete;
             o.burned = b->burned;
+            o.rally = b->rally;
             if (const Fire* fire = registry_.try_get<Fire>(e)) {
                 o.fire = fire->intensity;
             }

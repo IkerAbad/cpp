@@ -53,6 +53,11 @@ struct ViewParams {
     Rgba fog_unexplored_color{};
     std::int32_t fog_explored_shade_percent = 0;
     Rgba night_color{};
+
+    // Minimapa: ancho en píxeles (alto, la mitad: es un rombo como la vista) y celdas
+    // por lado en que se resume el terreno.
+    std::int32_t minimap_width_px = 0;
+    std::int32_t minimap_cells = 1;
 };
 
 }  // namespace rts::render

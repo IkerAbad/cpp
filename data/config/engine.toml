@@ -152,6 +152,15 @@ hungry_work_percent = 50
 starve_after_ticks = 1200
 starve_hp_interval_ticks = 60
 
+[alerts]
+# Avisos al jugador (le atacan, algo arde, hambre, sin comida, unidad lista). El mismo
+# aviso en la misma zona de 16 casillas no se repite antes de 20 s; cada uno se ve
+# 8 s y como mucho 4 a la vez. Espacio lleva la cámara al último.
+cooldown_ticks = 400
+zone_tiles = 16
+show_ticks = 160
+max_shown = 4
+
 [vision]
 # Niebla de guerra: solo se sabe lo que alguien ha visto, y lo mismo para la IA. Se
 # recalcula cada 10 ticks (0,5 s).
@@ -493,6 +502,9 @@ burned_shade_percent = 30
 fog_unexplored_color = [8, 8, 12, 255]
 fog_explored_shade_percent = 55
 night_color = [10, 16, 48, 115]
+# Minimapa de 240 píxeles de ancho (rombo); el terreno, en 64x64 celdas.
+minimap_width_px = 240
+minimap_cells = 64
 
 [camera]
 scroll_keys_px_per_s = 1200

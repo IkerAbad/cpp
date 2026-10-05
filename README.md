@@ -355,6 +355,15 @@ Solo se sabe lo que alguien ha visto, y lo mismo para la IA, que no tiene ventaj
   - El perfil «normal» mantiene 6 tropas de guardia aunque no haya visto al enemigo: lo que no se ve no es que no exista.
 - **Desactivada** (`enabled = false`, como en las pruebas de movimiento, combate y economía) todo se ve, y el hash es exactamente el de antes de la niebla.
 
+### Controles de mando
+
+- **Grupos:** Ctrl+1…9 guarda la selección en ese grupo y 1…9 la recupera (solo lo que siga vivo).
+- **Doble clic** sobre una unidad propia: todas las de su tipo que hay en pantalla.
+- **Puntos de paso:** Mayús+clic derecho en el suelo añade un punto tras el movimiento en curso (`Move` con `kind = kQueueMove`). Cualquier otra orden los olvida.
+- **Minimapa** (arriba a la izquierda): terreno con la niebla del jugador que mira, sus unidades y edificios, los del enemigo que ve o recuerda, los recursos explorados y el recuadro de la cámara. Clic o arrastre para mover la cámara.
+- **Avisos** (`[alerts]`): te atacan, un edificio arde, tus tropas pasan hambre, no queda comida para las raciones, unidad lista. El mismo aviso en la misma zona no se repite antes de 20 s. Espacio lleva la cámara al último.
+- **Punto de reunión:** con un edificio que produce seleccionado, clic derecho en el mapa (`SetRally`). Lo producido va allí y, si es un aldeano y el punto es un recurso, se pone a recogerlo. Se quita desde el panel del edificio.
+
 ### Prioridad de blancos
 
 Una unidad que elige blanco sola (la del jugador igual que la de la IA) sigue `combat.target_priority` en `engine.toml`:

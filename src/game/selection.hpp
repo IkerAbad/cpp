@@ -42,6 +42,8 @@ public:
     void end_drag(render::Vec2 at, bool additive, std::span<const ScreenEntity> entities);
 
     void clear() noexcept { selected_.clear(); }
+    // Reemplaza la selección (grupos de control, doble clic). Ordena y quita repetidos.
+    void set(std::vector<std::uint32_t> ids);
 
     // Quita de la selección lo que ya no está en pantalla como propio (unidades muertas).
     void retain(std::span<const ScreenEntity> alive);
