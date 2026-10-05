@@ -110,3 +110,30 @@ TEST_CASE("Órdenes: lo producido va al punto de reunión; un aldeano, a recoger
     const auto it = std::ranges::find(snap.objects, center, &rts::sim::SnapshotObject::id);
     CHECK(it->rally.x == -1);
 }
+
+TEST_CASE("Estadísticas: entrenadas, abatidos, perdidas y población máxima") {
+    World world(flat());
+    world.set_stock(0, stock(1000, 1000, 1000, 1000));
+    const auto center = *world.spawn_building(0, kCenter, {100, 100}, true);
+    Command train;
+    train.type = CommandType::Train;
+    train.object = center;
+    train.kind = kVillager;
+    world.issue(train);
+    const auto soldier = world.spawn_unit(0, kSoldier, {90, 90});
+    const auto victim = world.spawn_unit(1, kVillager, {91, 90});
+    Command attack;
+    attack.type = CommandType::Attack;
+    attack.units = {soldier};
+    attack.object = victim;
+    world.issue(attack);
+    for (std::int32_t t = 0; t < 600; ++t) {
+        world.step();
+    }
+    const auto& s0 = world.player_state(0).stats;
+    const auto& s1 = world.player_state(1).stats;
+    CHECK(s0.units_trained == 1);
+    CHECK(s0.enemies_killed == 1);
+    CHECK(s1.units_lost == 1);
+    CHECK(s0.peak_population >= 2);
+}

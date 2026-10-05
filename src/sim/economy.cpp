@@ -471,6 +471,15 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
     }
 }
 
+void EconomySystem::record_loss(PlayerId victim, std::optional<PlayerId> killer) {
+    if (victim < players_.size()) {
+        ++players_[victim].stats.units_lost;
+    }
+    if (killer && *killer < players_.size() && *killer != victim) {
+        ++players_[*killer].stats.enemies_killed;
+    }
+}
+
 void EconomySystem::recount_population(const entt::registry& registry) {
     for (PlayerState& p : players_) {
         p.population = 0;
@@ -488,6 +497,9 @@ void EconomySystem::recount_population(const entt::registry& registry) {
         if (b.working()) {
             players_[buildings.get<const Owner>(e).player].population_cap += catalog_.buildings[b.type].population;
         }
+    }
+    for (PlayerState& p : players_) {
+        p.stats.peak_population = std::max(p.stats.peak_population, p.population);
     }
     // Derrota: ver PlayerState.
     std::vector<std::uint8_t> present(players_.size(), 0);
@@ -736,6 +748,7 @@ void EconomySystem::step_deliver(entt::registry& registry, MovementSystem& movem
             break;
     }
     players_[player].stock[resource_index(w.carry_kind)] += w.carried;
+    players_[player].stats.gathered[resource_index(w.carry_kind)] += w.carried;
     stats_.delivered += w.carried;
     w.carried = 0;
     resume();
@@ -908,6 +921,9 @@ void EconomySystem::remove_building(entt::registry& registry, MovementSystem& mo
                                     bool rubble) {
     const Footprint f = registry.get<Footprint>(building);
     const BuildingType& bt = catalog_.buildings[registry.get<Building>(building).type];
+    if (const Owner* o = registry.try_get<Owner>(building); o != nullptr && o->player < players_.size()) {
+        ++players_[o->player].stats.buildings_lost;
+    }
     release(movement, f);
     registry.destroy(building);
     if (!rubble) {
@@ -1017,6 +1033,7 @@ void EconomySystem::update_production(entt::registry& registry, const MovementSy
         }
         ++b.spawned;
         ps.population += ut.population;
+        ++ps.stats.units_trained;
         q.items.erase(q.items.begin());
         q.progress = 0;
         ++stats_.units_trained;

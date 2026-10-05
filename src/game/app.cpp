@@ -9,6 +9,7 @@
 #include <limits>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -115,6 +116,7 @@ float fixed_to_float(sim::Fixed v) noexcept {
 void print_usage() {
     spdlog::info("Uso: rts [--data <carpeta>] [--frames <N>] | [--headless --ticks <N> [--record <fichero>]]");
     spdlog::info("     rts --replay <fichero> [--frames <N>] | --verify-replay <fichero>");
+    spdlog::info("     rts --load <partida.rtssav> [--frames <N>]  (F5 guarda durante la partida)");
 }
 
 bool parse_count(std::string_view value, std::int64_t& out) {
@@ -269,16 +271,24 @@ void issue_scenario(const GameData& data, sim::World& world, Issue&& issue) {
 
 // replays/partida-2026-09-25_18-30-05.rtsrep, con la hora local de inicio (UTC si el
 // sistema no tiene zona horaria).
-std::filesystem::path auto_replay_path(const GameData& data) {
+std::string time_stamp() {
     const auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
-    std::string stamp;
     try {
-        stamp = std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::zoned_time{std::chrono::current_zone(), now});
+        return std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::zoned_time{std::chrono::current_zone(), now});
     } catch (const std::exception&) {
-        stamp = std::format("{:%Y-%m-%d_%H-%M-%S}Z", now);
+        return std::format("{:%Y-%m-%d_%H-%M-%S}Z", now);
     }
+}
+
+std::filesystem::path auto_replay_path(const GameData& data) {
     return std::filesystem::path(platform::executable_dir()) / data.engine.replay.directory /
-           std::format("partida-{}.rtsrep", stamp);
+           std::format("partida-{}.rtsrep", time_stamp());
+}
+
+// Partida guardada con F5: guardada-<fecha>.rtssav junto a las repeticiones.
+std::filesystem::path save_game_path(const GameData& data) {
+    return std::filesystem::path(platform::executable_dir()) / data.engine.replay.directory /
+           std::format("guardada-{}.rtssav", time_stamp());
 }
 
 // Métricas del panel de depuración.
@@ -298,7 +308,8 @@ class WindowedGame {
 public:
     // Con replay, reproduce esa repetición (sin órdenes); sin ella, partida nueva que
     // se graba sola.
-    WindowedGame(const GameData& data, platform::Window& window, render::Renderer& renderer, const Replay* replay)
+    WindowedGame(const GameData& data, platform::Window& window, render::Renderer& renderer, const Replay* replay,
+                 const Replay* resume)
         : data_(data),
           window_(window),
           renderer_(renderer),
@@ -315,6 +326,13 @@ public:
         } else {
             recorder_.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
             replay_path_ = auto_replay_path(data);
+            if (resume != nullptr) {
+                // Partida guardada: se rehace hasta donde se guardó y se sigue desde ahí.
+                if (auto ok = resume_saved_game(*resume, world_, *recorder_); !ok) {
+                    throw std::runtime_error(ok.error());
+                }
+                spdlog::info("Partida cargada en el tick {}", world_.tick());
+            }
         }
         world_.write_snapshot(curr_);
         prev_ = curr_;
@@ -333,12 +351,15 @@ public:
         camera_.center_on(proj_.tile_to_world(center), renderer_.screen_size());
     }
 
+    // Al salir de run(): ¿se pidió volver al menú (F10 o el botón del final)?
+    [[nodiscard]] bool back_to_menu() const noexcept { return back_to_menu_; }
+
     int run(std::int64_t max_frames) {
         std::uint64_t last_ns = platform::now_ns();
         std::int64_t frame = 0;
         for (; max_frames == 0 || frame < max_frames; ++frame) {
             RTS_PROFILE_FRAME();
-            if (!handle_events()) {
+            if (!handle_events() || back_to_menu_) {
                 break;
             }
             const std::uint64_t now = platform::now_ns();
@@ -409,6 +430,12 @@ private:
                         if (event.key.scancode == SDL_SCANCODE_SPACE) {
                             jump_to_alert();
                         }
+                        if (event.key.scancode == SDL_SCANCODE_F5) {
+                            save_game();
+                        }
+                    }
+                    if (event.key.scancode == SDL_SCANCODE_F10) {
+                        back_to_menu_ = true;  // la partida se graba al salir
                     }
                     if (event.key.scancode == SDL_SCANCODE_F1) {
                         show_debug_ = !show_debug_;
@@ -953,6 +980,7 @@ private:
         draw_replay_panel(display);
         draw_help(display);
         draw_alerts(display);
+        draw_notice(display);
         draw_minimap();
         draw_hover_tooltip(hover);
         draw_night();
@@ -1117,7 +1145,8 @@ private:
         ImGui::BulletText("Flechas, WASD o borde de la ventana: mover la cámara");
         ImGui::BulletText("Esc: cancelar colocación o soltar la selección");
         ImGui::BulletText("Ctrl + 1-9: guardar grupo; 1-9: seleccionarlo");
-        ImGui::BulletText("Espacio: ir al último aviso");
+        ImGui::BulletText("Espacio: ir al último aviso · F5: guardar la partida");
+        ImGui::BulletText("F10: volver al menú (la partida queda grabada)");
         ImGui::BulletText("F1: datos de depuración · F2: esta ayuda");
         ImGui::SeparatorText("Leyenda");
         ImGui::BulletText("Cada unidad lleva su inicial; el borde es el color del jugador");
@@ -1332,6 +1361,32 @@ private:
         ImGui::End();
     }
 
+    // Mensaje breve (partida guardada).
+    void draw_notice(const ImVec2& display) {
+        if (notice_.empty() || curr_.tick - notice_tick_ > static_cast<sim::Tick>(data_.engine.alerts.show_ticks)) {
+            return;
+        }
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.25f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::Begin("Aviso", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                         ImGuiWindowFlags_NoInputs);
+        ImGui::TextUnformatted(notice_.c_str());
+        ImGui::End();
+    }
+
+    // F5: guarda la partida (su repetición hasta ahora) y lo dice en pantalla.
+    void save_game() {
+        const auto path = save_game_path(data_);
+        if (auto ok = save_replay(path, recorder_->finish(world_)); !ok) {
+            spdlog::error("No se pudo guardar: {}", ok.error());
+            notice_ = "No se pudo guardar (detalles en rts.log)";
+        } else {
+            spdlog::info("Partida guardada en {}", path.string());
+            notice_ = std::format("Partida guardada: {}", path.filename().string());
+        }
+        notice_tick_ = curr_.tick;
+    }
+
     // Espacio: la cámara al último aviso que tiene lugar.
     void jump_to_alert() {
         for (const Alert& a : alerts_.shown(curr_.tick)) {
@@ -1457,7 +1512,42 @@ private:
         ImGui::SetWindowFontScale(kOutcomeScale);
         ImGui::TextColored(won ? ImVec4{0.4f, 1.0f, 0.4f, 1.0f} : ImVec4{1.0f, 0.35f, 0.3f, 1.0f}, "%s",
                            won ? "¡Victoria!" : "Derrota");
+        ImGui::SetWindowFontScale(1.0f);
+        draw_stats_table();
+        if (ImGui::Button("Volver al menú")) {
+            back_to_menu_ = true;
+        }
         ImGui::End();
+    }
+
+    // Estadísticas de la partida, por jugador.
+    void draw_stats_table() const {
+        const auto mins = curr_.tick / static_cast<sim::Tick>(sim::kTicksPerSecond * 60);
+        ImGui::Text("Duración: %u min", mins);
+        if (!ImGui::BeginTable("estadisticas", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit)) {
+            return;
+        }
+        for (const char* h : {"Jugador", "Recogido", "Entrenadas", "Perdidas", "Abatidos", "Edificios perdidos",
+                              "Población máx."}) {
+            ImGui::TableSetupColumn(h);
+        }
+        ImGui::TableHeadersRow();
+        for (std::size_t p = 0; p < curr_.players.size(); ++p) {
+            const sim::PlayerStats& s = curr_.players[p].stats;
+            std::int32_t gathered = 0;
+            for (const std::int32_t v : s.gathered) {
+                gathered += v;
+            }
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%zu%s", p, p == kLocalPlayer ? " (tú)" : "");
+            for (const std::int32_t v : {gathered, s.units_trained, s.units_lost, s.enemies_killed, s.buildings_lost,
+                                         s.peak_population}) {
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", v);
+            }
+        }
+        ImGui::EndTable();
     }
 
     // Barra superior: recursos y población del jugador local.
@@ -1840,6 +1930,9 @@ private:
     std::vector<sim::SnapshotObject> remembered_objects_;  // edificios recordados, no vistos ahora
     std::array<std::vector<std::uint32_t>, 9> groups_;  // grupos de control 1…9
     AlertTracker alerts_{data_.engine.alerts};
+    bool back_to_menu_ = false;   // F10 o el botón del final: volver al menú
+    std::string notice_;          // mensaje breve en pantalla
+    sim::Tick notice_tick_ = 0;
     bool show_debug_ = false;  // F1
     bool show_help_ = true;    // F2
     bool show_portals_ = false;
@@ -1874,8 +1967,12 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
                 spdlog::error("{} necesita un entero no negativo, recibido '{}'", arg, value);
                 return std::nullopt;
             }
+        } else if (arg == "--load" && has_value) {
+            options.load = argv[++i];
         } else if (arg.ends_with(".rtsrep")) {
             options.replay = argv[i];  // arrastrar una repetición sobre el ejecutable
+        } else if (arg.ends_with(".rtssav")) {
+            options.load = argv[i];  // arrastrar una partida guardada sobre el ejecutable
         } else {
             spdlog::error("Argumento no reconocido: '{}'", arg);
             print_usage();
@@ -1960,12 +2057,19 @@ int run_verify_replay(const std::filesystem::path& path) {
     return 0;
 }
 
-int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* replay) {
+namespace {
+
+struct Display {
+    std::unique_ptr<platform::Window> window;
+    std::unique_ptr<render::Renderer> renderer;
+};
+
+std::optional<Display> open_display(const GameData& data) {
     const WindowConfig& wc = data.engine.window;
     auto window = platform::Window::create({wc.title, wc.width, wc.height});
     if (!window) {
         spdlog::error("{}", window.error());
-        return 1;
+        return std::nullopt;
     }
     render::RendererDesc desc;
     desc.window = (*window)->handle();
@@ -1977,12 +2081,194 @@ int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* re
     auto renderer = render::Renderer::create(desc);
     if (!renderer) {
         spdlog::error("{}", renderer.error());
-        return 1;
+        return std::nullopt;
     }
     spdlog::info("Backend GPU: {}", (*renderer)->driver_name());
+    return Display{std::move(*window), std::move(*renderer)};
+}
 
-    WindowedGame game(data, **window, **renderer, replay);
+struct MenuChoice {
+    enum class Kind : std::uint8_t { New, Load, Replay, Quit };
+    Kind kind = Kind::Quit;
+    std::filesystem::path path;
+};
+
+// Ficheros con esa extensión en la carpeta de repeticiones, los más recientes primero.
+std::vector<std::filesystem::path> saved_files(const GameData& data, std::string_view ext, std::size_t max) {
+    std::vector<std::filesystem::path> out;
+    const auto dir = std::filesystem::path(platform::executable_dir()) / data.engine.replay.directory;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        if (entry.is_regular_file() && entry.path().extension() == ext) {
+            out.push_back(entry.path());
+        }
+    }
+    std::ranges::sort(out, std::greater<>{});  // el nombre lleva la fecha: orden inverso = recientes primero
+    if (out.size() > max) {
+        out.resize(max);
+    }
+    return out;
+}
+
+// Menú inicial: nueva partida (semilla, rival, niebla), cargar, repeticiones, salir.
+MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings) {
+    constexpr std::size_t kListed = 8;
+    const auto saves = saved_files(base, ".rtssav", kListed);
+    const auto replays = saved_files(base, ".rtsrep", kListed);
+    const auto& profiles = base.engine.ai_profile_names;
+    while (true) {
+        SDL_Event event;
+        while (d.window->poll_event(event)) {
+            d.renderer->process_event(event);
+            if (d.window->is_close_request(event)) {
+                return {};
+            }
+        }
+        d.renderer->begin_frame();
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::Begin("Menú", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+        constexpr float kTitleScale = 2.0f;
+        ImGui::SetWindowFontScale(kTitleScale);
+        ImGui::TextUnformatted(base.engine.window.title.c_str());
+        ImGui::SetWindowFontScale(1.0f);
+        MenuChoice choice;
+        bool chosen = false;
+        ImGui::SeparatorText("Nueva partida");
+        int seed = static_cast<int>(settings.seed);
+        if (ImGui::InputInt("Semilla del mapa", &seed)) {
+            settings.seed = static_cast<std::uint64_t>(std::max(seed, 0));
+        }
+        if (ImGui::BeginCombo("Rival (IA)", settings.rival.c_str())) {
+            for (const std::string& p : profiles) {
+                if (ImGui::Selectable(p.c_str(), p == settings.rival)) {
+                    settings.rival = p;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::Checkbox("Niebla de guerra", &settings.fog);
+        if (ImGui::Button("Empezar")) {
+            choice.kind = MenuChoice::Kind::New;
+            chosen = true;
+        }
+        ImGui::SeparatorText("Cargar partida guardada (F5 durante la partida)");
+        if (saves.empty()) {
+            ImGui::TextDisabled("Ninguna todavía");
+        }
+        for (const auto& p : saves) {
+            if (ImGui::Selectable(p.filename().string().c_str())) {
+                choice = {MenuChoice::Kind::Load, p};
+                chosen = true;
+            }
+        }
+        ImGui::SeparatorText("Ver una repetición");
+        if (replays.empty()) {
+            ImGui::TextDisabled("Ninguna todavía");
+        }
+        for (const auto& p : replays) {
+            if (ImGui::Selectable(p.filename().string().c_str())) {
+                choice = {MenuChoice::Kind::Replay, p};
+                chosen = true;
+            }
+        }
+        ImGui::Separator();
+        if (ImGui::Button("Salir")) {
+            choice.kind = MenuChoice::Kind::Quit;
+            chosen = true;
+        }
+        ImGui::End();
+        d.renderer->end_frame();
+        if (chosen) {
+            return choice;
+        }
+    }
+}
+
+}  // namespace
+
+int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* replay, const Replay* resume) {
+    auto display = open_display(data);
+    if (!display) {
+        return 1;
+    }
+    WindowedGame game(data, *display->window, *display->renderer, replay, resume);
     return game.run(max_frames);
+}
+
+int run_interactive(const GameData& base) {
+    auto display = open_display(base);
+    if (!display) {
+        return 1;
+    }
+    MatchSettings settings;
+    settings.seed = base.engine.world.map.seed;
+    settings.fog = base.engine.world.vision.enabled;
+    if (!base.engine.world.ai_players.empty()) {
+        settings.rival = base.engine.ai_profile_names[base.engine.world.ai_players.front().profile];
+    }
+    while (true) {
+        const MenuChoice choice = run_menu(*display, base, settings);
+        std::optional<GameData> data;
+        std::optional<Replay> recorded;
+        switch (choice.kind) {
+            case MenuChoice::Kind::Quit:
+                return 0;
+            case MenuChoice::Kind::New: {
+                auto d = with_match_settings(base, settings);
+                if (!d) {
+                    spdlog::error("Ajustes de partida: {}", d.error());
+                    continue;
+                }
+                data = std::move(*d);
+                break;
+            }
+            case MenuChoice::Kind::Load:
+            case MenuChoice::Kind::Replay: {
+                auto r = load_replay(choice.path);
+                if (!r) {
+                    spdlog::error("{}", r.error());
+                    continue;
+                }
+                auto d = parse_game_data(r->data);
+                if (!d) {
+                    spdlog::error("Datos de {}: {}", choice.path.string(), d.error());
+                    continue;
+                }
+                recorded = std::move(*r);
+                data = std::move(*d);
+                break;
+            }
+        }
+        const bool is_replay = choice.kind == MenuChoice::Kind::Replay;
+        const bool is_load = choice.kind == MenuChoice::Kind::Load;
+        try {
+            WindowedGame game(*data, *display->window, *display->renderer, is_replay ? &*recorded : nullptr,
+                              is_load ? &*recorded : nullptr);
+            game.run(0);
+            if (!game.back_to_menu()) {
+                return 0;  // ventana cerrada
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("{}", e.what());  // p. ej. una partida guardada que no se reproduce
+        }
+    }
+}
+
+int run_load(const std::filesystem::path& path, std::int64_t max_frames) {
+    const auto save = load_replay(path);
+    if (!save) {
+        spdlog::error("{}", save.error());
+        return 1;
+    }
+    const auto data = parse_game_data(save->data);
+    if (!data) {
+        spdlog::error("Datos de la partida guardada: {}", data.error());
+        return 1;
+    }
+    spdlog::info("Cargando {}: {} ticks", path.string(), save->end_tick);
+    return run_windowed(*data, max_frames, nullptr, &*save);
 }
 
 int run_replay(const std::filesystem::path& path, std::int64_t max_frames) {

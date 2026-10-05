@@ -776,3 +776,26 @@ TEST_CASE("Edificios: los requisitos nombran otros edificios y no forman ciclos"
 TEST_CASE("Configuración: un fuego necesita una intensidad de sostén de al menos 1") {
     CHECK_FALSE(parse_engine(replaced(kEngine, "sustain_intensity = 200", "sustain_intensity = 0")).has_value());
 }
+
+TEST_CASE("Configuración: los ajustes de partida del menú viajan como un fichero de datos más") {
+    auto base = rts::game::load_game_data(RTS_DATA_DIR);
+    REQUIRE(base.has_value());
+    rts::game::MatchSettings s;
+    s.seed = 12345;
+    s.rival = "basica";
+    s.fog = false;
+    const auto d = rts::game::with_match_settings(*base, s);
+    REQUIRE_MESSAGE(d.has_value(), (d ? std::string() : d.error()));
+    CHECK(d->engine.world.map.seed == 12345);
+    CHECK(d->engine.world.setup.seed == 12345);
+    CHECK_FALSE(d->engine.world.vision.enabled);
+    REQUIRE_FALSE(d->engine.world.ai_players.empty());
+    CHECK(d->engine.ai_profile_names[d->engine.world.ai_players.front().profile] == "basica");
+    // Van en los ficheros (y por tanto en la repetición), una sola vez.
+    CHECK(std::ranges::count(d->files, rts::game::kMatchSettingsFile, &rts::game::DataFile::path) == 1);
+    const auto again = rts::game::with_match_settings(*d, s);
+    REQUIRE(again.has_value());
+    CHECK(std::ranges::count(again->files, rts::game::kMatchSettingsFile, &rts::game::DataFile::path) == 1);
+    s.rival = "inexistente";
+    CHECK_FALSE(rts::game::with_match_settings(*base, s).has_value());
+}

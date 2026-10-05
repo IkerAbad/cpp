@@ -119,4 +119,10 @@ struct VerifyResult {
 // Reproduce la repetición entera sin ventana. Se detiene en la primera divergencia.
 [[nodiscard]] VerifyResult verify_replay(const Replay& replay, const sim::WorldParams& params);
 
+// Partidas guardadas (.rtssav): son la repetición hasta el momento de guardar. Cargar
+// es rehacerla a toda velocidad sobre world (recién creado con sus datos) volviendo a
+// grabar sus órdenes en recorder, que sigue grabando desde ahí. Al ser determinista,
+// se llega exactamente al mismo estado: se comprueba con el hash del final.
+std::expected<void, std::string> resume_saved_game(const Replay& save, sim::World& world, ReplayRecorder& recorder);
+
 }  // namespace rts::game

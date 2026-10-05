@@ -271,6 +271,24 @@ Replay ReplayRecorder::finish(const sim::World& world) const {
     return out;
 }
 
+std::expected<void, std::string> resume_saved_game(const Replay& save, sim::World& world, ReplayRecorder& recorder) {
+    std::size_t next = 0;
+    while (world.tick() < save.end_tick) {
+        while (next < save.commands.size() && save.commands[next].issued_at <= world.tick()) {
+            recorder.issue(world, save.commands[next].command);
+            ++next;
+        }
+        world.step();
+        recorder.after_step(world);
+    }
+    if (world.state_hash() != save.end_hash) {
+        return std::unexpected(std::format(
+            "la partida guardada no se reproduce igual (tick {}: hash {:016x}, guardado {:016x})", world.tick(),
+            world.state_hash(), save.end_hash));
+    }
+    return {};
+}
+
 // --- Reproducción --------------------------------------------------------------
 
 void ReplayPlayer::before_step(sim::World& world) {

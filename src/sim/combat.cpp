@@ -662,6 +662,7 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
     }
     // Bajas: cada atacante que golpeó este tick a un blanco que muere recibe la bonificación.
     std::vector<entt::entity> dead;
+    std::vector<std::optional<PlayerId>> killers;  // paralelo a dead (estadísticas)
     for (std::size_t i = 0; i < hits_.size(); ++i) {
         const Hit& h = hits_[i];
         const Health* health = registry.try_get<Health>(h.target);
@@ -671,6 +672,8 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
         const bool first_of_target = i == 0 || hits_[i - 1].target != h.target;
         if (first_of_target) {
             dead.push_back(h.target);
+            const Owner* ko = registry.valid(h.attacker) ? registry.try_get<Owner>(h.attacker) : nullptr;
+            killers.push_back(ko != nullptr ? std::optional<PlayerId>(ko->player) : std::nullopt);
         }
         if (first_of_target || hits_[i - 1].attacker != h.attacker) {
             credit(h.attacker, params_.xp_kill_bonus);
@@ -683,10 +686,12 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
             }
         }
     }
-    for (const entt::entity e : dead) {
+    for (std::size_t i = 0; i < dead.size(); ++i) {
+        const entt::entity e = dead[i];
         if (registry.all_of<Building>(e)) {
             economy.remove_building(registry, movement, e, true);  // derribado: escombros
         } else {
+            economy.record_loss(registry.get<Owner>(e).player, killers[i]);
             registry.destroy(e);
         }
         ++stats_.kills;

@@ -145,6 +145,19 @@ struct ReplayConfig {
     std::vector<std::int32_t> speeds;            // multiplicadores del reproductor
 };
 
+// Ajustes de una partida elegidos en el menú. Viajan como un fichero de datos más
+// (config/partida.toml) para que la repetición y la partida guardada los lleven.
+struct MatchSettings {
+    std::uint64_t seed = 0;     // mapa y preparación
+    std::string rival;          // perfil de IA de los jugadores que controla la IA
+    bool fog = true;            // niebla de guerra
+};
+
+inline constexpr std::string_view kMatchSettingsFile = "config/partida.toml";
+
+// Texto TOML de unos ajustes.
+[[nodiscard]] std::string match_settings_toml(const MatchSettings& s);
+
 // data/config/engine.toml, sección [alerts] (avisos al jugador).
 struct AlertParams {
     std::int32_t cooldown_ticks = 0;  // el mismo aviso, en la misma zona, no se repite antes
@@ -223,6 +236,8 @@ struct GameData {
 std::expected<std::vector<DataFile>, std::string> read_data_files(const std::filesystem::path& data_dir);
 
 // Analiza los textos (de disco o de una repetición). Deben estar todos.
+// Los datos de base con estos ajustes de partida (sustituyen a los que hubiera).
+std::expected<GameData, std::string> with_match_settings(const GameData& base, const MatchSettings& settings);
 std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files);
 
 // read_data_files + parse_game_data.

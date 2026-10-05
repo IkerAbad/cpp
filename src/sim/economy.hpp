@@ -175,6 +175,17 @@ struct Worker {
     std::uint32_t move_order = 0;        // orden de movimiento interna en curso (0 = ninguna)
 };
 
+// Estadísticas de la partida de un jugador (pantalla final). Solo observan: no influyen
+// en el futuro, así que no entran en el hash.
+struct PlayerStats {
+    Stock gathered{};                 // recursos entregados en almacenes
+    std::int32_t units_trained = 0;
+    std::int32_t units_lost = 0;      // en combate, de hambre o al caer un puesto médico
+    std::int32_t enemies_killed = 0;
+    std::int32_t buildings_lost = 0;  // por asedio, fuego o desmontados
+    std::int32_t peak_population = 0;
+};
+
 struct PlayerState {
     Stock stock{};
     std::int32_t population = 0;
@@ -185,6 +196,7 @@ struct PlayerState {
     // lo tuvo (pruebas, demo), al quedarse sin unidades ni edificios. Es definitiva, y
     // lo que le quede se retira del mapa.
     bool defeated = false;
+    PlayerStats stats;
 };
 
 struct EconomyTickStats {
@@ -245,6 +257,8 @@ public:
 
     [[nodiscard]] std::span<const PlayerState> players() const noexcept { return players_; }
     [[nodiscard]] PlayerState& player_state(PlayerId p) { return players_[p]; }
+    // Estadísticas: una unidad de victim muere (a manos de killer, si lo hay).
+    void record_loss(PlayerId victim, std::optional<PlayerId> killer = std::nullopt);
     [[nodiscard]] const EconomyParams& params() const noexcept { return params_; }
     [[nodiscard]] const EconomyCatalog& catalog() const noexcept { return catalog_; }
     [[nodiscard]] const EconomyTickStats& last_stats() const noexcept { return stats_; }

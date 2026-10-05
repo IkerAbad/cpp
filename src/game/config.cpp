@@ -1198,7 +1198,46 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
                       data.headless_scenario)) {
         return std::unexpected(*e);
     }
+    // Ajustes de la partida elegidos en el menú (opcional).
+    const auto match = std::ranges::find(data.files, kMatchSettingsFile, &DataFile::path);
+    if (match != data.files.end()) {
+        auto root = parse_toml(match->text, match->path);
+        if (!root) {
+            return std::unexpected(root.error());
+        }
+        std::optional<std::string> error;
+        Reader r(*root, match->path, "", error);
+        const auto seed = static_cast<std::uint64_t>(r.get_i32("seed", 0, std::numeric_limits<std::int32_t>::max()));
+        const std::string rival = r.get_string("rival");
+        const bool fog = r.get_bool("fog");
+        const auto& names = data.engine.ai_profile_names;
+        const auto it = std::ranges::find(names, rival);
+        if (!error && it == names.end()) {
+            r.fail(std::format("'rival' = \"{}\": no es un perfil de [[ai.profile]]", rival));
+        }
+        if (error) {
+            return std::unexpected(*error);
+        }
+        data.engine.world.map.seed = seed;
+        data.engine.world.setup.seed = seed;
+        data.engine.world.vision.enabled = fog;
+        for (sim::AiSeat& seat : data.engine.world.ai_players) {
+            seat.profile = static_cast<std::uint8_t>(it - names.begin());
+        }
+    }
     return data;
+}
+
+std::string match_settings_toml(const MatchSettings& s) {
+    return std::format("# Ajustes de esta partida (los genera el menú).\nseed = {}\nrival = \"{}\"\nfog = {}\n", s.seed,
+                       s.rival, s.fog ? "true" : "false");
+}
+
+std::expected<GameData, std::string> with_match_settings(const GameData& base, const MatchSettings& settings) {
+    std::vector<DataFile> files = base.files;
+    std::erase_if(files, [](const DataFile& f) { return f.path == kMatchSettingsFile; });
+    files.push_back({std::string(kMatchSettingsFile), match_settings_toml(settings)});
+    return parse_game_data(std::move(files));
 }
 
 std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir) {

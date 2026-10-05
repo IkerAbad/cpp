@@ -73,13 +73,13 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   - termina una producción.
 
   *Terminado:* los avisos se generan a partir del estado del juego y tienen prueba.
-- [ ] **A4. Menú y configuración de partida.**
+- [x] **A4. Menú y configuración de partida.**
   - Pantalla inicial con: nueva partida (semilla, rival IA con su perfil, niebla
     sí/no), cargar, repeticiones y salir.
   - Fin de partida con estadísticas: bajas, recursos recogidos, edificios
     perdidos y ejército máximo.
   - *Terminado:* se puede jugar sin tocar la línea de órdenes.
-- [ ] **A5. Guardar y cargar.**
+- [x] **A5. Guardar y cargar.**
   - Estado completo serializado, con versión y hash.
   - Al cargar y seguir, se obtiene el mismo hash que sin haber parado.
   - *Terminado:* prueba de ida y vuelta del hash a mitad de una partida de IA.

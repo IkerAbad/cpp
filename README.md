@@ -355,6 +355,20 @@ Solo se sabe lo que alguien ha visto, y lo mismo para la IA, que no tiene ventaj
   - El perfil «normal» mantiene 6 tropas de guardia aunque no haya visto al enemigo: lo que no se ve no es que no exista.
 - **Desactivada** (`enabled = false`, como en las pruebas de movimiento, combate y economía) todo se ve, y el hash es exactamente el de antes de la niebla.
 
+### Menú y fin de partida
+
+Sin argumentos, el juego abre un menú con estas opciones:
+- **Nueva partida:** semilla del mapa, perfil de la IA rival y niebla sí o no. Los ajustes viajan como un fichero de datos más, `config/partida.toml`, así que la repetición y la partida guardada los llevan dentro.
+- **Cargar** una partida guardada.
+- **Ver** una repetición.
+- **Salir.**
+
+Al terminar la partida se muestran las estadísticas de cada jugador: recogido, entrenadas, perdidas, abatidos, edificios perdidos y población máxima. Esas cifras las cuenta la simulación, pero no entran en el hash porque no influyen en el futuro. Desde ahí se vuelve al menú; F10 vuelve en cualquier momento, y la partida queda grabada. Con `--frames N` (pruebas de humo) se salta el menú.
+
+### Guardar y cargar
+
+F5 guarda la partida en `replays/guardada-<fecha>.rtssav`. Una partida guardada es su repetición hasta ese momento, con los datos y las órdenes. Cargarla (`rts --load fichero.rtssav`, o arrastrar el fichero sobre el ejecutable) la rehace a toda velocidad y sigue grabando desde ahí. Como la simulación es determinista, el estado es exactamente el mismo; se comprueba con el hash guardado y, si no coincide (fichero manipulado, datos distintos), se rechaza. Una prueba guarda a mitad de una partida con IA y niebla, carga, sigue y obtiene el mismo hash que sin haber parado.
+
 ### Controles de mando
 
 - **Grupos:** Ctrl+1…9 guarda la selección en ese grupo y 1…9 la recupera (solo lo que siga vivo).

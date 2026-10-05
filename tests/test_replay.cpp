@@ -241,3 +241,63 @@ TEST_CASE("Repetición: con los datos del repositorio, grabada y reproducida des
     CHECK(result.ok);
     CHECK(result.actual_hash == world.state_hash());
 }
+
+TEST_CASE("Partida guardada: cargar y seguir da el mismo estado que no haber parado") {
+    auto data = rts::game::load_game_data(RTS_DATA_DIR);
+    REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
+    constexpr std::int32_t kSaveAt = 600;
+    constexpr std::int32_t kEnd = 1200;
+    World world(data->engine.world);
+    ReplayRecorder rec(data->files, data->engine.replay.checkpoint_interval_ticks);
+    std::optional<Replay> save;
+    for (std::int32_t t = 0; t < kEnd; ++t) {
+        if (t == 0 || t == 700) {
+            Command c;
+            c.player = 0;
+            c.type = CommandType::Move;
+            c.units = units_of(world, 0);
+            c.target = {90 + t / 100, 90};
+            rec.issue(world, c);
+        }
+        world.step();
+        rec.after_step(world);
+        if (world.tick() == kSaveAt) {
+            // Guardar = la repetición hasta aquí, y por el formato binario de ida y vuelta.
+            save = rts::game::decode_replay(rts::game::encode_replay(rec.finish(world))).value();
+        }
+    }
+    const std::uint64_t uninterrupted = world.state_hash();
+    REQUIRE(save.has_value());
+
+    auto loaded_data = rts::game::parse_game_data(save->data);
+    REQUIRE(loaded_data.has_value());
+    World resumed(loaded_data->engine.world);
+    ReplayRecorder rec2(loaded_data->files, loaded_data->engine.replay.checkpoint_interval_ticks);
+    REQUIRE(rts::game::resume_saved_game(*save, resumed, rec2).has_value());
+    CHECK(resumed.tick() == static_cast<rts::sim::Tick>(kSaveAt));
+    // Se sigue jugando: la orden del tick 700, como la primera vez.
+    for (std::int32_t t = kSaveAt; t < kEnd; ++t) {
+        if (t == 700) {
+            Command c;
+            c.player = 0;
+            c.type = CommandType::Move;
+            c.units = units_of(resumed, 0);
+            c.target = {90 + t / 100, 90};
+            rec2.issue(resumed, c);
+        }
+        resumed.step();
+        rec2.after_step(resumed);
+    }
+    CHECK(resumed.state_hash() == uninterrupted);
+    // Y el grabador del cargado tiene la partida entera: se reproduce entera.
+    const auto full = rec2.finish(resumed);
+    const auto verify = rts::game::verify_replay(full, loaded_data->engine.world);
+    CHECK(verify.ok);
+
+    // Una partida guardada manipulada se rechaza al cargar.
+    Replay bad = *save;
+    bad.end_hash ^= 1U;
+    World other(loaded_data->engine.world);
+    ReplayRecorder rec3(loaded_data->files, loaded_data->engine.replay.checkpoint_interval_ticks);
+    CHECK_FALSE(rts::game::resume_saved_game(bad, other, rec3).has_value());
+}

@@ -59,6 +59,9 @@ int run(int argc, char** argv, bool& windowed) {
     if (!options->replay.empty()) {
         return rts::game::run_replay(options->replay, options->max_frames);
     }
+    if (!options->load.empty()) {
+        return rts::game::run_load(options->load, options->max_frames);
+    }
     const auto data = rts::game::load_game_data(options->data_dir);
     if (!data) {
         spdlog::error("Datos: {}", data.error());
@@ -66,6 +69,11 @@ int run(int argc, char** argv, bool& windowed) {
     }
     if (options->headless) {
         return rts::game::run_headless(*data, options->headless_ticks, options->record);
+    }
+    // Sin límite de fotogramas (lo normal al abrirlo), el menú; con él (pruebas de humo),
+    // directamente una partida.
+    if (options->max_frames == 0) {
+        return rts::game::run_interactive(*data);
     }
     return rts::game::run_windowed(*data, options->max_frames);
 }

@@ -385,6 +385,7 @@ void MedicineSystem::update(entt::registry& registry, MovementSystem& movement, 
     update_patients(registry, movement, economy, next_order_id, tick);
     natural_healing(registry, tick);
     for (const entt::entity e : dead_) {
+        economy.record_loss(registry.get<Owner>(e).player);
         registry.destroy(e);
         ++stats_.died;
     }

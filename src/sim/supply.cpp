@@ -347,6 +347,7 @@ void SupplySystem::update(entt::registry& registry, MovementSystem& movement, Ec
         resupply(registry, economy, e, view.get<const Owner>(e).player, {p.x, p.y}, s, st);
     }
     for (const entt::entity e : dead_) {
+        economy.record_loss(registry.get<Owner>(e).player);
         registry.destroy(e);
         ++stats_.starved;
     }
