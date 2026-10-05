@@ -18,6 +18,7 @@
 #include "sim/fire.hpp"
 #include "sim/fixed.hpp"
 #include "sim/fmath.hpp"
+#include "sim/morale.hpp"
 #include "sim/movement.hpp"
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
@@ -117,6 +118,9 @@ public:
     [[nodiscard]] bool out_of_ammo(const entt::registry& registry, entt::entity e) const noexcept;
     [[nodiscard]] const CombatParams& params() const noexcept { return params_; }
     [[nodiscard]] const CombatTickStats& last_stats() const noexcept { return stats_; }
+    // Golpes a unidades y bajas de este tick, para la moral.
+    [[nodiscard]] std::span<const MoraleHit> morale_hits() const noexcept { return morale_hits_; }
+    [[nodiscard]] std::span<const MoraleDeath> morale_deaths() const noexcept { return morale_deaths_; }
 
     void hash_into(StateHasher& h, const entt::registry& registry) const;
 
@@ -178,6 +182,8 @@ private:
     std::vector<Hit> hits_;
     std::vector<Projectile> new_projectiles_;
     std::vector<entt::entity> scratch_;
+    std::vector<MoraleHit> morale_hits_;
+    std::vector<MoraleDeath> morale_deaths_;
     const VisionSystem* vision_ = nullptr;  // del tick en curso
     CombatTickStats stats_;
 };

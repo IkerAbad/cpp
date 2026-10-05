@@ -93,6 +93,9 @@ struct UnitType {
     // Pericia atendiendo heridos (% del cuidado de un enfermero; 0 = no sabe): el
     // aldeano, 100; el barbero cirujano, más.
     std::int32_t care_skill = 0;
+    // Firmeza (B1): % que resiste la moral; las pérdidas se escalan por 100 / firmeza.
+    // 0 = sin moral (aldeanos, bagaje, ingenios): ni se desbanda ni cuenta como tropa.
+    std::int32_t morale_resolve = 0;
 };
 
 // Personal sanitario que no es aldeano (cirujano) atendiendo un puesto médico (los
@@ -119,6 +122,17 @@ struct Patient {
 // Recién dado de alta (o sacado del puesto): no ataca hasta reorganizarse y armarse.
 struct Reorganizing {
     std::int32_t ticks_left = 0;
+};
+
+// Moral de una unidad combatiente (B1), de 0 a kFullMorale.
+struct Morale {
+    std::int32_t value = 0;
+};
+
+// En desbandada: huye, no pelea y no obedece hasta rehacerse.
+struct Routing {
+    std::uint32_t flee_order = 0;  // su movimiento de huida en curso (0 = ninguno)
+    Tick next_flee = 0;            // cuándo vuelve a elegir hacia dónde huir
 };
 
 // Último tick en que recibió daño (las heridas leves solo sanan en calma).

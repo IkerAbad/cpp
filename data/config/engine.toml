@@ -181,6 +181,56 @@ twilight_ticks = 1800
 night_sight_percent = 50
 start_tick = 2400
 
+[morale]
+# Moral y desbandada (B1). Moral de 0 a 1000; las pérdidas se escalan por la firmeza
+# del tipo (units.toml, morale_resolve). Las batallas se decidían por la huida, no por
+# la muerte de todos: en Queronea, según Ardant du Picq, «The Romans lost fourteen men,
+# and killed their enemies until worn out in pursuit». Lo que más hacía huir era el
+# ataque por sorpresa, por el flanco o la retaguardia: «it was almost always an attack
+# from the flank or rear, a surprise action, that won battles». Y el pánico se
+# contagia: «The appearance of a troop B on one flank determined the flight of A»
+# (Ardant du Picq, «Battle Studies», 1880; Project Gutenberg, libro 7294).
+enabled = true
+# Todas las unidades revisan su moral a la vez cada 10 ticks (0,5 s).
+interval_ticks = 10
+# Por debajo de 250 se desbanda; se rehace al volver a 600 sin enemigos a 8 casillas.
+rout_below = 250
+rally_above = 600
+# Bajas, compañeros y enemigos que cuentan: a 6 casillas o menos.
+awareness_milli_tiles = 6000
+rally_safe_milli_tiles = 8000
+# Cada baja propia cercana quita 60; cada baja enemiga cercana anima 20.
+casualty_loss = 60
+enemy_casualty_gain = 20
+# Un golpe de frente apenas pesa (4); uno de flanco o por la espalda, mucho (25).
+hit_loss = 4
+flank_hit_loss = 25
+# La muerte de un héroe quita 300 a los suyos en 12 casillas.
+hero_death_loss = 300
+hero_death_milli_tiles = 12000
+# En cada revisión: 10 por cada compañero cercano que huye (contagio), 8 si hay más
+# enemigos que compañeros cerca y 1 con hambre (el hambre mina poco a poco).
+contagion_loss = 10
+outnumbered_loss = 8
+hungry_loss = 1
+# En calma (10 s sin recibir daño y sin pérdidas en la revisión) se recupera 10, más
+# 2 por compañero cercano (hasta 8) y 10 con un héroe cerca. Con un héroe cerca las
+# pérdidas se quedan en el 70 %; de noche pesan un 30 % más.
+calm_ticks = 200
+calm_gain = 10
+comrade_gain = 2
+comrade_cap = 8
+hero_gain = 10
+hero_loss_percent = 70
+night_loss_percent = 130
+# Huyendo y sin enemigos cerca recupera 20 por revisión (unos 9 s hasta rehacerse).
+routing_gain = 20
+# Huye 10 casillas lejos del enemigo y cada 2 s vuelve a mirar hacia dónde. Al
+# rehacerse, 10 s reorganizándose antes de volver a pelear.
+flee_tiles = 10
+flee_repath_ticks = 40
+rally_reorganize_ticks = 200
+
 [medicine]
 # Sanidad. Un paciente ingresado mejora por el reposo 5 milésimas de vida por tick
 # (1 punto cada 10 s) y, si le atiende un enfermero, 30 más; cada enfermero atiende a

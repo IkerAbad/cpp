@@ -63,6 +63,12 @@
 # care_skill: pericia atendiendo heridos en un puesto médico (% del cuidado de un
 #   enfermero; 0 = no sabe). El aldeano hace de enfermero (100); el barbero cirujano,
 #   oficio de pago, cura mucho mejor.
+# morale_resolve: firmeza (% que resiste la moral; las pérdidas se escalan por
+#   100 / firmeza; 0 = sin moral: aldeanos, bagaje e ingenios no se desbandan). La leva,
+#   campesinos con poca instrucción, cede antes (70); el caballero, profesional y bien
+#   protegido, es el más firme (150). Ardant du Picq («Battle Studies») explica la
+#   firmeza por la confianza en los compañeros: la de grupos que se conocen y se vigilan
+#   entre sí («the mutual supervision of groups of men who know each other well»).
 # convoy_capacity: bagaje que lleva suministros (0 = no es bagaje). La acémila carga
 #   como un hombre y medio y va a su paso; la carreta de bueyes carga cinco veces más
 #   pero va a la mitad de velocidad. Sus animales comen de la carga.
@@ -104,6 +110,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 100
+morale_resolve = 0
 
 [[unit]]
 name = "leva"
@@ -140,6 +147,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 70
 
 [[unit]]
 name = "hombre_armas"
@@ -176,6 +184,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 120
 
 [[unit]]
 name = "arquero"
@@ -212,6 +221,7 @@ ammo_cost = { madera = 1 }
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 90
 
 [[unit]]
 name = "ballestero"
@@ -248,6 +258,7 @@ ammo_cost = { madera = 1, hierro = 1 }
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 100
 
 [[unit]]
 name = "jinete"
@@ -284,6 +295,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 110
 
 [[unit]]
 name = "caballero"
@@ -320,6 +332,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 150
 
 [[unit]]
 name = "ariete"
@@ -356,6 +369,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = false
 care_skill = 0
+morale_resolve = 0
 
 [[unit]]
 name = "zapador"
@@ -392,6 +406,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 0
 
 # Bagaje. Sin armas (no busca pelea); vulnerable: cortar convoyes es la forma de
 # rendir a un ejército sin combatir.
@@ -430,6 +445,7 @@ ammo_cost = {}
 convoy_capacity = 30
 treatable = false
 care_skill = 0
+morale_resolve = 0
 
 [[unit]]
 name = "carreta"
@@ -466,6 +482,7 @@ ammo_cost = {}
 convoy_capacity = 150
 treatable = false
 care_skill = 0
+morale_resolve = 0
 
 [[unit]]
 name = "trabuquete"
@@ -502,6 +519,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = false
 care_skill = 0
+morale_resolve = 0
 
 # Barbero cirujano: oficio de pago (oro), sin armas. Hubo barberos cirujanos en
 # Valencia en el siglo XV y, más tarde, uno por compañía en algunos ejércitos. Atiende
@@ -541,3 +559,4 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 250
+morale_resolve = 0

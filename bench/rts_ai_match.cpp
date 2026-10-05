@@ -199,6 +199,7 @@ int main(int argc, char** argv) {
     std::int64_t wins_b = 0;
     std::int64_t draws = 0;
     std::int64_t decisive = 0;  // victorias por derrota del rival (no a los puntos)
+    std::int64_t routed_wins = 0;  // victorias en las que el vencido sufrió desbandadas
     for (std::int64_t g = 0; g < games; ++g) {
         rts::sim::WorldParams params = data->engine.world;
         const auto pair = static_cast<std::uint64_t>(g / 2);
@@ -227,6 +228,11 @@ int main(int argc, char** argv) {
         } else if (v0 != v1) {
             winner = v0 > v1 ? 0 : 1;
         }
+        const std::int64_t routs0 = world.morale().routs_of(0);
+        const std::int64_t routs1 = world.morale().routs_of(1);
+        if (winner >= 0 && (winner == 0 ? routs1 : routs0) > 0) {
+            ++routed_wins;
+        }
         const char* result = "empate";
         if (winner < 0) {
             ++draws;
@@ -235,17 +241,20 @@ int main(int argc, char** argv) {
             (a_won ? wins_a : wins_b) += 1;
             result = a_won ? "gana A" : "gana B";
         }
-        std::printf("partida %2lld (semilla +%llu, A es el jugador %d): %s %s en %lld:%02lld (valor %lld contra %lld)\n",
+        std::printf("partida %2lld (semilla +%llu, A es el jugador %d): %s %s en %lld:%02lld (valor %lld contra %lld; "
+                    "desbandadas %lld contra %lld)\n",
                     static_cast<long long>(g), static_cast<unsigned long long>(pair), a_first ? 0 : 1, result,
                     by_points ? "a los puntos" : "por derrota", static_cast<long long>(t / rts::sim::kTicksPerSecond / kSecondsPerMinute),
                     static_cast<long long>(t / rts::sim::kTicksPerSecond % kSecondsPerMinute), static_cast<long long>(a_first ? v0 : v1),
-                    static_cast<long long>(a_first ? v1 : v0));
+                    static_cast<long long>(a_first ? v1 : v0), static_cast<long long>(a_first ? routs0 : routs1),
+                    static_cast<long long>(a_first ? routs1 : routs0));
         std::fflush(stdout);
     }
     const std::int64_t win_pct = wins_a * kPercent / games;
-    std::printf("A = %s, B = %s: A gana %lld, B gana %lld, empates %lld de %lld (A: %lld %%); %lld por derrota\n",
+    std::printf("A = %s, B = %s: A gana %lld, B gana %lld, empates %lld de %lld (A: %lld %%); %lld por derrota; "
+                "%lld con desbandada del vencido\n",
                 name_a.c_str(), name_b.c_str(), static_cast<long long>(wins_a), static_cast<long long>(wins_b),
                 static_cast<long long>(draws), static_cast<long long>(games), static_cast<long long>(win_pct),
-                static_cast<long long>(decisive));
+                static_cast<long long>(decisive), static_cast<long long>(routed_wins));
     return min_win >= 0 && win_pct < min_win ? 1 : 0;
 }

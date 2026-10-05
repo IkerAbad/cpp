@@ -19,6 +19,7 @@ add_library(rts_sim STATIC
     sim/fire.cpp
     sim/supply.cpp
     sim/medicine.cpp
+    sim/morale.cpp
     sim/vision.cpp
     sim/map_gen.cpp
     sim/movement.cpp

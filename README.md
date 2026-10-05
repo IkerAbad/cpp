@@ -337,6 +337,34 @@ Fuentes:
 - **Curación natural:** fuera de los puestos solo sanan solas las heridas leves (70 % de vida o más), con la unidad comida y 10 s sin recibir daño. Las graves no.
 - **IA:** aún no usa la sanidad; se le enseñará cuando toda la estructura del juego esté terminada.
 
+### Moral y desbandada
+
+Las batallas se decidían más por la huida que por la muerte de todos: el vencido sufría casi todas sus bajas en la persecución. Cada unidad combatiente tiene una moral de 0 a 1000 que se calcula en la simulación, de forma determinista y dentro del hash (`[morale]` en `engine.toml`).
+
+Fuente: Ardant du Picq, [«Battle Studies»](https://www.gutenberg.org/files/7294/7294-h/7294-h.htm) (1880):
+- Queronea: «The Romans lost fourteen men, and killed their enemies until worn out in pursuit».
+- «it was almost always an attack from the flank or rear, a surprise action, that won battles».
+- El pánico se contagia: «The appearance of a troop B on one flank determined the flight of A».
+- La firmeza es confianza en los compañeros: «the mutual supervision of groups of men who know each other well».
+
+- **Firmeza** (`morale_resolve` en `units.toml`) escala las pérdidas: la leva (70) cede antes que el hombre de armas (120) y que el caballero (150). Aldeanos, bagaje e ingenios no tienen moral.
+- **Baja con:**
+  - cada baja propia a 6 casillas (60);
+  - cada golpe recibido, poco de frente (4) y mucho de flanco o por la espalda (25): «de frente» es que le golpea su blanco o alguien que tiene delante;
+  - cada compañero cercano que huye (10);
+  - tener más enemigos que compañeros cerca (8);
+  - el hambre (1);
+  - la muerte de un héroe propio a 12 casillas (300).
+
+  De noche todo pesa un 30 % más, y con un héroe cerca, un 30 % menos.
+- **Sube con:**
+  - la calma, sin daño reciente (10, más 2 por compañero cercano y 10 con un héroe cerca);
+  - las bajas del enemigo (20).
+- **Desbandada:** por debajo de 250 la unidad huye 10 casillas lejos del enemigo, deja de pelear y no obedece (inicial en amarillo y aviso «¡Tus tropas huyen!»). Se le puede seguir atacando: es la persecución.
+- **Rehacerse:** lejos de los enemigos (8 casillas) recupera moral; a 600 se detiene y pasa 10 s reorganizándose antes de volver a pelear y a obedecer.
+- **Torneo:** cuenta las desbandadas de cada partida y las victorias en las que el vencido se desbandó.
+- **Desactivada** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
+
 ### Niebla de guerra
 
 Solo se sabe lo que alguien ha visto, y lo mismo para la IA, que no tiene ventaja ni desventaja: su capa de percepción solo ve lo visible y lo recordado. Lo calcula la simulación cada 10 ticks, de forma determinista y dentro del hash (`[vision]` en `engine.toml`).

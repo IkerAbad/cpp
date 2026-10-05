@@ -44,6 +44,7 @@ esconden, y un asedio sin suministro fracasa.
 | Logística | Víveres, munición, hambre, bagaje, convoyes, campamento de campaña, trabuquete montado con convoyes |
 | Sanidad | Puesto de socorro, hospital de campaña, hospital, enfermeros, cirujanos, heridas leves, reorganización |
 | Niebla | Tres estados, árboles, altura, día y noche, memoria de edificios |
+| Moral | Bajas cercanas, flanco y retaguardia, contagio, hambre, noche, héroes; desbandada, persecución y rehacerse |
 | IA | Percepción con niebla, 18 módulos, perfiles «básica» y «normal», torneo en la CI |
 | Repeticiones | Grabación automática, reproductor, verificación por hashes, vista por jugador |
 | Interfaz | Ayuda (F2), depuración (F1), recuadro al pasar el ratón, iniciales de unidad, paneles |
@@ -86,7 +87,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
 ### Fase B — Guerra realista
 
-- [ ] **B1. Moral y desbandada.** La moral de cada unidad baja con:
+- [x] **B1. Moral y desbandada.** La moral de cada unidad baja con:
   - las bajas cercanas;
   - los flancos y la retaguardia atacados;
   - el hambre y la noche;

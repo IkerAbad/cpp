@@ -53,6 +53,8 @@ std::vector<Alert> AlertTracker::update(const sim::Snapshot& prev, const sim::Sn
         const auto it = before.find(e.id);
         if (it == before.end()) {
             raise(AlertKind::UnitReady, t);  // nueva: recién producida
+        } else if (e.routing && !it->second->routing) {
+            raise(AlertKind::Rout, t);
         } else if (e.hp < it->second->hp && !e.admitted) {
             raise(AlertKind::UnderAttack, t);
         }

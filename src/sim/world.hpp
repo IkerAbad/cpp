@@ -17,6 +17,7 @@
 #include "sim/fixed.hpp"
 #include "sim/map_gen.hpp"
 #include "sim/medicine.hpp"
+#include "sim/morale.hpp"
 #include "sim/movement.hpp"
 #include "sim/rng.hpp"
 #include "sim/supply.hpp"
@@ -79,6 +80,7 @@ struct WorldParams {
     FireParams fire;
     SupplyParams supply;
     MedicineParams medicine;
+    MoraleParams morale;
     VisionParams vision;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
@@ -110,6 +112,8 @@ struct SnapshotEntity {
     bool admitted = false;                // ingresado en él
     bool reorganizing = false;            // tras el alta, aún sin poder atacar
     bool tending = false;                 // atiende el puesto médico work_building
+    std::int32_t morale = -1;             // moral (0..kFullMorale); -1 = no tiene
+    bool routing = false;                 // en desbandada
     std::uint8_t seen_by = 0xFF;          // bit p: la ve el jugador p (niebla de guerra)
 };
 
@@ -172,6 +176,7 @@ public:
     [[nodiscard]] const FireSystem& fire() const noexcept { return fire_; }
     [[nodiscard]] const SupplySystem& supply() const noexcept { return supply_; }
     [[nodiscard]] const MedicineSystem& medicine() const noexcept { return medicine_; }
+    [[nodiscard]] const MoraleSystem& morale() const noexcept { return morale_; }
     [[nodiscard]] const VisionSystem& vision() const noexcept { return vision_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
@@ -211,6 +216,7 @@ private:
     FireSystem fire_;
     SupplySystem supply_;
     MedicineSystem medicine_;
+    MoraleSystem morale_;
     VisionSystem vision_;
     AiSystem ai_;
     entt::registry registry_;

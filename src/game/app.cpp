@@ -1109,7 +1109,13 @@ private:
             ImGui::TextDisabled("herido, camino del puesto médico");
         }
         if (e.reorganizing) {
-            ImGui::TextColored(kWarnColor, "reorganizándose tras el alta: aún no ataca");
+            ImGui::TextColored(kWarnColor, "reorganizándose: aún no ataca");
+        }
+        if (e.morale >= 0) {
+            ImGui::Text("moral %d %%", e.morale * kPercent / sim::kFullMorale);
+        }
+        if (e.routing) {
+            ImGui::TextColored(kWarnColor, "en desbandada: huye y no obedece hasta rehacerse");
         }
     }
 
@@ -1152,6 +1158,7 @@ private:
         ImGui::BulletText("Cada unidad lleva su inicial; el borde es el color del jugador");
         ImGui::BulletText("Punto de color: lo que lleva un aldeano");
         ImGui::BulletText("Inicial en rojo: con hambre o sin munición");
+        ImGui::BulletText("Inicial en amarillo: en desbandada (huye y no obedece)");
         ImGui::SeparatorText("Logística");
         ImGui::BulletText("Las tropas gastan víveres; los tiradores, munición");
         ImGui::BulletText("Se reponen junto al centro urbano, el molino, el cuartel o un campamento");
@@ -1336,6 +1343,8 @@ private:
                 return "Sin comida para las raciones";
             case AlertKind::UnitReady:
                 return "Unidad lista";
+            case AlertKind::Rout:
+                return "¡Tus tropas huyen!";
             case AlertKind::Count:
                 break;
         }
@@ -1418,6 +1427,7 @@ private:
         ImDrawList* draw = ImGui::GetBackgroundDrawList();
         constexpr ImU32 kBack = IM_COL32(0, 0, 0, 170);
         constexpr ImU32 kBackWarn = IM_COL32(170, 20, 20, 220);  // con hambre o sin munición
+        constexpr ImU32 kBackRout = IM_COL32(200, 160, 0, 230);  // en desbandada
         constexpr ImU32 kText = IM_COL32(255, 255, 255, 255);
         constexpr float kPadPx = 1.0f;
         const auto radius = static_cast<float>(data_.engine.view.marker_radius_px);
@@ -1428,7 +1438,8 @@ private:
             const ImVec2 size = ImGui::CalcTextSize(label.c_str());
             const render::Vec2 p = screen_entities_[i].pos;
             const ImVec2 at{std::round(p.x + radius + kPadPx * 2.0f), std::round(p.y - size.y * 0.5f)};
-            draw->AddRectFilled({at.x - kPadPx, at.y}, {at.x + size.x + kPadPx, at.y + size.y}, warn ? kBackWarn : kBack);
+            const ImU32 back = se.routing ? kBackRout : (warn ? kBackWarn : kBack);
+            draw->AddRectFilled({at.x - kPadPx, at.y}, {at.x + size.x + kPadPx, at.y + size.y}, back);
             draw->AddText(at, kText, label.c_str());
         }
     }

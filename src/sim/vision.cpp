@@ -30,6 +30,9 @@ VisionSystem::VisionSystem(const VisionParams& params, const TileMap& map, std::
 
 std::int32_t VisionSystem::daylight_percent(Tick tick) const noexcept {
     const std::int64_t cycle = std::int64_t{params_.day_ticks} + params_.night_ticks;
+    if (cycle <= 0) {
+        return static_cast<std::int32_t>(kPercent);  // sin ciclo de día y noche: siempre de día
+    }
     const std::int64_t t = (std::int64_t{tick} + params_.start_tick) % cycle;
     const std::int64_t night = params_.night_sight_percent;
     const std::int64_t tw = params_.twilight_ticks;

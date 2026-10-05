@@ -63,6 +63,7 @@ World::World(const WorldParams& params)
       fire_(params.fire, params.unit_types, params.building_types),
       supply_(params.supply, params.unit_types, params.building_types),
       medicine_(params.medicine, params.supply.ration_cost, params.unit_types, params.building_types),
+      morale_(map_->width(), map_->height(), params.morale, params.unit_types, params.combat.hero_aura_radius),
       vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
@@ -236,6 +237,8 @@ void World::apply_command(const Command& command) {
             units.push_back(e);
         }
     }
+    // En desbandada no se obedece: primero hay que rehacerse.
+    std::erase_if(units, [this](entt::entity e) { return registry_.all_of<Routing>(e); });
     // Movimiento encolado (Mayús): quien ya va a algún sitio lo añade a sus puntos de
     // paso sin dejar lo que hace; el resto obedece como a un movimiento normal.
     if (command.type == CommandType::Move && command.kind == kQueueMove) {
@@ -293,6 +296,8 @@ void World::step() {
     supply_.update(registry_, movement_, economy_, next_order_id_, tick_);
     medicine_.update(registry_, movement_, economy_, next_order_id_, tick_);
     combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_, &vision_);
+    morale_.update(registry_, movement_, combat_.morale_hits(), combat_.morale_deaths(),
+                   vision_.daylight_percent(tick_), next_order_id_, tick_);
     fire_.update(registry_, movement_, economy_, next_order_id_, tick_);
     // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
     movement_.commit_grid_changes(registry_);
@@ -425,6 +430,7 @@ std::uint64_t World::state_hash() const {
     fire_.hash_into(h, registry_);
     supply_.hash_into(h, registry_);
     medicine_.hash_into(h, registry_);
+    morale_.hash_into(h, registry_);
     vision_.hash_into(h);
     ai_.hash_into(h);
     return h.value();
@@ -475,6 +481,10 @@ void World::write_snapshot(Snapshot& out) const {
             s.admitted = p->admitted;
         }
         s.reorganizing = registry_.all_of<Reorganizing>(e);
+        if (const Morale* m = registry_.try_get<Morale>(e)) {
+            s.morale = m->value;
+        }
+        s.routing = registry_.all_of<Routing>(e);
         if (const Carer* c = registry_.try_get<Carer>(e)) {
             s.tending = true;
             s.work_building = entt::to_integral(c->post);

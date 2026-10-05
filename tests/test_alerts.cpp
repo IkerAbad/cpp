@@ -89,3 +89,20 @@ TEST_CASE("Avisos: edificio en llamas, hambre, sin comida y unidad lista; nada e
     CHECK(t.shown(2).size() == 4);
     CHECK(t.shown(100).empty());  // ya pasó su tiempo en pantalla
 }
+
+TEST_CASE("Avisos: tropas propias que empiezan a huir; las del rival no avisan") {
+    AlertTracker t(params());
+    Snapshot a;
+    a.tick = 10;
+    a.entities = {unit(1, 40), unit(2, 40, 1)};
+    Snapshot b = a;
+    b.tick = 11;
+    b.entities[0].routing = true;
+    b.entities[1].routing = true;
+    const auto out = t.update(a, b, 0);
+    CHECK(out.size() == 1);
+    CHECK(has(out, AlertKind::Rout));
+    Snapshot c = b;
+    c.tick = 12;
+    CHECK_FALSE(has(t.update(b, c, 0), AlertKind::Rout));  // sigue huyendo: no se repite
+}

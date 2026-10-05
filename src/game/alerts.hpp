@@ -14,7 +14,7 @@
 
 namespace rts::game {
 
-enum class AlertKind : std::uint8_t { UnderAttack, Fire, Hunger, NoFood, UnitReady, Count };
+enum class AlertKind : std::uint8_t { UnderAttack, Fire, Hunger, NoFood, UnitReady, Rout, Count };
 
 struct Alert {
     AlertKind kind = AlertKind::UnderAttack;

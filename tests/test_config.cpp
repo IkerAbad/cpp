@@ -74,6 +74,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 0
 
 [[unit]]
 name = "peon"
@@ -110,6 +111,7 @@ ammo_cost = {}
 convoy_capacity = 0
 treatable = true
 care_skill = 0
+morale_resolve = 0
 )";
 
 constexpr const char* kNodes = R"(
@@ -290,6 +292,34 @@ night_ticks = 7200
 twilight_ticks = 1800
 night_sight_percent = 50
 start_tick = 2400
+
+[morale]
+enabled = true
+interval_ticks = 10
+rout_below = 250
+rally_above = 600
+awareness_milli_tiles = 6000
+rally_safe_milli_tiles = 8000
+casualty_loss = 60
+enemy_casualty_gain = 20
+hit_loss = 4
+flank_hit_loss = 25
+hero_death_loss = 300
+hero_death_milli_tiles = 12000
+contagion_loss = 10
+outnumbered_loss = 8
+hungry_loss = 1
+calm_ticks = 200
+calm_gain = 10
+comrade_gain = 2
+comrade_cap = 8
+hero_gain = 10
+hero_loss_percent = 70
+night_loss_percent = 130
+routing_gain = 20
+flee_tiles = 10
+flee_repath_ticks = 40
+rally_reorganize_ticks = 200
 
 [medicine]
 bed_heal_milli_hp_per_tick = 5

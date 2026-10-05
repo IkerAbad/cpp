@@ -466,6 +466,7 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             info.type.convoy_capacity = ur.get_i32("convoy_capacity", 0, kMaxAmount);
             info.type.treatable = ur.get_bool("treatable");
             info.type.care_skill = ur.get_i32("care_skill", 0, 1000);
+            info.type.morale_resolve = ur.get_i32("morale_resolve", 0, 1000);
             if (!error && info.type.convoy_capacity > 0 && info.type.worker) {
                 ur.fail("un aldeano no puede ser bagaje ('convoy_capacity' debe ser 0)");
             }
@@ -868,6 +869,40 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     md.light_wound_percent = r.get_i32("medicine.light_wound_percent", 0, 100);
     md.natural_heal_interval_ticks = r.get_i32("medicine.natural_heal_interval_ticks", 0, kMaxTicks);
     md.calm_ticks = r.get_i32("medicine.calm_ticks", 0, kMaxTicks);
+
+    sim::MoraleParams& mo = cfg.world.morale;
+    const auto tiles = [&](const char* key) {
+        return sim::Fixed::from_ratio(r.get_i32(key, 0, 64 * kMilli), kMilli);
+    };
+    mo.enabled = r.get_bool("morale.enabled");
+    mo.interval_ticks = r.get_i32("morale.interval_ticks", 1, kMaxTicks);
+    mo.rout_below = r.get_i32("morale.rout_below", 0, sim::kFullMorale);
+    mo.rally_above = r.get_i32("morale.rally_above", 0, sim::kFullMorale);
+    mo.awareness_radius = tiles("morale.awareness_milli_tiles");
+    mo.rally_safe_radius = tiles("morale.rally_safe_milli_tiles");
+    mo.casualty_loss = r.get_i32("morale.casualty_loss", 0, sim::kFullMorale);
+    mo.enemy_casualty_gain = r.get_i32("morale.enemy_casualty_gain", 0, sim::kFullMorale);
+    mo.hit_loss = r.get_i32("morale.hit_loss", 0, sim::kFullMorale);
+    mo.flank_hit_loss = r.get_i32("morale.flank_hit_loss", 0, sim::kFullMorale);
+    mo.hero_death_loss = r.get_i32("morale.hero_death_loss", 0, sim::kFullMorale);
+    mo.hero_death_radius = tiles("morale.hero_death_milli_tiles");
+    mo.contagion_loss = r.get_i32("morale.contagion_loss", 0, sim::kFullMorale);
+    mo.outnumbered_loss = r.get_i32("morale.outnumbered_loss", 0, sim::kFullMorale);
+    mo.hungry_loss = r.get_i32("morale.hungry_loss", 0, sim::kFullMorale);
+    mo.calm_ticks = r.get_i32("morale.calm_ticks", 0, kMaxTicks);
+    mo.calm_gain = r.get_i32("morale.calm_gain", 0, sim::kFullMorale);
+    mo.comrade_gain = r.get_i32("morale.comrade_gain", 0, sim::kFullMorale);
+    mo.comrade_cap = r.get_i32("morale.comrade_cap", 0, 1000);
+    mo.hero_gain = r.get_i32("morale.hero_gain", 0, sim::kFullMorale);
+    mo.hero_loss_percent = r.get_i32("morale.hero_loss_percent", 0, 100);
+    mo.night_loss_percent = r.get_i32("morale.night_loss_percent", 100, 1000);
+    mo.routing_gain = r.get_i32("morale.routing_gain", 0, sim::kFullMorale);
+    mo.flee_tiles = r.get_i32("morale.flee_tiles", 1, 64);
+    mo.flee_repath_ticks = r.get_i32("morale.flee_repath_ticks", 1, kMaxTicks);
+    mo.rally_reorganize_ticks = r.get_i32("morale.rally_reorganize_ticks", 0, kMaxTicks);
+    if (!error && mo.rally_above <= mo.rout_below) {
+        r.fail("'morale.rally_above' debe ser mayor que 'morale.rout_below'");
+    }
 
     sim::CombatParams& cb = cfg.world.combat;
     cb.acquire_interval_ticks = r.get_i32("combat.acquire_interval_ticks", 1, 1000);

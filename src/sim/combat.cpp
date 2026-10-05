@@ -400,6 +400,8 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
     vision_ = vision;
     hits_.clear();
     new_projectiles_.clear();
+    morale_hits_.clear();
+    morale_deaths_.clear();
     gather(registry);
     mark_auras(registry);
     const auto interval = static_cast<std::uint32_t>(params_.acquire_interval_ticks);
@@ -411,12 +413,13 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             continue;
         }
         Combatant& c = *cp;
-        if (c.cooldown > 0 && (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e))) {
+        if (c.cooldown > 0 &&
+            (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e) || registry.all_of<Routing>(e))) {
             --c.cooldown;
         }
-        if (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e)) {
-            // Herido camino del puesto o ingresado, o reorganizándose tras el alta: no
-            // pelea (se le puede atacar).
+        if (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e) || registry.all_of<Routing>(e)) {
+            // Herido camino del puesto o ingresado, reorganizándose tras el alta o en
+            // desbandada: no pelea (se le puede atacar).
             c.target = entt::null;
             c.explicit_target = false;
             c.attack_move = false;
@@ -657,6 +660,7 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
             credit(h.attacker, h.amount);
             if (registry.all_of<Unit>(h.target)) {
                 registry.emplace_or_replace<Hurt>(h.target, tick);  // las heridas leves sanan en calma
+                morale_hits_.push_back({h.target, h.attacker});
             }
         }
     }
@@ -691,6 +695,9 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
         if (registry.all_of<Building>(e)) {
             economy.remove_building(registry, movement, e, true);  // derribado: escombros
         } else {
+            const Position& p = registry.get<Position>(e);
+            const Combatant* c = registry.try_get<Combatant>(e);
+            morale_deaths_.push_back({{p.x, p.y}, registry.get<Owner>(e).player, c != nullptr && c->hero_name >= 0});
             economy.record_loss(registry.get<Owner>(e).player, killers[i]);
             registry.destroy(e);
         }
