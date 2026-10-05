@@ -58,6 +58,8 @@
 #   campaña, pagado con lo que han traído los convoyes; montado no se mueve
 #   (velocidad 0). Más lento que el ariete, pero derriba desde lejos y no hay que
 #   arrimarlo al muro.
+# treatable: persona a la que se cura en un puesto médico y cuyas heridas leves sanan
+#   solas (no los animales del bagaje ni los ingenios, que se reparan o se pierden).
 # convoy_capacity: bagaje que lleva suministros (0 = no es bagaje). La acémila carga
 #   como un hombre y medio y va a su paso; la carreta de bueyes carga cinco veces más
 #   pero va a la mitad de velocidad. Sus animales comen de la carga.
@@ -97,6 +99,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "leva"
@@ -131,6 +134,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "hombre_armas"
@@ -165,6 +169,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "arquero"
@@ -199,6 +204,7 @@ ammo = 24
 ammo_bundle = 6
 ammo_cost = { madera = 1 }
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "ballestero"
@@ -233,6 +239,7 @@ ammo = 24
 ammo_bundle = 6
 ammo_cost = { madera = 1, hierro = 1 }
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "jinete"
@@ -267,6 +274,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "caballero"
@@ -301,6 +309,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "ariete"
@@ -335,6 +344,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = false
 
 [[unit]]
 name = "zapador"
@@ -369,6 +379,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 
 # Bagaje. Sin armas (no busca pelea); vulnerable: cortar convoyes es la forma de
 # rendir a un ejército sin combatir.
@@ -405,6 +416,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 30
+treatable = false
 
 [[unit]]
 name = "carreta"
@@ -439,6 +451,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 150
+treatable = false
 
 [[unit]]
 name = "trabuquete"
@@ -473,3 +486,4 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = false

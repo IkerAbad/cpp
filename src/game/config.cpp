@@ -464,6 +464,7 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             sup.ammo_bundle = ur.get_i32("ammo_bundle", 1, kMaxAmount);
             sup.ammo_cost = ur.get_stock("ammo_cost");
             info.type.convoy_capacity = ur.get_i32("convoy_capacity", 0, kMaxAmount);
+            info.type.treatable = ur.get_bool("treatable");
             if (!error && info.type.convoy_capacity > 0 && info.type.worker) {
                 ur.fail("un aldeano no puede ser bagaje ('convoy_capacity' debe ser 0)");
             }
@@ -545,6 +546,13 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.supplies = br.get_bool("supplies");
         info.type.store_capacity = br.get_i32("store_capacity", 0, kMaxAmount);
         info.type.store_target = br.get_stock("store_target");
+        info.type.beds = br.get_i32("beds", 0, kMaxAmount);
+        info.type.nurses = br.get_i32("nurses", 0, kMaxAmount);
+        info.type.care_percent = br.get_i32("care_percent", 0, 1000);
+        info.type.heal_to_percent = br.get_i32("heal_to_percent", 0, 100);
+        if (!error && info.type.beds > 0 && (info.type.care_percent <= 0 || info.type.heal_to_percent <= 0)) {
+            br.fail("un puesto médico ('beds' > 0) necesita 'care_percent' y 'heal_to_percent' mayores que 0");
+        }
         std::int64_t target_sum = 0;
         for (const std::int32_t v : info.type.store_target) {
             target_sum += v;
@@ -826,6 +834,17 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     }
     sp.load_ticks = r.get_i32("supply.load_ticks", 0, kMaxTicks);
     sp.convoy_reach = sim::Fixed::from_ratio(r.get_i32("supply.convoy_reach_milli_tiles", 0, 4 * kMilli), kMilli);
+
+    sim::MedicineParams& md = cfg.world.medicine;
+    md.bed_heal_milli_per_tick = r.get_i32("medicine.bed_heal_milli_hp_per_tick", 0, kMaxAmount);
+    md.nurse_heal_milli_per_tick = r.get_i32("medicine.nurse_heal_milli_hp_per_tick", 0, kMaxAmount);
+    md.patients_per_nurse = r.get_i32("medicine.patients_per_nurse", 1, 1000);
+    md.patient_ration_ticks = r.get_i32("medicine.patient_ration_ticks", 1, kMaxTicks);
+    md.reorganize_ticks = r.get_i32("medicine.reorganize_ticks", 0, kMaxTicks);
+    md.care_reach = sim::Fixed::from_ratio(r.get_i32("medicine.care_reach_milli_tiles", 0, 4 * kMilli), kMilli);
+    md.light_wound_percent = r.get_i32("medicine.light_wound_percent", 0, 100);
+    md.natural_heal_interval_ticks = r.get_i32("medicine.natural_heal_interval_ticks", 0, kMaxTicks);
+    md.calm_ticks = r.get_i32("medicine.calm_ticks", 0, kMaxTicks);
 
     sim::CombatParams& cb = cfg.world.combat;
     cb.acquire_interval_ticks = r.get_i32("combat.acquire_interval_ticks", 1, 1000);

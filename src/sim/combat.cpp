@@ -146,6 +146,8 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
         case CommandType::Extinguish:
         case CommandType::Demolish:
         case CommandType::Convoy:
+        case CommandType::Treat:
+        case CommandType::Tend:
         case CommandType::Move:
         case CommandType::Stop:
         case CommandType::Gather:
@@ -406,6 +408,17 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             continue;
         }
         Combatant& c = *cp;
+        if (c.cooldown > 0 && (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e))) {
+            --c.cooldown;
+        }
+        if (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e)) {
+            // Herido camino del puesto o ingresado, o reorganizándose tras el alta: no
+            // pelea (se le puede atacar).
+            c.target = entt::null;
+            c.explicit_target = false;
+            c.attack_move = false;
+            continue;
+        }
         const Unit& unit = registry.get<Unit>(e);
         const CombatStats& st = units_[unit.type].combat;
         const FVec2 pos = s_.pos[i];
@@ -529,7 +542,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
     for (const Projectile& p : new_projectiles_) {
         registry.emplace<Projectile>(registry.create(), p);
     }
-    apply_hits(registry, movement, economy);
+    apply_hits(registry, movement, economy, tick);
 }
 
 void CombatSystem::update_projectiles(entt::registry& registry, const EconomySystem& economy, FireSystem& fire) {
@@ -610,7 +623,8 @@ void CombatSystem::level_up(entt::registry& registry, entt::entity e, Combatant&
     }
 }
 
-void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement, EconomySystem& economy) {
+void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
+                              Tick tick) {
     if (hits_.empty()) {
         return;
     }
@@ -638,6 +652,9 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
         if (Health* health = registry.try_get<Health>(h.target)) {
             health->hp = std::max(health->hp - h.amount, 0);  // sin desbordar con muchos golpes
             credit(h.attacker, h.amount);
+            if (registry.all_of<Unit>(h.target)) {
+                registry.emplace_or_replace<Hurt>(h.target, tick);  // las heridas leves sanan en calma
+            }
         }
     }
     // Bajas: cada atacante que golpeó este tick a un blanco que muere recibe la bonificación.

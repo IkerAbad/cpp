@@ -67,6 +67,13 @@ struct BuildingType {
     std::int32_t store_capacity = 0;
     // Lo que los convoyes procuran tener en ese almacén (suma <= store_capacity).
     Stock store_target{};
+    // Puesto médico (beds > 0): camas, enfermeros que admite, calidad de los cuidados
+    // (% sobre el ritmo base) y hasta qué % de la vida cura (un puesto de socorro solo
+    // estabiliza; lo leve sana solo).
+    std::int32_t beds = 0;
+    std::int32_t nurses = 0;
+    std::int32_t care_percent = 0;
+    std::int32_t heal_to_percent = 0;
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {
@@ -149,7 +156,7 @@ struct ProductionQueue {
     std::int32_t progress = 0;  // ticks del primero de la cola
 };
 
-enum class WorkerTask : std::uint8_t { Idle, Gather, Deliver, Build, Demolish };
+enum class WorkerTask : std::uint8_t { Idle, Gather, Deliver, Build, Demolish, Nurse };
 
 struct Worker {
     WorkerTask task = WorkerTask::Idle;
@@ -262,6 +269,9 @@ private:
                     std::uint32_t& next_order_id, Tick tick);
     void step_demolish(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
                        std::uint32_t& next_order_id, Tick tick);
+    // Enfermero: va al puesto médico y se queda a su lado atendiéndolo.
+    void step_nurse(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
+                    std::uint32_t& next_order_id, Tick tick);
     Approach approach(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
                       const Footprint& target, std::uint32_t& next_order_id, Tick tick);
     void start_gather(Worker& w, entt::entity node, const Footprint& f, Resource kind) const;

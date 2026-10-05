@@ -18,6 +18,9 @@
 #   capacidad), que llenan los convoyes, no desde el del jugador (0 = no lo es). Lo
 #   que entrena también lo paga ese almacén. store_target: lo que los convoyes
 #   procuran tener en él (cada viaje lleva lo que falta).
+# beds: puesto médico (0 = no lo es): camas; nurses: enfermeros (aldeanos) que admite;
+#   care_percent: calidad de los cuidados (% del ritmo base de engine.toml [medicine]);
+#   heal_to_percent: hasta qué % de la vida cura (lo que queda, si es leve, sana solo).
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -42,6 +45,10 @@ vital = true
 supplies = true
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "piedra"
 color = [196, 176, 140]
 
@@ -62,6 +69,10 @@ vital = false
 supplies = false
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [176, 132, 96]
 
@@ -82,6 +93,10 @@ vital = false
 supplies = false
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [120, 92, 60]
 
@@ -102,6 +117,10 @@ vital = false
 supplies = false
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [132, 132, 140]
 
@@ -122,6 +141,10 @@ vital = false
 supplies = true
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [206, 184, 110]
 
@@ -142,6 +165,10 @@ vital = false
 supplies = true
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [150, 70, 60]
 
@@ -162,6 +189,10 @@ vital = false
 supplies = false
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [214, 190, 92]
 
@@ -184,6 +215,10 @@ vital = false
 supplies = false
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [120, 96, 64]
 
@@ -208,5 +243,88 @@ vital = false
 supplies = true
 store_capacity = 300
 store_target = { comida = 150, madera = 120, hierro = 30 }
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [168, 140, 84]
+
+# Sanidad. Un herido no vuelve solo al combate: hay que llevarlo a un puesto médico.
+# Los cirujanos de la época trataban sobre todo heridas de filo y extraían flechas;
+# los hospitales de las órdenes acogían a enfermos y heridos. Tres escalones:
+# - puesto de socorro: tienda de barbero cirujano junto al frente; pocas camas y solo
+#   estabiliza (hasta el 70 %: lo que queda es leve y sana solo).
+# - hospital de campaña: tiendas y carros detrás de las líneas; cura del todo.
+# - hospital: de piedra, como los de las órdenes; muchas camas y mejores cuidados.
+[[building]]
+name = "puesto_socorro"
+size_tiles = 2
+cost = { madera = 60 }
+build_ticks = 300
+hp = 250
+accepts = []
+population = 0
+armor = { cuerpo = 1, proyectil = 4 }
+class = "edificio"
+trains = []
+requires = ["cuartel"]
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 4
+nurses = 1
+care_percent = 70
+heal_to_percent = 70
+material = "madera"
+color = [220, 220, 210]
+
+[[building]]
+name = "hospital_campana"
+size_tiles = 3
+cost = { madera = 150 }
+build_ticks = 700
+hp = 500
+accepts = []
+population = 0
+armor = { cuerpo = 2, proyectil = 6 }
+class = "edificio"
+trains = []
+requires = ["cuartel"]
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 10
+nurses = 3
+care_percent = 100
+heal_to_percent = 100
+material = "madera"
+color = [235, 235, 225]
+
+[[building]]
+name = "hospital"
+size_tiles = 3
+cost = { madera = 100, piedra = 150 }
+build_ticks = 1500
+hp = 1500
+accepts = []
+population = 0
+armor = { cuerpo = 15, proyectil = 8 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 20
+nurses = 6
+care_percent = 150
+heal_to_percent = 100
+material = "piedra"
+color = [240, 240, 240]

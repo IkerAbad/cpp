@@ -94,6 +94,8 @@ const char* task_name(sim::WorkerTask t) noexcept {
             return "construyendo";
         case sim::WorkerTask::Demolish:
             return "desmontando";
+        case sim::WorkerTask::Nurse:
+            return "de enfermero";
     }
     return "?";
 }
@@ -541,6 +543,41 @@ private:
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
             c.type = sim::CommandType::Build;
             c.object = o->id;
+            // Puesto médico terminado y en uso: los heridos ingresan; los aldeanos, si no
+            // hay que repararlo, se quedan de enfermeros; el resto, la orden de siempre.
+            const BuildingInfo& binfo = data_.buildings.types[o->type];
+            if (binfo.type.beds > 0 && o->complete && !o->burned && o->hp >= binfo.type.hp) {
+                sim::Command treat = local_command(sim::CommandType::Treat);
+                treat.object = o->id;
+                treat.units.clear();
+                sim::Command tend = local_command(sim::CommandType::Tend);
+                tend.object = o->id;
+                tend.units.clear();
+                std::erase_if(c.units, [&](std::uint32_t id) {
+                    const auto it = std::ranges::find(curr_.entities, id, &sim::SnapshotEntity::id);
+                    if (it == curr_.entities.end()) {
+                        return false;
+                    }
+                    const sim::UnitType& ut = data_.units.types[it->type].type;
+                    if (ut.worker) {
+                        tend.units.push_back(id);
+                        return true;
+                    }
+                    if (ut.treatable && it->hp < it->max_hp) {
+                        treat.units.push_back(id);
+                        return true;
+                    }
+                    return false;
+                });
+                for (sim::Command* sub : {&treat, &tend}) {
+                    if (!sub->units.empty()) {
+                        issue(std::move(*sub));
+                    }
+                }
+                if (c.units.empty()) {
+                    return;
+                }
+            }
             // El bagaje, a un edificio que abastece: ruta de convoy (campamento) o cargar
             // y quedarse; el resto de la selección, la orden de siempre.
             if (data_.buildings.types[o->type].type.supplies) {
@@ -881,6 +918,18 @@ private:
         }
     }
 
+    // Estado sanitario de una unidad.
+    void draw_care_text(const sim::SnapshotEntity& e) const {
+        if (e.admitted) {
+            ImGui::TextColored({0.6f, 0.85f, 1.0f, 1.0f}, "ingresado en un puesto médico: no combate");
+        } else if (e.care_post != sim::kNoObject) {
+            ImGui::TextDisabled("herido, camino del puesto médico");
+        }
+        if (e.reorganizing) {
+            ImGui::TextColored(kWarnColor, "reorganizándose tras el alta: aún no ataca");
+        }
+    }
+
     // Ayuda (F2): controles y leyenda de los marcadores.
     void draw_help(const ImVec2& display) {
         if (!show_help_) {
@@ -922,6 +971,12 @@ private:
         ImGui::BulletText("Bagaje + clic derecho en un campamento: ruta de convoy");
         ImGui::BulletText("Bagaje cargado y parado: abastece a las tropas de alrededor");
         ImGui::BulletText("Trabuquete: se monta en un campamento con lo traído en convoy");
+        ImGui::SeparatorText("Sanidad");
+        ImGui::BulletText("Heridos + clic derecho en un puesto médico: ingresan");
+        ImGui::BulletText("Aldeanos + clic derecho en él: enfermeros (curan más deprisa)");
+        ImGui::BulletText("Socorro estabiliza; hospital de campaña y hospital curan del todo");
+        ImGui::BulletText("Solo lo leve (%d %% de vida o más) sana solo; si cae el puesto, mueren",
+                          data_.engine.world.medicine.light_wound_percent);
         ImGui::BulletText("Pasa el ratón sobre algo para ver qué es");
         ImGui::End();
     }
@@ -958,6 +1013,7 @@ private:
             if (best->owner == kLocalPlayer) {
                 draw_supply_text(*best);
             }
+            draw_care_text(*best);
             if (best->carried > 0) {
                 ImGui::Text("lleva %d de %s", best->carried, std::string(resource_key(best->carry_kind)).c_str());
             }
@@ -1142,6 +1198,7 @@ private:
                     ImGui::Text("%s · vida %d/%d · nivel %d (%d de experiencia)", u.name.c_str(), it->hp, it->max_hp,
                                 it->level, it->xp);
                     draw_supply_text(*it);
+                    draw_care_text(*it);
                     if (u.type.convoy_capacity > 0) {
                         ImGui::Text("carga %s (de %d)", stock_text(it->load).c_str(), u.type.convoy_capacity);
                         ImGui::TextDisabled("%s", convoy_text(it->convoy));
@@ -1202,6 +1259,21 @@ private:
         }
         const BuildingInfo& info = data_.buildings.types[o->type];
         ImGui::Text("%s · vida %d/%d", info.name.c_str(), o->hp, info.type.hp);
+        if (info.type.beds > 0) {
+            std::int32_t patients = 0;
+            std::int32_t nurses = 0;
+            for (const sim::SnapshotEntity& e : curr_.entities) {
+                patients += e.admitted && e.care_post == id ? 1 : 0;
+            }
+            // Enfermeros: aldeanos con esa tarea junto al puesto (los cuenta la simulación;
+            // aquí, los que tienen la tarea asignada).
+            for (const sim::SnapshotEntity& e : curr_.entities) {
+                nurses += e.owner == kLocalPlayer && e.task == sim::WorkerTask::Nurse && e.work_building == id ? 1 : 0;
+            }
+            ImGui::Text("camas %d/%d · enfermeros %d/%d · cura hasta el %d %%", patients, info.type.beds, nurses,
+                        info.type.nurses, info.type.heal_to_percent);
+            ImGui::TextDisabled("Clic derecho con heridos: ingresan; con aldeanos: enfermeros");
+        }
         if (info.type.store_capacity > 0) {
             ImGui::Text("suministros %s (de %d)", stock_text(o->store).c_str(), info.type.store_capacity);
             ImGui::TextDisabled("Se llena con acémilas o carretas: clic derecho sobre él con ellas");

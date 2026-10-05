@@ -16,6 +16,7 @@
 #include "sim/fire.hpp"
 #include "sim/fixed.hpp"
 #include "sim/map_gen.hpp"
+#include "sim/medicine.hpp"
 #include "sim/movement.hpp"
 #include "sim/rng.hpp"
 #include "sim/supply.hpp"
@@ -76,6 +77,7 @@ struct WorldParams {
     CombatParams combat;
     FireParams fire;
     SupplyParams supply;
+    MedicineParams medicine;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
     SetupParams setup;
@@ -88,6 +90,7 @@ struct SnapshotEntity {
     UnitTypeId type = 0;
     PlayerId owner = 0;
     WorkerTask task = WorkerTask::Idle;
+    std::uint32_t work_building = kNoObject;  // aldeano: edificio de su tarea (obra, almacén, puesto)
     Resource carry_kind = Resource::Food;
     std::int32_t carried = 0;
     std::int32_t hp = 0;
@@ -101,6 +104,9 @@ struct SnapshotEntity {
     bool hungry = false;           // necesita víveres y no le quedan
     Stock load{};                  // bagaje: lo que lleva
     ConvoyTask convoy = ConvoyTask::Idle;
+    std::uint32_t care_post = kNoObject;  // puesto médico al que va o en el que está
+    bool admitted = false;                // ingresado en él
+    bool reorganizing = false;            // tras el alta, aún sin poder atacar
 };
 
 enum class ObjectKind : std::uint8_t { Building, Resource };
@@ -154,6 +160,7 @@ public:
     [[nodiscard]] const CombatSystem& combat() const noexcept { return combat_; }
     [[nodiscard]] const FireSystem& fire() const noexcept { return fire_; }
     [[nodiscard]] const SupplySystem& supply() const noexcept { return supply_; }
+    [[nodiscard]] const MedicineSystem& medicine() const noexcept { return medicine_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
@@ -174,6 +181,8 @@ public:
                                                 bool complete);
     std::optional<std::uint32_t> spawn_node(NodeTypeId type, TileCoord origin);
     void set_stock(PlayerId player, const Stock& stock);
+    // Vida de una unidad o edificio (escenarios de prueba: heridos, ruinas).
+    void set_hp(std::uint32_t entity, std::int32_t hp);
 
 private:
     void setup_game(const SetupParams& setup);
@@ -186,6 +195,7 @@ private:
     CombatSystem combat_;
     FireSystem fire_;
     SupplySystem supply_;
+    MedicineSystem medicine_;
     AiSystem ai_;
     entt::registry registry_;
     Xoshiro256pp rng_;

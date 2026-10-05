@@ -293,6 +293,7 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
         case CommandType::AttackMove:
         case CommandType::Extinguish:
         case CommandType::Convoy:
+        case CommandType::Treat:
             for (const entt::entity e : units) {
                 if (Worker* w = registry.try_get<Worker>(e)) {
                     w->task = WorkerTask::Idle;
@@ -345,6 +346,25 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
                     reset_movement(*w);
                 } else if (w != nullptr && w->carried > 0 && (accepts & resource_bit(w->carry_kind)) != 0) {
                     w->task = WorkerTask::Deliver;
+                    w->building = object;
+                    reset_movement(*w);
+                } else {
+                    walkers.push_back(e);
+                }
+            }
+            walk_to(registry.get<Footprint>(object).origin);
+            return;
+        }
+
+        case CommandType::Tend: {
+            if (!has_object || !registry.all_of<Building, Owner, Footprint>(object) ||
+                registry.get<Owner>(object).player != player ||
+                catalog_.buildings[registry.get<Building>(object).type].beds <= 0) {
+                return;
+            }
+            for (const entt::entity e : units) {
+                if (Worker* w = registry.try_get<Worker>(e)) {
+                    w->task = WorkerTask::Nurse;
                     w->building = object;
                     reset_movement(*w);
                 } else {
@@ -516,7 +536,26 @@ void EconomySystem::update_worker(entt::registry& registry, MovementSystem& move
         case WorkerTask::Demolish:
             step_demolish(registry, movement, e, w, next_order_id, tick);
             break;
+        case WorkerTask::Nurse:
+            step_nurse(registry, movement, e, w, next_order_id, tick);
+            break;
     }
+}
+
+void EconomySystem::step_nurse(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,
+                               std::uint32_t& next_order_id, Tick tick) {
+    const PlayerId player = registry.get<Owner>(e).player;
+    if (!registry.valid(w.building) || !registry.all_of<Building, Owner, Footprint>(w.building) ||
+        registry.get<Owner>(w.building).player != player || !registry.get<Building>(w.building).working() ||
+        catalog_.buildings[registry.get<Building>(w.building).type].beds <= 0) {
+        w.task = WorkerTask::Idle;  // puesto perdido o inutilizado
+        return;
+    }
+    const Footprint f = registry.get<Footprint>(w.building);
+    if (approach(registry, movement, e, w, f, next_order_id, tick) == Approach::Failed) {
+        w.task = WorkerTask::Idle;
+    }
+    // Al alcance se queda: los cuidados los aplica el sistema de sanidad.
 }
 
 EconomySystem::Approach EconomySystem::approach(entt::registry& registry, MovementSystem& movement, entt::entity e,

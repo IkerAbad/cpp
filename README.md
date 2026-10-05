@@ -311,6 +311,30 @@ Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipe
   - `incendiar` va antes a por el bagaje enemigo sin escolta (cortar convoyes) que a quemar edificios.
 - **Torneo con traza:** `rts_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos, almacén y lo cerca que está su ejército del centro enemigo.
 
+### Sanidad
+
+Un herido no vuelve solo al combate: hay que llevarlo a un puesto médico.
+
+Fuentes:
+- [Medieval medicine of Western Europe](https://en.wikipedia.org/wiki/Medieval_medicine_of_Western_Europe): los cirujanos trataban sobre todo heridas de filo («skin lacerations caused by a sharp edge, such as by a sword, dagger and axe»), y extraer flechas era lento.
+- [Knights Hospitaller](https://en.wikipedia.org/wiki/Knights_Hospitaller): los hospitales de las órdenes acogían a «sick, poor, or injured».
+
+**Puestos** (`beds`, `nurses`, `care_percent`, `heal_to_percent` en `buildings.toml`):
+
+| Puesto | Material | Camas | Enfermeros | Cuidados | Cura hasta |
+|---|---|---|---|---|---|
+| Puesto de socorro (junto al frente) | madera | 4 | 1 | 70 % | 70 %: estabiliza; lo que queda es leve y sana solo |
+| Hospital de campaña | madera | 10 | 3 | 100 % | 100 % |
+| Hospital, como los de las órdenes | piedra | 20 | 6 | 150 % | 100 % |
+
+**Cómo funciona** (`[medicine]` en `engine.toml`):
+- **Ingreso:** heridos + clic derecho sobre el puesto. Ingresado, el paciente queda inoperativo y sin bienes (pierde víveres y munición). Se le puede atacar y, si el puesto cae, muere. Si no hay cama libre, espera a la puerta.
+- **Cuidados:** cura el tiempo (reposo) y, sobre todo, los enfermeros: aldeanos + clic derecho sobre el puesto. Cada enfermero atiende a 3 pacientes. Un soldado con 30 de herida tarda unos 45 s atendido en un hospital de campaña y unos 5 min sin atender.
+- **Comida:** los pacientes comen como un aldeano, del almacén del jugador; sin comida no mejoran.
+- **Alta:** sale sin víveres ni munición y tarda 20 s en reorganizarse antes de poder atacar. Cualquier otra orden lo saca antes de tiempo, con la misma reorganización.
+- **Curación natural:** fuera de los puestos solo sanan solas las heridas leves (70 % de vida o más), con la unidad comida y 10 s sin recibir daño. Las graves no.
+- **IA:** aún no usa la sanidad; se le enseñará cuando toda la estructura del juego esté terminada.
+
 ### Prioridad de blancos
 
 Una unidad que elige blanco sola (la del jugador igual que la de la IA) sigue `combat.target_priority` en `engine.toml`:

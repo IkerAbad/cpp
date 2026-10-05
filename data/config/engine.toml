@@ -152,6 +152,25 @@ hungry_work_percent = 50
 starve_after_ticks = 1200
 starve_hp_interval_ticks = 60
 
+[medicine]
+# Sanidad. Un paciente ingresado mejora por el reposo 5 milésimas de vida por tick
+# (1 punto cada 10 s) y, si le atiende un enfermero, 30 más; cada enfermero atiende a
+# 3 pacientes. care_percent del puesto escala ese ritmo. Un soldado de 40 de vida con
+# 30 de herida tarda unos 45 s atendido en un hospital de campaña y 5 min sin atender.
+# Los pacientes comen como un aldeano (1 ración cada 2 min). Tras el alta, 20 s sin
+# poder atacar (reorganizarse y armarse; sale sin víveres ni munición).
+bed_heal_milli_hp_per_tick = 5
+nurse_heal_milli_hp_per_tick = 30
+patients_per_nurse = 3
+patient_ration_ticks = 2400
+reorganize_ticks = 400
+care_reach_milli_tiles = 800
+# Heridas leves (vida en el 70 % o más): sanan solas 1 punto cada 10 s, comida la
+# unidad y tras 10 s sin recibir daño. Las graves no: necesitan un puesto médico.
+light_wound_percent = 70
+natural_heal_interval_ticks = 200
+calm_ticks = 200
+
 [combat]
 # Cada unidad busca blanco cada 10 ticks (0,5 s), repartidas por id.
 acquire_interval_ticks = 10

@@ -72,6 +72,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 
 [[unit]]
 name = "peon"
@@ -106,6 +107,7 @@ ammo = 0
 ammo_bundle = 1
 ammo_cost = {}
 convoy_capacity = 0
+treatable = true
 )";
 
 constexpr const char* kNodes = R"(
@@ -149,6 +151,10 @@ vital = false
 supplies = true
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [9, 9, 9]
 
@@ -169,6 +175,10 @@ vital = false
 supplies = true
 store_capacity = 0
 store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
 material = "madera"
 color = [8, 8, 8]
 )";
@@ -255,6 +265,17 @@ hungry_attack_percent = 60
 hungry_work_percent = 50
 starve_after_ticks = 1200
 starve_hp_interval_ticks = 60
+
+[medicine]
+bed_heal_milli_hp_per_tick = 5
+nurse_heal_milli_hp_per_tick = 30
+patients_per_nurse = 3
+patient_ration_ticks = 2400
+reorganize_ticks = 400
+care_reach_milli_tiles = 800
+light_wound_percent = 70
+natural_heal_interval_ticks = 200
+calm_ticks = 200
 
 [combat]
 acquire_interval_ticks = 10

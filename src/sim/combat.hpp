@@ -163,7 +163,7 @@ private:
     // Puede hacer algo contra este edificio: dañarlo (asedio) o prenderle fuego.
     [[nodiscard]] bool can_harm_building(const entt::registry& registry, UnitTypeId attacker_type,
                                          entt::entity building) const;
-    void apply_hits(entt::registry& registry, MovementSystem& movement, EconomySystem& economy);
+    void apply_hits(entt::registry& registry, MovementSystem& movement, EconomySystem& economy, Tick tick);
     void level_up(entt::registry& registry, entt::entity e, Combatant& c);
 
     std::int32_t width_;

@@ -61,6 +61,7 @@ World::World(const WorldParams& params)
       combat_(map_->width(), map_->height(), params.combat, params.unit_types, params.building_types),
       fire_(params.fire, params.unit_types, params.building_types),
       supply_(params.supply, params.unit_types, params.building_types),
+      medicine_(params.medicine, params.supply.ration_cost, params.unit_types, params.building_types),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
     setup_game(params.setup);
@@ -237,6 +238,7 @@ void World::apply_command(const Command& command) {
     combat_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     fire_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     supply_.apply(registry_, movement_, command, units, next_order_id_, tick_);
+    medicine_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     if (command.type == CommandType::Move) {
         movement_.order_move(registry_, units, command.target, next_order_id_++, tick_);
     } else if (command.type == CommandType::Stop) {
@@ -265,6 +267,7 @@ void World::step() {
 
     economy_.update(registry_, movement_, next_order_id_, tick_);
     supply_.update(registry_, movement_, economy_, next_order_id_, tick_);
+    medicine_.update(registry_, movement_, economy_, next_order_id_, tick_);
     combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_);
     fire_.update(registry_, movement_, economy_, next_order_id_, tick_);
     // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
@@ -303,6 +306,11 @@ std::optional<std::uint32_t> World::spawn_node(NodeTypeId type, TileCoord origin
 
 void World::set_stock(PlayerId player, const Stock& stock) {
     economy_.player_state(player).stock = stock;
+}
+
+void World::set_hp(std::uint32_t entity, std::int32_t hp) {
+    Health& h = registry_.get<Health>(static_cast<entt::entity>(entity));
+    h.hp = std::clamp(hp, 1, h.max_hp);
 }
 
 std::uint64_t World::state_hash() const {
@@ -347,6 +355,7 @@ std::uint64_t World::state_hash() const {
     combat_.hash_into(h, registry_);
     fire_.hash_into(h, registry_);
     supply_.hash_into(h, registry_);
+    medicine_.hash_into(h, registry_);
     ai_.hash_into(h);
     return h.value();
 }
@@ -366,6 +375,9 @@ void World::write_snapshot(Snapshot& out) const {
         }
         if (const Worker* w = registry_.try_get<Worker>(e)) {
             s.task = w->task;
+            if (w->building != entt::null) {
+                s.work_building = entt::to_integral(w->building);
+            }
             s.carry_kind = w->carry_kind;
             s.carried = w->carried;
         }
@@ -388,6 +400,11 @@ void World::write_snapshot(Snapshot& out) const {
             s.load = c->load;
             s.convoy = c->task;
         }
+        if (const Patient* p = registry_.try_get<Patient>(e)) {
+            s.care_post = entt::to_integral(p->post);
+            s.admitted = p->admitted;
+        }
+        s.reorganizing = registry_.all_of<Reorganizing>(e);
         out.entities.push_back(s);
     });
     out.objects.clear();

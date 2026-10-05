@@ -312,6 +312,9 @@ void SupplySystem::update(entt::registry& registry, MovementSystem& movement, Ec
     for (const entt::entity e : view) {
         Supply& s = view.get<Supply>(e);
         const SupplyStats& st = units_[view.get<const Unit>(e).type].supply;
+        if (const Patient* pt = registry.try_get<Patient>(e); pt != nullptr && pt->admitted) {
+            continue;  // ingresado: come lo que le da el puesto médico (sanidad)
+        }
 
         // 1. Consumo de víveres y hambre.
         if (st.rations > 0) {

@@ -87,6 +87,32 @@ struct UnitType {
     SupplyStats supply;
     // Bagaje (acémila, carreta): lleva suministros para las tropas; 0 = no es bagaje.
     std::int32_t convoy_capacity = 0;
+    // Se le puede curar en un puesto médico y sus heridas leves sanan solas (personas;
+    // no animales ni ingenios).
+    bool treatable = false;
+};
+
+// Herido en un puesto médico. Hasta que ingresa (hay cama y está al alcance) va hacia
+// él; ingresado queda inoperativo y sin bienes, se le puede atacar y muere si cae el
+// puesto. Le curan el tiempo y los enfermeros.
+struct Patient {
+    entt::entity post = entt::null;
+    bool admitted = false;
+    std::int32_t heal_acc = 0;      // milésimas de vida curadas aún sin sumar
+    std::int32_t ration_timer = 0;  // ticks desde su última ración (come como un aldeano)
+    bool fed = true;                // ¿pudo comer su última ración?
+    std::uint32_t move_order = 0;   // desplazamiento propio hacia el puesto (0 = ninguno)
+    std::int32_t approaches = 0;    // llegadas sin alcanzarlo (a la segunda, desiste)
+};
+
+// Recién dado de alta (o sacado del puesto): no ataca hasta reorganizarse y armarse.
+struct Reorganizing {
+    std::int32_t ticks_left = 0;
+};
+
+// Último tick en que recibió daño (las heridas leves solo sanan en calma).
+struct Hurt {
+    Tick tick = 0;
 };
 
 // Víveres y munición que lleva una unidad. Hambrienta: sin raciones.
@@ -192,6 +218,10 @@ enum class CommandType : std::uint8_t {
     // units (acémilas, carretas) -> object: a un campamento, ruta de convoy (cargar en
     // casa, descargar allí, repetir); a otro edificio que abastece, cargar y quedarse.
     Convoy,
+    // units (heridos) -> object (puesto médico propio): ingresar para que los curen.
+    Treat,
+    // units (aldeanos) -> object (puesto médico propio): atenderlo como enfermeros.
+    Tend,
     Count,        // número de tipos (no es una orden)
 };
 
