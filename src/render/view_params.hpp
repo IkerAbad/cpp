@@ -47,6 +47,12 @@ struct ViewParams {
     Rgba hero_color{};
     Rgba fire_color{};                    // un edificio en llamas tiende a este color
     std::int32_t burned_shade_percent = 0;  // brillo de un edificio quemado
+
+    // Niebla de guerra: color de lo no explorado, brillo de lo explorado que no se ve
+    // ahora (y de lo recordado) y velo de la noche (color y opacidad en plena noche).
+    Rgba fog_unexplored_color{};
+    std::int32_t fog_explored_shade_percent = 0;
+    Rgba night_color{};
 };
 
 }  // namespace rts::render

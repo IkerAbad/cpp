@@ -21,6 +21,8 @@
 # beds: puesto médico (0 = no lo es): camas; nurses: enfermeros (aldeanos) que admite;
 #   care_percent: calidad de los cuidados (% del ritmo base de engine.toml [medicine]);
 #   heal_to_percent: hasta qué % de la vida cura (lo que queda, si es leve, sana solo).
+# sight_tiles: vista del edificio (niebla de guerra): el centro urbano y el
+#   campamento vigilan lejos; una casa, poco.
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -49,6 +51,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 8
 material = "piedra"
 color = [196, 176, 140]
 
@@ -73,6 +76,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 3
 material = "madera"
 color = [176, 132, 96]
 
@@ -97,6 +101,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 4
 material = "madera"
 color = [120, 92, 60]
 
@@ -121,6 +126,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 4
 material = "madera"
 color = [132, 132, 140]
 
@@ -145,6 +151,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 4
 material = "madera"
 color = [206, 184, 110]
 
@@ -169,6 +176,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 6
 material = "madera"
 color = [150, 70, 60]
 
@@ -193,6 +201,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 2
 material = "madera"
 color = [214, 190, 92]
 
@@ -219,6 +228,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 5
 material = "madera"
 color = [120, 96, 64]
 
@@ -247,6 +257,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 7
 material = "madera"
 color = [168, 140, 84]
 
@@ -278,6 +289,7 @@ beds = 4
 nurses = 1
 care_percent = 70
 heal_to_percent = 70
+sight_tiles = 4
 material = "madera"
 color = [220, 220, 210]
 
@@ -302,6 +314,7 @@ beds = 10
 nurses = 3
 care_percent = 100
 heal_to_percent = 100
+sight_tiles = 4
 material = "madera"
 color = [235, 235, 225]
 
@@ -326,5 +339,6 @@ beds = 20
 nurses = 6
 care_percent = 150
 heal_to_percent = 100
+sight_tiles = 5
 material = "piedra"
 color = [240, 240, 240]

@@ -21,6 +21,7 @@
 #include "sim/movement.hpp"
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
+#include "sim/vision.hpp"
 
 namespace rts::sim {
 
@@ -101,8 +102,9 @@ public:
                std::span<const entt::entity> units, std::uint32_t& next_order_id, Tick tick);
     // Los golpes de unidades que no son de asedio contra edificios no les quitan vida:
     // avivan un fuego en ellos (fire.add_heat).
+    // vision: nadie elige por sí mismo un blanco que su jugador no ve (null = lo ve todo).
     void update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy, FireSystem& fire,
-                std::uint32_t& next_order_id, Tick tick);
+                std::uint32_t& next_order_id, Tick tick, const VisionSystem* vision = nullptr);
 
     // Daño de un golpe de una unidad (tipo y porcentaje de ataque) sobre un blanco.
     [[nodiscard]] std::int32_t damage(UnitTypeId attacker_type, std::int32_t attack_percent,
@@ -144,7 +146,7 @@ private:
     void for_each_near(FVec2 center, Fixed radius, Fn&& fn) const;
     void mark_auras(const entt::registry& registry);
     [[nodiscard]] bool is_enemy_target(const entt::registry& registry, entt::entity target, PlayerId me) const;
-    [[nodiscard]] entt::entity acquire(std::size_t i, Fixed sight) const;
+    [[nodiscard]] entt::entity acquire(const entt::registry& registry, std::size_t i, Fixed sight) const;
     // Posición de la clase en combat.target_priority (menor = antes).
     [[nodiscard]] std::size_t priority_of(TargetClass k) const noexcept;
     // Sin unidades enemigas a la vista: el edificio enemigo más cercano dentro de ella.
@@ -176,6 +178,7 @@ private:
     std::vector<Hit> hits_;
     std::vector<Projectile> new_projectiles_;
     std::vector<entt::entity> scratch_;
+    const VisionSystem* vision_ = nullptr;  // del tick en curso
     CombatTickStats stats_;
 };
 

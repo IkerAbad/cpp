@@ -270,7 +270,7 @@ std::size_t CombatSystem::priority_of(TargetClass k) const noexcept {
     return order.empty() ? 0 : static_cast<std::size_t>(it - order.begin());  // no listada: al final
 }
 
-entt::entity CombatSystem::acquire(std::size_t i, Fixed sight) const {
+entt::entity CombatSystem::acquire(const entt::registry& registry, std::size_t i, Fixed sight) const {
     const std::int64_t sight_sq = mul_wide(sight, sight);
     std::size_t best = s_.entity.size();
     std::size_t best_tier = std::numeric_limits<std::size_t>::max();
@@ -280,8 +280,8 @@ entt::entity CombatSystem::acquire(std::size_t i, Fixed sight) const {
             return;
         }
         const std::int64_t d = length_sq_wide(s_.pos[j] - s_.pos[i]);
-        if (d > sight_sq) {
-            return;
+        if (d > sight_sq || (vision_ != nullptr && !vision_->sees_unit(registry, s_.owner[i], s_.entity[j]))) {
+            return;  // fuera de su vista, o escondido (entre árboles, de noche...)
         }
         // Autopreservación: el armado que me tiene por blanco, antes que nada.
         const bool at_me = s_.aiming[j] == s_.entity[i] && s_.klass[j] == TargetClass::Armed;
@@ -308,7 +308,8 @@ entt::entity CombatSystem::acquire_building(const entt::registry& registry, cons
             const entt::entity o = economy.occupant({x, y});
             if (o == entt::null || o == best || !registry.all_of<Building, Owner, Health>(o) ||
                 registry.get<Owner>(o).player == s_.owner[i] ||
-                !can_harm_building(registry, registry.get<Unit>(s_.entity[i]).type, o)) {
+                !can_harm_building(registry, registry.get<Unit>(s_.entity[i]).type, o) ||
+                (vision_ != nullptr && !vision_->sees_footprint(s_.owner[i], registry.get<Footprint>(o)))) {
                 continue;
             }
             const std::int64_t d = distance_sq_to(registry.get<Footprint>(o), s_.pos[i]);
@@ -393,8 +394,9 @@ bool CombatSystem::can_harm_building(const entt::registry& registry, UnitTypeId 
 }
 
 void CombatSystem::update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
-                          FireSystem& fire, std::uint32_t& next_order_id, Tick tick) {
+                          FireSystem& fire, std::uint32_t& next_order_id, Tick tick, const VisionSystem* vision) {
     stats_ = CombatTickStats{};
+    vision_ = vision;
     hits_.clear();
     new_projectiles_.clear();
     gather(registry);
@@ -467,7 +469,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                 idle = false;  // apagando un fuego: no sale a buscar pelea
             }
             if (idle) {
-                entt::entity t = st.buildings_only ? entt::entity{entt::null} : acquire(i, sight);
+                entt::entity t = st.buildings_only ? entt::entity{entt::null} : acquire(registry, i, sight);
                 if (t == entt::null) {
                     t = acquire_building(registry, economy, i, st.sight_tiles);
                 }

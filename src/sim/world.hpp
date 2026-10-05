@@ -23,6 +23,7 @@
 #include "sim/tick.hpp"
 #include "sim/tile_map.hpp"
 #include "sim/units.hpp"
+#include "sim/vision.hpp"
 
 namespace rts::sim {
 
@@ -78,6 +79,7 @@ struct WorldParams {
     FireParams fire;
     SupplyParams supply;
     MedicineParams medicine;
+    VisionParams vision;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
     SetupParams setup;
@@ -108,6 +110,7 @@ struct SnapshotEntity {
     bool admitted = false;                // ingresado en él
     bool reorganizing = false;            // tras el alta, aún sin poder atacar
     bool tending = false;                 // atiende el puesto médico work_building
+    std::uint8_t seen_by = 0xFF;          // bit p: la ve el jugador p (niebla de guerra)
 };
 
 enum class ObjectKind : std::uint8_t { Building, Resource };
@@ -129,6 +132,7 @@ struct SnapshotObject {
     std::int32_t fire = 0;           // edificios: intensidad del fuego (0 = sin fuego)
     bool burned = false;             // edificios de piedra quemados (inutilizados)
     Stock store{};                   // campamentos: su almacén de suministros
+    std::uint8_t seen_by = 0xFF;     // bit p: lo ve ahora el jugador p (niebla de guerra)
 };
 
 // Copia de solo lectura del estado que se presenta. El render nunca toca el registro.
@@ -142,6 +146,11 @@ struct Snapshot {
     std::vector<SnapshotObject> objects;
     std::vector<PlayerState> players;
     std::vector<Position> projectiles;
+    // Niebla de guerra: luz del día (% de la vista), capa por jugador (Fog por casilla;
+    // vacía si no hay niebla) y edificios enemigos recordados por cada jugador.
+    std::int32_t daylight_percent = 100;
+    std::vector<std::shared_ptr<const std::vector<std::uint8_t>>> fog;
+    std::vector<std::vector<RememberedBuilding>> memory;
 };
 
 class World {
@@ -162,6 +171,7 @@ public:
     [[nodiscard]] const FireSystem& fire() const noexcept { return fire_; }
     [[nodiscard]] const SupplySystem& supply() const noexcept { return supply_; }
     [[nodiscard]] const MedicineSystem& medicine() const noexcept { return medicine_; }
+    [[nodiscard]] const VisionSystem& vision() const noexcept { return vision_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
@@ -197,6 +207,7 @@ private:
     FireSystem fire_;
     SupplySystem supply_;
     MedicineSystem medicine_;
+    VisionSystem vision_;
     AiSystem ai_;
     entt::registry registry_;
     Xoshiro256pp rng_;

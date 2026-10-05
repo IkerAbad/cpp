@@ -62,6 +62,7 @@ World::World(const WorldParams& params)
       fire_(params.fire, params.unit_types, params.building_types),
       supply_(params.supply, params.unit_types, params.building_types),
       medicine_(params.medicine, params.supply.ration_cost, params.unit_types, params.building_types),
+      vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
     setup_game(params.setup);
@@ -253,7 +254,8 @@ void World::step() {
     // La IA decide sobre el estado del principio del tick; sus órdenes van detrás de las
     // de los jugadores humanos y siguen el mismo camino (se validan igual).
     ai_orders_.clear();
-    ai_.think(registry_, economy_, movement_.grid(), tick_, ai_orders_);
+    vision_.update(registry_, tick_);
+    ai_.think(registry_, economy_, movement_.grid(), tick_, ai_orders_, &vision_);
     for (Command& c : ai_orders_) {
         pending_.push_back(std::move(c));
     }
@@ -268,7 +270,7 @@ void World::step() {
     economy_.update(registry_, movement_, next_order_id_, tick_);
     supply_.update(registry_, movement_, economy_, next_order_id_, tick_);
     medicine_.update(registry_, movement_, economy_, next_order_id_, tick_);
-    combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_);
+    combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_, &vision_);
     fire_.update(registry_, movement_, economy_, next_order_id_, tick_);
     // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
     movement_.commit_grid_changes(registry_);
@@ -356,6 +358,7 @@ std::uint64_t World::state_hash() const {
     fire_.hash_into(h, registry_);
     supply_.hash_into(h, registry_);
     medicine_.hash_into(h, registry_);
+    vision_.hash_into(h);
     ai_.hash_into(h);
     return h.value();
 }
@@ -410,6 +413,14 @@ void World::write_snapshot(Snapshot& out) const {
             s.work_building = entt::to_integral(c->post);
         }
         s.tending = s.tending || s.task == WorkerTask::Nurse;
+        if (vision_.enabled()) {
+            s.seen_by = 0;
+            for (std::size_t p = 0; p < economy_.players().size(); ++p) {
+                if (vision_.sees_unit(registry_, static_cast<PlayerId>(p), e)) {
+                    s.seen_by = static_cast<std::uint8_t>(s.seen_by | (1U << p));
+                }
+            }
+        }
         out.entities.push_back(s);
     });
     out.objects.clear();
@@ -446,9 +457,27 @@ void World::write_snapshot(Snapshot& out) const {
             o.type = n->type;
             o.amount = n->amount;
         }
+        if (vision_.enabled() && o.kind == ObjectKind::Building) {
+            o.seen_by = 0;
+            for (std::size_t p = 0; p < economy_.players().size(); ++p) {
+                if (p == o.owner || vision_.sees_footprint(static_cast<PlayerId>(p), f)) {
+                    o.seen_by = static_cast<std::uint8_t>(o.seen_by | (1U << p));
+                }
+            }
+        }
         out.objects.push_back(std::move(o));
     }
     out.players.assign(economy_.players().begin(), economy_.players().end());
+    out.daylight_percent = vision_.enabled() ? vision_.daylight_percent(tick_) : kPercent;
+    out.fog.clear();
+    out.memory.clear();
+    if (vision_.enabled()) {
+        for (std::size_t p = 0; p < economy_.players().size(); ++p) {
+            out.fog.push_back(vision_.fog_layer(static_cast<PlayerId>(p)));
+            const auto mem = vision_.memory(static_cast<PlayerId>(p));
+            out.memory.emplace_back(mem.begin(), mem.end());
+        }
+    }
     out.projectiles.clear();
     for (const auto [e, p] : registry_.view<const Projectile>().each()) {
         out.projectiles.push_back({p.pos.x, p.pos.y});

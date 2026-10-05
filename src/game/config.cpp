@@ -31,7 +31,7 @@ constexpr std::size_t kMaxLabelBytes = 4;  // iniciales cortas: caben sobre el m
 constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior::Count)> kAiBehaviorNames{
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
-    "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",
+    "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",     "explorar",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -502,6 +502,7 @@ std::expected<NodeCatalog, std::string> parse_node_catalog(std::string_view toml
         info.type.kind = nr.get_resource("resource");
         info.type.amount = nr.get_i32("amount", 1, kMaxAmount);
         info.type.size = nr.get_i32("size_tiles", 1, kMaxFootprint);
+        info.type.blocks_sight = nr.get_bool("blocks_sight");
         info.color = nr.get_color<3>("color");
         if (!nr.failed() && catalog.find(info.name)) {
             nr.fail(std::format("nombre de nodo repetido: \"{}\"", info.name));
@@ -551,6 +552,7 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.nurses = br.get_i32("nurses", 0, kMaxAmount);
         info.type.care_percent = br.get_i32("care_percent", 0, 1000);
         info.type.heal_to_percent = br.get_i32("heal_to_percent", 0, 100);
+        info.type.sight_tiles = br.get_i32("sight_tiles", 0, 32);
         if (!error && info.type.beds > 0 && (info.type.care_percent <= 0 || info.type.heal_to_percent <= 0)) {
             br.fail("un puesto médico ('beds' > 0) necesita 'care_percent' y 'heal_to_percent' mayores que 0");
         }
@@ -836,6 +838,21 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     sp.load_ticks = r.get_i32("supply.load_ticks", 0, kMaxTicks);
     sp.convoy_reach = sim::Fixed::from_ratio(r.get_i32("supply.convoy_reach_milli_tiles", 0, 4 * kMilli), kMilli);
 
+    sim::VisionParams& vp = cfg.world.vision;
+    vp.enabled = r.get_bool("vision.enabled");
+    vp.interval_ticks = r.get_i32("vision.interval_ticks", 1, kMaxTicks);
+    vp.elevation_sight_per_level = r.get_i32("vision.elevation_sight_per_level", 0, 8);
+    vp.cover_depth_tiles = r.get_i32("vision.cover_depth_tiles", 0, 32);
+    vp.spot_in_cover_tiles = r.get_i32("vision.spot_in_cover_tiles", 0, 32);
+    vp.day_ticks = r.get_i32("vision.day_ticks", 1, kMaxTicks);
+    vp.night_ticks = r.get_i32("vision.night_ticks", 0, kMaxTicks);
+    vp.twilight_ticks = r.get_i32("vision.twilight_ticks", 0, kMaxTicks);
+    vp.night_sight_percent = r.get_i32("vision.night_sight_percent", 1, 100);
+    vp.start_tick = r.get_i32("vision.start_tick", 0, kMaxTicks);
+    if (!error && 2 * vp.twilight_ticks > vp.day_ticks) {
+        r.fail("'vision.twilight_ticks' no puede pasar de la mitad de 'vision.day_ticks'");
+    }
+
     sim::MedicineParams& md = cfg.world.medicine;
     md.bed_heal_milli_per_tick = r.get_i32("medicine.bed_heal_milli_hp_per_tick", 0, kMaxAmount);
     md.nurse_heal_milli_per_tick = r.get_i32("medicine.nurse_heal_milli_hp_per_tick", 0, kMaxAmount);
@@ -892,6 +909,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     sim::AiParams& ai = cfg.world.ai;
     ai.think_interval_ticks = r.get_i32("ai.think_interval_ticks", 1, 1000);
+    ai.enemy_memory_decay_permille = r.get_i32("ai.enemy_memory_decay_permille", 0, 1000);
     ai.worker_type = r.get_named("ai.worker", units, "units.toml");
     ai.house = r.get_named("ai.house", catalogs.buildings, "buildings.toml");
     ai.barracks = r.get_named("ai.barracks", catalogs.buildings, "buildings.toml");
@@ -984,6 +1002,9 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.baggage_offset_tiles = pr.get_i32("baggage_offset_tiles", 0, 64);
         p.siege_engines = pr.get_i32("siege_engines", 0, 64);
         p.siege_front_tiles = pr.get_i32("siege_front_tiles", 0, 1024);
+        p.scouts = pr.get_i32("scouts", 0, 64);
+        p.fog_guard_army = pr.get_i32("fog_guard_army", 0, 1000);
+        p.explore_step_tiles = pr.get_i32("explore_step_tiles", 1, 256);
         for (const std::string& name : pr.get_string_list("army")) {
             if (const auto id = units.find(name)) {
                 p.army.push_back(*id);
@@ -1071,6 +1092,9 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.view.hero_color = r.get_color<4>("view.hero_color");
     cfg.view.fire_color = r.get_color<4>("view.fire_color");
     cfg.view.burned_shade_percent = r.get_i32("view.burned_shade_percent", 0, 100);
+    cfg.view.fog_unexplored_color = r.get_color<4>("view.fog_unexplored_color");
+    cfg.view.fog_explored_shade_percent = r.get_i32("view.fog_explored_shade_percent", 0, 100);
+    cfg.view.night_color = r.get_color<4>("view.night_color");
 
     cfg.camera.scroll_keys_px_per_s = r.get_i32("camera.scroll_keys_px_per_s", 0, 100'000);
     cfg.camera.scroll_edge_px_per_s = r.get_i32("camera.scroll_edge_px_per_s", 0, 100'000);

@@ -4,6 +4,8 @@
 #include <cassert>
 #include <utility>
 
+#include "sim/fog.hpp"
+
 namespace rts::render {
 
 namespace {
@@ -97,7 +99,18 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
                               [&](std::int32_t i, std::int32_t j) {
                                   const Vec2 pos = scene.camera.world_to_screen(proj_.tile_top(i, j)) + top_to_corner;
                                   const std::size_t idx = static_cast<std::size_t>(j) * width + static_cast<std::size_t>(i);
-                                  out.add(pos, tile_size, diamond_, tile_colors_[idx]);
+                                  Rgba color = tile_colors_[idx];
+                                  if (idx < scene.fog.size()) {
+                                      const auto fog = static_cast<sim::Fog>(scene.fog[idx]);
+                                      if (fog == sim::Fog::Unexplored) {
+                                          color = view_.fog_unexplored_color;
+                                      } else if (fog == sim::Fog::Explored) {
+                                          for (std::size_t ch = 0; ch < 3; ++ch) {
+                                              color[ch] = scale_channel(color[ch], view_.fog_explored_shade_percent);
+                                          }
+                                      }
+                                  }
+                                  out.add(pos, tile_size, diamond_, color);
                                   ++stats.tiles_drawn;
                               });
         for (const TileTint& tint : scene.tile_tints) {

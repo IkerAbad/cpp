@@ -33,6 +33,7 @@ struct ResourceNodeType {
     Resource kind = Resource::Food;
     std::int32_t amount = 0;
     std::int32_t size = 1;  // casillas por lado
+    bool blocks_sight = false;  // árboles: tapan la vista (niebla de guerra)
 };
 
 // Material de un edificio. La madera arde hasta caer; en la piedra el fuego solo
@@ -74,6 +75,7 @@ struct BuildingType {
     std::int32_t nurses = 0;
     std::int32_t care_percent = 0;
     std::int32_t heal_to_percent = 0;
+    std::int32_t sight_tiles = 0;  // vista (niebla de guerra)
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {

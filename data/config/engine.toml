@@ -152,6 +152,26 @@ hungry_work_percent = 50
 starve_after_ticks = 1200
 starve_hp_interval_ticks = 60
 
+[vision]
+# Niebla de guerra: solo se sabe lo que alguien ha visto, y lo mismo para la IA. Se
+# recalcula cada 10 ticks (0,5 s).
+enabled = true
+interval_ticks = 10
+# Altura: 1 casilla más de vista por cada nivel que el observador está por encima de
+# lo que mira; una loma más alta que ambos tapa lo que hay detrás.
+elevation_sight_per_level = 1
+# Árboles: se ve hasta 2 casillas dentro del bosque; una unidad entre árboles solo se
+# ve a 2 casillas o menos (emboscadas). Talar abre la vista.
+cover_depth_tiles = 2
+spot_in_cover_tiles = 2
+# Día de 12 min de luz (1,5 min de amanecer y otro de anochecer) y noche de 6 min con
+# la vista a la mitad. La partida empieza 2 min después del alba.
+day_ticks = 14400
+night_ticks = 7200
+twilight_ticks = 1800
+night_sight_percent = 50
+start_tick = 2400
+
 [medicine]
 # Sanidad. Un paciente ingresado mejora por el reposo 5 milésimas de vida por tick
 # (1 punto cada 10 s) y, si le atiende un enfermero, 30 más; cada enfermero atiende a
@@ -206,6 +226,9 @@ target_priority = ["me_ataca", "armada", "asedio", "bagaje", "aldeano", "otra"]
 # La IA juega con las mismas reglas, costes e información que un humano (sin trampas).
 # Decide una vez por segundo.
 think_interval_ticks = 20
+# Con niebla, el ejército enemigo visto se recuerda y se va olvidando un 1 % en cada
+# decisión (1 s): la mitad en algo más de un minuto, como un jugador que estima.
+enemy_memory_decay_permille = 10
 # Tipos que usa (dependerán de la civilización, no de la dificultad).
 worker = "aldeano"
 house = "casa"
@@ -224,10 +247,10 @@ dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_miner
 # dificultad sale de qué módulos usa y de sus umbrales, nunca de ventajas económicas.
 # Módulos: defensa, aldeanos, casas, cuartel, granjas, almacenes, obras,
 # recoleccion, ejercito, ataque, ejercito_contra, ataque_fuerza, concentrar, taller,
-# apagar, incendiar, abastecer, logistica. Se ejecutan en el orden de la lista.
+# apagar, incendiar, abastecer, logistica, explorar. Se ejecutan en el orden de la lista.
 [[ai.profile]]
 name = "basica"
-behaviors = ["defensa", "abastecer", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
+behaviors = ["defensa", "explorar", "abastecer", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
 villager_target = 25
 # Reparto deseado de los aldeanos que recogen (suma 100).
 gather_percent = { comida = 35, madera = 30, oro = 15, piedra = 5, hierro = 15 }
@@ -277,6 +300,11 @@ convoy_carriers = 0
 baggage_offset_tiles = 0
 siege_engines = 0
 siege_front_tiles = 0
+# explorar: con niebla, un explorador recorre lo no explorado (rejilla de 12
+# casillas) hasta encontrar un edificio vital enemigo.
+scouts = 1
+explore_step_tiles = 12
+fog_guard_army = 0
 army = ["leva", "hombre_armas", "arquero"]
 
 # Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
@@ -284,7 +312,7 @@ army = ["leva", "hombre_armas", "arquero"]
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
 [[ai.profile]]
 name = "normal"
-behaviors = ["defensa", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
+behaviors = ["defensa", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
@@ -329,6 +357,10 @@ convoy_carriers = 2
 baggage_offset_tiles = 4
 siege_engines = 2
 siege_front_tiles = 20
+scouts = 1
+explore_step_tiles = 12
+# Con niebla, al menos 6 tropas de guardia aunque no haya visto al enemigo.
+fog_guard_army = 6
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 [setup]
@@ -455,6 +487,12 @@ hero_color = [255, 200, 40, 255]
 # al 30 % de brillo.
 fire_color = [255, 110, 20, 255]
 burned_shade_percent = 30
+# Niebla de guerra: lo no explorado, negro; lo explorado que no se ve ahora (y los
+# edificios enemigos recordados), al 55 % de brillo. De noche, un velo azul oscuro
+# que en plena noche cubre el 45 %.
+fog_unexplored_color = [8, 8, 12, 255]
+fog_explored_shade_percent = 55
+night_color = [10, 16, 48, 115]
 
 [camera]
 scroll_keys_px_per_s = 1200

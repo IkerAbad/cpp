@@ -164,7 +164,13 @@ struct AiView {
     std::vector<TileCoord> camps;          // campamentos propios (también en obra)
     std::optional<entt::entity> camp;      // el primer campamento propio terminado
     std::vector<CarrierView> carriers;     // bagaje propio
+    // Estimación del ejército enemigo con niebla: lo visto y lo recordado, por tipo, en
+    // milésimas de unidad. Sin niebla no se usa (todo está a la vista).
+    bool use_estimate = false;
+    std::vector<std::int64_t> enemy_estimate_milli;
 };
+
+constexpr std::int64_t kMilliUnit = 1000;
 
 // Una decisión de un jugador: lo que sabe, lo que puede gastar y las órdenes que da.
 // Los módulos comparten el presupuesto: lo que uno gasta, el siguiente ya no lo tiene.
@@ -182,6 +188,7 @@ struct Decision {
     AiView v;
     Stock budget{};
     std::int32_t population = 0;
+    const VisionSystem* vision = nullptr;  // niebla de guerra; null = lo ve todo
 
     [[nodiscard]] PlayerId me() const noexcept { return ai.player; }
     [[nodiscard]] const EconomyCatalog& catalog() const noexcept { return economy.catalog(); }
@@ -265,9 +272,12 @@ bool perceive(Decision& d) {
         const Building& b = buildings.get<const Building>(e);
         const Footprint& f = buildings.get<const Footprint>(e);
         if (buildings.get<const Owner>(e).player != me) {
-            v.enemy_buildings.push_back(center_of(f));
-            v.enemy_building_types.push_back(b.type);
-            v.enemy_building_entities.push_back(e);
+            // Con niebla, los enemigos salen de lo recordado (abajo), como para un humano.
+            if (d.vision == nullptr || !d.vision->enabled()) {
+                v.enemy_buildings.push_back(center_of(f));
+                v.enemy_building_types.push_back(b.type);
+                v.enemy_building_entities.push_back(e);
+            }
             continue;
         }
         if (v.own_type_count.empty()) {
@@ -320,6 +330,15 @@ bool perceive(Decision& d) {
         }
     }
 
+    // Edificios enemigos recordados (lo último que se vio de cada uno).
+    if (d.vision != nullptr && d.vision->enabled()) {
+        for (const RememberedBuilding& m : d.vision->memory(me)) {
+            v.enemy_buildings.push_back(center_of(m.footprint));
+            v.enemy_building_types.push_back(m.type);
+            v.enemy_building_entities.push_back(m.entity);
+        }
+    }
+
     // Unidades.
     const auto units = registry.view<const Unit, const Position, const Owner>();
     std::optional<TileCoord> first_unit;
@@ -334,8 +353,10 @@ bool perceive(Decision& d) {
         seen.armed = registry.try_get<Worker>(e) == nullptr && d.catalog().units[seen.type].combat.auto_attack;
         seen.carrier = d.catalog().units[seen.type].convoy_capacity > 0;
         if (units.get<const Owner>(e).player != me) {
-            v.enemy_units.push_back(t);
-            v.enemies.push_back(seen);
+            if (d.vision == nullptr || d.vision->sees_unit(registry, me, e)) {
+                v.enemy_units.push_back(t);
+                v.enemies.push_back(seen);
+            }
             continue;
         }
         v.has_anything = true;
@@ -400,6 +421,29 @@ bool perceive(Decision& d) {
     }
     v.threatened = !v.threats.empty();
     return true;
+}
+
+// ¿Es armado un tipo (ataca solo y no es aldeano)? Igual que UnitSeen::armed.
+bool armed_type(const UnitType& u) noexcept {
+    return !u.worker && u.combat.auto_attack;
+}
+
+// Fuerza armada enemiga estimada: con niebla, lo visto y recordado; si no, lo visible.
+std::int64_t enemy_armed_strength(const Decision& d) {
+    const auto& types = d.catalog().units;
+    std::int64_t total = 0;
+    if (d.v.use_estimate) {
+        for (std::size_t t = 0; t < d.v.enemy_estimate_milli.size(); ++t) {
+            if (armed_type(types[t])) {
+                total += strength(types[t], types[t].combat.hp) * d.v.enemy_estimate_milli[t] / kMilliUnit;
+            }
+        }
+        return total;
+    }
+    for (const UnitSeen& e : d.v.enemies) {
+        total += e.armed ? strength(types[e.type], e.hp) : 0;
+    }
+    return total;
 }
 
 // --- Módulos --------------------------------------------------------------------
@@ -675,17 +719,20 @@ void army_counter(Decision& d) {
     if (std::ranges::none_of(cycle, [&](UnitTypeId u) { return trainer_for(u).has_value(); })) {
         return;
     }
-    const bool enemy_armed = std::ranges::any_of(v.enemies, &UnitSeen::armed);
+    bool enemy_armed = std::ranges::any_of(v.enemies, &UnitSeen::armed);
+    if (v.use_estimate) {
+        for (std::size_t t = 0; t < v.enemy_estimate_milli.size(); ++t) {
+            enemy_armed = enemy_armed || (v.enemy_estimate_milli[t] > 0 && armed_type(d.catalog().units[t]));
+        }
+    }
     if (std::cmp_less(v.workers.size(), d.profile.army_min_villagers)) {
         std::int64_t own = 0;
         for (const UnitSeen& s : v.soldiers) {
             own += strength(d.catalog().units[s.type], s.hp);
         }
-        std::int64_t enemy = 0;
-        for (const UnitSeen& e : v.enemies) {
-            enemy += e.armed ? strength(d.catalog().units[e.type], e.hp) : 0;
-        }
-        if (own >= enemy) {
+        const std::int64_t enemy = enemy_armed_strength(d);
+        const bool guard_short = v.use_estimate && std::cmp_less(v.soldiers.size(), d.profile.fog_guard_army);
+        if (own >= enemy && !guard_short) {
             return;  // economía primero
         }
     }
@@ -711,7 +758,14 @@ void army_counter(Decision& d) {
         }
         std::int64_t offense = 0;
         std::int64_t threat = 0;
-        if (enemy_armed) {
+        if (enemy_armed && v.use_estimate) {
+            // Con niebla: contra lo visto y recordado.
+            for (std::size_t t = 0; t < v.enemy_estimate_milli.size(); ++t) {
+                const std::int64_t m = v.enemy_estimate_milli[t];
+                offense += kill_rate(types[u], types[t]) * m / kMilliUnit;
+                threat += armed_type(types[t]) ? kill_rate(types[t], types[u]) * m / kMilliUnit : 0;
+            }
+        } else if (enemy_armed) {
             for (const UnitSeen& e : v.enemies) {
                 offense += kill_rate(types[u], types[e.type]);
                 threat += e.armed ? kill_rate(types[e.type], types[u]) : 0;
@@ -1127,6 +1181,96 @@ void logistics(Decision& d) {
     }
 }
 
+// Exploración (solo con niebla de guerra). Mientras no conozca ningún edificio vital
+// enemigo, mantiene scouts exploradores: unidades ociosas (las de raid_unit primero)
+// que van, una tras otra, a puntos sin explorar de una rejilla de explore_step_tiles
+// casillas: primero hacia el punto simétrico de su base respecto al centro del mapa
+// (donde lo buscaría un jugador) y sin alejarse demasiado de donde están. El explorador que llega a su punto, o lo ve ya
+// explorado, recibe el siguiente; al encontrar al enemigo, vuelve a ser tropa.
+constexpr std::int32_t kScoutNearWeight = 1;
+constexpr std::int32_t kScoutMirrorWeight = 2;
+
+void explore(Decision& d) {
+    AiView& v = d.v;
+    std::vector<entt::entity>& scouts = d.ai.scouts;
+    std::vector<TileCoord>& targets = d.ai.scout_targets;
+    // Fuera los caídos o los que ya no son suyos.
+    for (std::size_t i = scouts.size(); i-- > 0;) {
+        const entt::entity e = scouts[i];
+        if (!d.registry.valid(e) || !d.registry.all_of<Unit, Owner>(e) || d.registry.get<Owner>(e).player != d.me()) {
+            scouts.erase(scouts.begin() + static_cast<std::ptrdiff_t>(i));
+            targets.erase(targets.begin() + static_cast<std::ptrdiff_t>(i));
+        }
+    }
+    bool enemy_known = false;
+    for (const BuildingTypeId t : v.enemy_building_types) {
+        enemy_known = enemy_known || d.catalog().buildings[t].vital;
+    }
+    if (d.vision == nullptr || !d.vision->enabled() || enemy_known) {
+        scouts.clear();  // ya sabe dónde atacar: vuelven a ser tropa
+        targets.clear();
+        return;
+    }
+    // Nuevos exploradores hasta scouts: primero los del tipo de incursión.
+    for (const bool prefer_raider : {true, false}) {
+        for (auto it = v.idle_army.begin(); it != v.idle_army.end() && std::cmp_less(scouts.size(), d.profile.scouts);) {
+            const UnitTypeId type = d.registry.get<Unit>(*it).type;
+            if (prefer_raider && (!d.profile.raid_unit || type != *d.profile.raid_unit)) {
+                ++it;
+                continue;
+            }
+            scouts.push_back(*it);
+            targets.push_back({-1, -1});
+            it = v.idle_army.erase(it);
+        }
+    }
+    const std::int32_t step = std::max(d.profile.explore_step_tiles, 1);
+    const PassGrid& grid = d.grid;
+    const TileCoord mirror{grid.width() - 1 - v.base.x, grid.height() - 1 - v.base.y};
+    for (std::size_t i = 0; i < scouts.size(); ++i) {
+        const entt::entity s = scouts[i];
+        std::erase(v.idle_army, s);
+        const TileCoord at = tile_of(d.registry.get<Position>(s));
+        const MoveGoal* g = d.registry.try_get<MoveGoal>(s);
+        TileCoord& target = targets[i];
+        const bool has_target = target.x >= 0;
+        if (has_target && g != nullptr && !g->arrived && !d.vision->explored(d.me(), target)) {
+            continue;  // va hacia un punto que aún no se ha visto
+        }
+        if (has_target && !d.vision->explored(d.me(), target)) {
+            // Llegó (o se paró) sin verlo: tapado por árboles o lomas, o inalcanzable.
+            d.ai.explore_done.push_back(target);
+        }
+        std::optional<TileCoord> best;
+        std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
+        for (std::int32_t y = step / 2; y < grid.height(); y += step) {
+            for (std::int32_t x = step / 2; x < grid.width(); x += step) {
+                const TileCoord t{x, y};
+                if (d.vision->explored(d.me(), t) || !grid.passable(t) ||
+                    grid.component(t) != grid.component(at) ||
+                    std::ranges::find(d.ai.explore_done, t) != d.ai.explore_done.end()) {
+                    continue;
+                }
+                // Primero hacia donde lo buscaría un jugador: el punto simétrico de su base
+                // respecto al centro del mapa; sin alejarse demasiado de donde está.
+                const std::int32_t score =
+                    kScoutNearWeight * octile_distance(at, t) + kScoutMirrorWeight * octile_distance(mirror, t);
+                if (score < best_d) {
+                    best_d = score;
+                    best = t;
+                }
+            }
+        }
+        target = best.value_or(TileCoord{-1, -1});
+        if (best) {
+            Command c = d.order(CommandType::Move);
+            c.target = *best;
+            c.units = {entt::to_integral(s)};
+            d.out.push_back(std::move(c));
+        }
+    }
+}
+
 // Ataque por fuerza, con retirada. Primero, si el ejército en campaña pierde su
 // batalla (fuerza local por debajo de retreat_ratio_percent % de la enemiga), vuelve
 // a casa. Si no, y la fuerza total supera attack_ratio_percent % de la enemiga
@@ -1208,10 +1352,7 @@ void attack_strength(Decision& d) {
     for (const UnitSeen& s : v.soldiers) {
         own_total += strength(types[s.type], s.hp);
     }
-    std::int64_t enemy_total = 0;
-    for (const UnitSeen& e : v.enemies) {
-        enemy_total += e.armed ? strength(types[e.type], e.hp) : 0;
-    }
+    const std::int64_t enemy_total = enemy_armed_strength(d);
     if (own_total * kPercent < enemy_total * d.profile.attack_ratio_percent) {
         return;
     }
@@ -1273,7 +1414,7 @@ void focus_fire(Decision& d) {
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
-    army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics,
+    army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics, explore,
 };
 
 }  // namespace
@@ -1290,7 +1431,7 @@ AiSystem::AiSystem(const AiParams& params, const SupplyParams& supply, const std
 }
 
 void AiSystem::think(const entt::registry& registry, const EconomySystem& economy, const PassGrid& grid, Tick tick,
-                     std::vector<Command>& out) {
+                     std::vector<Command>& out, const VisionSystem* vision) {
     const auto interval = static_cast<std::uint32_t>(std::max(params_.think_interval_ticks, 1));
     for (std::size_t i = 0; i < players_.size(); ++i) {
         AiPlayerState& ai = players_[i];
@@ -1301,8 +1442,25 @@ void AiSystem::think(const entt::registry& registry, const EconomySystem& econom
         const PlayerState& ps = economy.players()[ai.player];
         Decision d{registry, economy,  grid, params_, supply_, params_.profiles[profiles_[i]], ai, tick, out, ps, {},
                    ps.stock, ps.population};
+        d.vision = vision;
         if (!perceive(d)) {
             continue;  // derrotado
+        }
+        if (vision != nullptr && vision->enabled()) {
+            // Recuerdo del ejército enemigo: lo que se ve ahora o, si es más, lo que se vio
+            // y se va olvidando.
+            const std::size_t n = economy.catalog().units.size();
+            std::vector<std::int64_t> seen(n, 0);
+            for (const UnitSeen& e : d.v.enemies) {
+                seen[e.type] += kMilliUnit;
+            }
+            ai.enemy_seen_milli.resize(n, 0);
+            for (std::size_t t = 0; t < n; ++t) {
+                std::int64_t& m = ai.enemy_seen_milli[t];
+                m = std::max(seen[t], m - m * params_.enemy_memory_decay_permille / kMilliUnit);
+            }
+            d.v.use_estimate = true;
+            d.v.enemy_estimate_milli = ai.enemy_seen_milli;
         }
         // Reserva para las raciones de los que comen: fuera del presupuesto.
         std::int64_t eaters = 0;
@@ -1326,6 +1484,25 @@ void AiSystem::hash_into(StateHasher& h) const {
         h.add_i32(ai.wave_size);
         h.add_i32(ai.army_cycle);
         h.add_i32(ai.waves_sent);
+        // Lo que solo existe con niebla de guerra entra solo si existe: sin niebla, el
+        // hash es el de siempre.
+        if (!ai.scouts.empty() || !ai.explore_done.empty() || !ai.enemy_seen_milli.empty()) {
+            h.add_u64(ai.scouts.size());
+            for (std::size_t i = 0; i < ai.scouts.size(); ++i) {
+                h.add_u32(entt::to_integral(ai.scouts[i]));
+                h.add_i32(ai.scout_targets[i].x);
+                h.add_i32(ai.scout_targets[i].y);
+            }
+            h.add_u64(ai.explore_done.size());
+            for (const TileCoord t : ai.explore_done) {
+                h.add_i32(t.x);
+                h.add_i32(t.y);
+            }
+            h.add_u64(ai.enemy_seen_milli.size());
+            for (const std::int64_t m : ai.enemy_seen_milli) {
+                h.add_u64(static_cast<std::uint64_t>(m));
+            }
+        }
     }
 }
 

@@ -494,3 +494,32 @@ TEST_CASE("IA: con campamento en uso y almacén suficiente, monta allí el ingen
     CHECK(it->object == c2);
     CHECK(it->kind == kRam);
 }
+
+TEST_CASE("IA: con niebla y sin conocer al enemigo, manda un explorador a lo no explorado") {
+    WorldParams p = flat_two_players();
+    p.vision.enabled = true;
+    p.vision.interval_ticks = 1;
+    p.vision.day_ticks = 1000;
+    p.vision.night_sight_percent = 100;
+    p.building_types[kCenter].sight_tiles = 6;
+    World world(p);
+    ai_base(world);
+    REQUIRE(world.spawn_building(kRival, kCenter, {40, 40}, true));  // lejos: no lo ve
+    const auto soldier = world.spawn_unit(kAi, kSoldier, {150, 156});
+    world.step();
+    AiParams params = test_ai_params();
+    params.profiles[1].behaviors = {AiBehavior::Explore};
+    params.profiles[1].scouts = 1;
+    params.profiles[1].explore_step_tiles = 12;
+    AiSystem ai(params, p.supply, {{kAi, 1}});
+    std::vector<Command> out;
+    ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out, &world.vision());
+    REQUIRE(out.size() == 1);
+    CHECK(out[0].type == CommandType::Move);
+    CHECK(out[0].units == std::vector<std::uint32_t>{soldier});
+    CHECK_FALSE(world.vision().explored(kAi, out[0].target));
+    // Sin niebla sabe dónde está el enemigo: nadie explora.
+    std::vector<Command> none;
+    ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, none);
+    CHECK(none.empty());
+}

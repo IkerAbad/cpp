@@ -309,6 +309,7 @@ public:
         if (replay != nullptr) {
             player_.emplace(*replay);
             replay_end_ = replay->end_tick;
+            view_player_.reset();  // en una repetición se ve todo (se puede elegir la vista de un jugador)
         } else {
             recorder_.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
             replay_path_ = auto_replay_path(data);
@@ -452,9 +453,87 @@ private:
         return it == curr_.objects.end() ? nullptr : &*it;
     }
 
+    // Lo que el jugador que mira sabe que hay en la casilla: el objeto si lo ve (o, si
+    // es un recurso, si la casilla está explorada) o, si no, el edificio recordado.
     [[nodiscard]] const sim::SnapshotObject* object_under(sim::TileCoord tile) const {
         const auto id = world_.object_at(tile);
-        return id ? find_object(*id) : nullptr;
+        const sim::SnapshotObject* o = id ? find_object(*id) : nullptr;
+        if (o != nullptr && shows_object(*o)) {
+            return o;
+        }
+        for (const sim::SnapshotObject& r : remembered_objects_) {
+            if (tile.x >= r.origin.x && tile.y >= r.origin.y && tile.x < r.origin.x + r.size &&
+                tile.y < r.origin.y + r.size) {
+                return &r;
+            }
+        }
+        return nullptr;
+    }
+
+    // --- Niebla de guerra: lo que ve el jugador que mira (en las repeticiones, se elige) ---
+
+    [[nodiscard]] const std::vector<std::uint8_t>* view_fog() const {
+        if (!view_player_ || *view_player_ >= curr_.fog.size() || !curr_.fog[*view_player_]) {
+            return nullptr;
+        }
+        return curr_.fog[*view_player_].get();
+    }
+
+    [[nodiscard]] bool tile_explored(sim::TileCoord t) const {
+        const std::vector<std::uint8_t>* fog = view_fog();
+        if (fog == nullptr || !curr_.map || !curr_.map->contains(t)) {
+            return true;
+        }
+        const auto idx = static_cast<std::size_t>(t.y) * static_cast<std::size_t>(curr_.map->width()) +
+                         static_cast<std::size_t>(t.x);
+        return static_cast<sim::Fog>((*fog)[idx]) != sim::Fog::Unexplored;
+    }
+
+    [[nodiscard]] bool sees_entity(const sim::SnapshotEntity& e) const {
+        return !view_player_ || e.owner == *view_player_ || (e.seen_by & (1U << *view_player_)) != 0;
+    }
+
+    [[nodiscard]] bool shows_object(const sim::SnapshotObject& o) const {
+        if (!view_player_) {
+            return true;
+        }
+        if (o.kind == sim::ObjectKind::Resource) {
+            for (std::int32_t y = o.origin.y; y < o.origin.y + o.size; ++y) {
+                for (std::int32_t x = o.origin.x; x < o.origin.x + o.size; ++x) {
+                    if (tile_explored({x, y})) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        return o.owner == *view_player_ || (o.seen_by & (1U << *view_player_)) != 0;
+    }
+
+    // Edificios enemigos recordados por el jugador que mira y que ahora no ve.
+    void refresh_remembered() {
+        remembered_objects_.clear();
+        if (!view_player_ || *view_player_ >= curr_.memory.size()) {
+            return;
+        }
+        for (const sim::RememberedBuilding& m : curr_.memory[*view_player_]) {
+            const sim::SnapshotObject* live = find_object(entt::to_integral(m.entity));
+            if (live != nullptr && shows_object(*live)) {
+                continue;  // se ve ahora: se dibuja tal cual es
+            }
+            sim::SnapshotObject r;
+            r.id = entt::to_integral(m.entity);
+            r.kind = sim::ObjectKind::Building;
+            r.type = m.type;
+            r.owner = m.owner;
+            r.origin = m.footprint.origin;
+            r.size = m.footprint.size;
+            r.hp = m.hp;
+            r.complete = m.complete;
+            r.burned = m.burned;
+            r.fire = m.burning ? 1 : 0;
+            remembered_objects_.push_back(r);
+        }
     }
 
     // Clic (sin rectángulo) sin unidades debajo: un edificio propio queda seleccionado.
@@ -491,7 +570,7 @@ private:
         float best_d = radius * radius;
         for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
             const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
-            if (se.owner == kLocalPlayer) {
+            if (se.owner == kLocalPlayer || !sees_entity(se)) {
                 continue;
             }
             const render::Vec2 d = screen_entities_[i].pos - screen_pos;
@@ -774,6 +853,9 @@ private:
         std::ranges::stable_sort(order_, {}, [this](std::size_t i) { return screen_entities_[i].pos.y; });
         sorted_.clear();
         for (const std::size_t i : order_) {
+            if (!sees_entity(curr_.entities[i])) {
+                continue;  // fuera de la vista del jugador que mira
+            }
             sorted_.push_back(screen_entities_[i]);
             screen_index_.push_back(i);
         }
@@ -801,6 +883,7 @@ private:
         draw_replay_panel(display);
         draw_help(display);
         draw_hover_tooltip(hover);
+        draw_night();
         draw_unit_labels();
         if (show_debug_) {
             draw_debug(display, hover);
@@ -977,6 +1060,10 @@ private:
         ImGui::BulletText("Socorro estabiliza; hospital de campaña y hospital curan del todo");
         ImGui::BulletText("Solo lo leve (%d %% de vida o más) sana solo; si cae el puesto, mueren",
                           data_.engine.world.medicine.light_wound_percent);
+        ImGui::SeparatorText("Niebla de guerra");
+        ImGui::BulletText("Negro: sin explorar; oscuro: explorado, sin vista ahora");
+        ImGui::BulletText("Los árboles tapan la vista; desde una loma se ve más lejos");
+        ImGui::BulletText("De noche se ve la mitad; los edificios enemigos se recuerdan");
         ImGui::BulletText("Pasa el ratón sobre algo para ver qué es");
         ImGui::End();
     }
@@ -1045,6 +1132,19 @@ private:
     // Inicial del tipo junto a cada unidad (a la derecha del marcador, para no tapar su
     // color ni la barra de vida), sobre un recuadro oscuro que se lee en cualquier terreno.
     // Va en la capa de fondo de ImGui: encima de la escena y debajo de los paneles.
+    // Velo de la noche: más opaco cuanto menos luz (sobre la escena, bajo los paneles).
+    void draw_night() const {
+        const std::int32_t night = data_.engine.world.vision.night_sight_percent;
+        if (curr_.daylight_percent >= kPercent || night >= kPercent) {
+            return;
+        }
+        const render::Rgba& c = data_.engine.view.night_color;
+        const std::int32_t alpha = c[3] * (kPercent - curr_.daylight_percent) / (kPercent - night);
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        ImGui::GetBackgroundDrawList()->AddRectFilled({0.0f, 0.0f}, display,
+                                                      IM_COL32(c[0], c[1], c[2], std::clamp(alpha, 0, 255)));
+    }
+
     void draw_unit_labels() {
         ImDrawList* draw = ImGui::GetBackgroundDrawList();
         constexpr ImU32 kBack = IM_COL32(0, 0, 0, 170);
@@ -1087,6 +1187,19 @@ private:
             const std::string label = std::format("x{}", speeds[i]);
             if (ImGui::RadioButton(label.c_str(), speed_index_ == i)) {
                 speed_index_ = i;
+            }
+        }
+        // Vista: todo, o lo que veía cada jugador (niebla de guerra).
+        ImGui::TextUnformatted("Vista:");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("todo", !view_player_)) {
+            view_player_.reset();
+        }
+        for (std::size_t p = 0; p < curr_.players.size(); ++p) {
+            ImGui::SameLine();
+            const auto id = static_cast<sim::PlayerId>(p);
+            if (ImGui::RadioButton(std::format("jugador {}", p).c_str(), view_player_ == id)) {
+                view_player_ = id;
             }
         }
         if (player_->diverged()) {
@@ -1339,7 +1452,39 @@ private:
     void build_objects(const std::optional<sim::TileCoord>& hover) {
         const render::ViewParams& view = data_.engine.view;
         objects_.clear();
+        refresh_remembered();
+        const auto add_object = [&](const sim::SnapshotObject& o, bool remembered) {
+            render::SceneObject so = scene_object(o);
+            if (remembered) {
+                so.base = shaded(so.base, view.fog_explored_shade_percent);
+                so.body = shaded(so.body, view.fog_explored_shade_percent);
+            }
+            objects_.push_back(so);
+        };
         for (const sim::SnapshotObject& o : curr_.objects) {
+            if (shows_object(o)) {
+                add_object(o, false);
+            }
+        }
+        for (const sim::SnapshotObject& o : remembered_objects_) {
+            add_object(o, true);
+        }
+        if (placing_ && hover) {
+            const BuildingInfo& info = data_.buildings.types[*placing_];
+            const sim::TileCoord origin = ghost_origin(*hover, *placing_);
+            const bool can_pay = curr_.players.size() > kLocalPlayer &&
+                                 affordable(curr_.players[kLocalPlayer].stock, info.type.cost);
+            render::SceneObject ghost;
+            ghost.origin = origin;
+            ghost.size = info.type.size;
+            ghost.body = can_pay && world_.can_place(*placing_, origin) ? view.ghost_valid_color : view.ghost_invalid_color;
+            objects_.push_back(ghost);
+        }
+    }
+
+    [[nodiscard]] render::SceneObject scene_object(const sim::SnapshotObject& o) const {
+        const render::ViewParams& view = data_.engine.view;
+        {
             render::SceneObject so;
             so.origin = o.origin;
             so.size = o.size;
@@ -1371,18 +1516,7 @@ private:
                     so.health_permille = o.hp * kPermille / max_hp;
                 }
             }
-            objects_.push_back(so);
-        }
-        if (placing_ && hover) {
-            const BuildingInfo& info = data_.buildings.types[*placing_];
-            const sim::TileCoord origin = ghost_origin(*hover, *placing_);
-            const bool can_pay = curr_.players.size() > kLocalPlayer &&
-                                 affordable(curr_.players[kLocalPlayer].stock, info.type.cost);
-            render::SceneObject ghost;
-            ghost.origin = origin;
-            ghost.size = info.type.size;
-            ghost.body = can_pay && world_.can_place(*placing_, origin) ? view.ghost_valid_color : view.ghost_invalid_color;
-            objects_.push_back(ghost);
+            return so;
         }
     }
 
@@ -1425,6 +1559,9 @@ private:
         scene.hovered_tile = hover;
         scene.tile_tints = tints_;
         scene.path_points = path_points_;
+        if (const std::vector<std::uint8_t>* fog = view_fog()) {
+            scene.fog = *fog;
+        }
         projectile_points_.clear();
         for (const sim::Position& p : curr_.projectiles) {
             const render::Vec2 t{fixed_to_float(p.x), fixed_to_float(p.y)};
@@ -1471,6 +1608,9 @@ private:
     sim::Tick replay_end_ = 0;
     bool paused_ = false;
     std::size_t speed_index_ = 0;
+    // Jugador cuya vista se muestra (niebla de guerra); sin valor, todo.
+    std::optional<sim::PlayerId> view_player_ = kLocalPlayer;
+    std::vector<sim::SnapshotObject> remembered_objects_;  // edificios recordados, no vistos ahora
     bool show_debug_ = false;  // F1
     bool show_help_ = true;    // F2
     bool show_portals_ = false;

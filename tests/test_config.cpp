@@ -118,6 +118,7 @@ name = "pino"
 resource = "madera"
 amount = 100
 size_tiles = 1
+blocks_sight = false
 color = [0, 90, 0]
 
 [[node]]
@@ -125,6 +126,7 @@ name = "veta"
 resource = "oro"
 amount = 800
 size_tiles = 2
+blocks_sight = false
 color = [200, 200, 0]
 
 [[node]]
@@ -132,6 +134,7 @@ name = "cascote"
 resource = "piedra"
 amount = 1
 size_tiles = 1
+blocks_sight = false
 color = [150, 140, 130]
 )";
 
@@ -157,6 +160,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 4
 material = "madera"
 color = [9, 9, 9]
 
@@ -181,6 +185,7 @@ beds = 0
 nurses = 0
 care_percent = 0
 heal_to_percent = 0
+sight_tiles = 4
 material = "madera"
 color = [8, 8, 8]
 )";
@@ -268,6 +273,18 @@ hungry_work_percent = 50
 starve_after_ticks = 1200
 starve_hp_interval_ticks = 60
 
+[vision]
+enabled = false
+interval_ticks = 10
+elevation_sight_per_level = 1
+cover_depth_tiles = 2
+spot_in_cover_tiles = 2
+day_ticks = 14400
+night_ticks = 7200
+twilight_ticks = 1800
+night_sight_percent = 50
+start_tick = 2400
+
 [medicine]
 bed_heal_milli_hp_per_tick = 5
 nurse_heal_milli_hp_per_tick = 30
@@ -297,6 +314,7 @@ target_priority = []
 
 [ai]
 think_interval_ticks = 20
+enemy_memory_decay_permille = 10
 worker = "peon"
 house = "choza"
 barracks = "fuerte"
@@ -344,6 +362,9 @@ convoy_carriers = 0
 baggage_offset_tiles = 0
 siege_engines = 0
 siege_front_tiles = 0
+scouts = 0
+fog_guard_army = 0
+explore_step_tiles = 12
 army = ["lancero"]
 
 [setup]
@@ -410,6 +431,9 @@ projectile_color = [245, 240, 220, 255]
 hero_color = [255, 200, 40, 255]
 fire_color = [255, 110, 20, 255]
 burned_shade_percent = 30
+fog_unexplored_color = [8, 8, 12, 255]
+fog_explored_shade_percent = 55
+night_color = [10, 16, 48, 115]
 
 [camera]
 scroll_keys_px_per_s = 1000

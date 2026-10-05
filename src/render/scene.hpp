@@ -61,6 +61,8 @@ struct Scene {
     std::span<const TileTint> tile_tints;  // se dibujan sobre el terreno, bajo los marcadores
     std::span<const Vec2> path_points;     // puntos de ruta en pantalla
     std::span<const Vec2> projectiles;     // proyectiles en vuelo, en pantalla
+    // Niebla de guerra del jugador que mira (sim::Fog por casilla); vacía = sin niebla.
+    std::span<const std::uint8_t> fog;
 };
 
 struct SceneStats {

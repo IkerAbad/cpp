@@ -335,6 +335,24 @@ Fuentes:
 - **Curación natural:** fuera de los puestos solo sanan solas las heridas leves (70 % de vida o más), con la unidad comida y 10 s sin recibir daño. Las graves no.
 - **IA:** aún no usa la sanidad; se le enseñará cuando toda la estructura del juego esté terminada.
 
+### Niebla de guerra
+
+Solo se sabe lo que alguien ha visto, y lo mismo para la IA, que no tiene ventaja ni desventaja: su capa de percepción solo ve lo visible y lo recordado. Lo calcula la simulación cada 10 ticks, de forma determinista y dentro del hash (`[vision]` en `engine.toml`).
+
+- **Tres estados por casilla y jugador:** sin explorar (negro), explorada (oscurecida: el terreno y lo último que se supo) y visible ahora.
+- **Vista:** la de cada unidad y cada edificio (`sight_tiles`; el centro urbano y el campamento vigilan lejos).
+- **Árboles** (`blocks_sight` en `resources.toml`): dejan ver 2 casillas dentro del bosque. Una unidad entre árboles solo se ve a 2 casillas o menos, lo que permite emboscadas. Un edificio, por su tamaño, se ve en cuanto se ve una casilla de su huella. Talar abre la vista.
+- **Altura:** 1 casilla más de vista por cada nivel por encima de lo que se mira, y una loma más alta que ambos extremos tapa lo que hay detrás.
+- **Día y noche:** 12 min de luz, con amanecer y anochecer graduales, y 6 min de noche con la vista a la mitad. La pantalla se oscurece.
+- **Memoria:** de los edificios enemigos se recuerda el último estado visto (se dibujan oscurecidos). Si caen sin que nadie lo vea, siguen figurando hasta que se vuelve a mirar.
+- **Combate:** nadie elige por sí solo un blanco que su jugador no ve.
+- **Repeticiones:** se ve todo por defecto, y se puede elegir la vista de cada jugador.
+- **IA:**
+  - `explorar`: un explorador (jinete si lo hay) busca primero alrededor del punto simétrico de su base respecto al centro del mapa, como haría un jugador, sin alejarse demasiado de donde está. No repite puntos que no ha podido ver.
+  - Recuerda el ejército enemigo que ha visto y lo va olvidando, un 1 % por segundo.
+  - El perfil «normal» mantiene 6 tropas de guardia aunque no haya visto al enemigo: lo que no se ve no es que no exista.
+- **Desactivada** (`enabled = false`, como en las pruebas de movimiento, combate y economía) todo se ve, y el hash es exactamente el de antes de la niebla.
+
 ### Prioridad de blancos
 
 Una unidad que elige blanco sola (la del jugador igual que la de la IA) sigue `combat.target_priority` en `engine.toml`:

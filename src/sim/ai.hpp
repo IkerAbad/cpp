@@ -15,6 +15,7 @@
 #include "sim/economy.hpp"
 #include "sim/path/grid.hpp"
 #include "sim/supply.hpp"
+#include "sim/vision.hpp"
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
@@ -45,6 +46,7 @@ enum class AiBehavior : std::uint8_t {
     Raid,            // incursiones de jinetes a quemar edificios de madera enemigos sin defensa
     Resupply,        // tropas cortas de víveres o munición vuelven a abastecerse
     Logistics,       // campamento avanzado camino del objetivo, abastecido por convoyes
+    Explore,         // con niebla de guerra: un explorador recorre lo no explorado
     Count,
 };
 
@@ -80,6 +82,9 @@ struct AiProfile {
     // ejercito_contra: con menos aldeanos que esto solo entrena si su ejército es más
     // débil que el enemigo conocido (economía primero, sin quedar indefenso).
     std::int32_t army_min_villagers = 0;
+    // ... salvo con niebla: lo que no se ve no es que no exista; mantiene al menos
+    // fog_guard_army tropas aunque no haya visto ningún ejército enemigo.
+    std::int32_t fog_guard_army = 0;
     // incendiar: grupos de raid_group unidades de tipo raid_unit contra edificios de
     // madera sin enemigos armados a raid_safe_radius_tiles.
     std::optional<UnitTypeId> raid_unit;
@@ -105,12 +110,20 @@ struct AiProfile {
     // El campamento se levanta solo con su ejército en campaña a esta distancia del
     // objetivo o menos (domina el terreno).
     std::int32_t siege_front_tiles = 0;
+    // explorar: mientras no conozca ningún edificio vital enemigo, scouts unidades
+    // ociosas (las de raid_unit primero) recorren lo no explorado, por los puntos de una
+    // rejilla de explore_step_tiles casillas, el más cercano primero.
+    std::int32_t scouts = 0;
+    std::int32_t explore_step_tiles = 1;
     std::vector<UnitTypeId> army;            // ciclo de entrenamiento en el cuartel
 };
 
 // data/config/engine.toml, sección [ai]. Tipos ya resueltos a ids.
 struct AiParams {
     std::int32_t think_interval_ticks = 1;  // cada cuánto decide (repartido entre jugadores)
+    // Con niebla, el ejército enemigo visto se recuerda y el recuerdo se desvanece esta
+    // fracción (por mil) en cada decisión: lo que ya no se ve se va olvidando.
+    std::int32_t enemy_memory_decay_permille = 0;
     // Tipos que usa cualquier perfil (dependerán de la civilización, no de la dificultad).
     UnitTypeId worker_type = 0;
     BuildingTypeId house = 0;
@@ -136,6 +149,10 @@ struct AiPlayerState {
     std::int32_t wave_size = 0;
     std::int32_t army_cycle = 0;
     std::int32_t waves_sent = 0;
+    std::vector<entt::entity> scouts;       // exploradores en curso
+    std::vector<TileCoord> scout_targets;   // punto al que va cada uno (paralelo a scouts)
+    std::vector<TileCoord> explore_done;    // puntos visitados o inalcanzables: no se repiten
+    std::vector<std::int64_t> enemy_seen_milli;  // por tipo: unidades enemigas recordadas (milésimas)
 };
 
 class AiSystem {
@@ -145,8 +162,9 @@ public:
 
     // Decide para los jugadores a los que les toca este tick y añade sus órdenes a out
     // (se aplican en este mismo tick, después de las del jugador humano).
+    // vision: niebla de guerra (la IA solo sabe lo que ve y recuerda); null = lo ve todo.
     void think(const entt::registry& registry, const EconomySystem& economy, const PassGrid& grid, Tick tick,
-               std::vector<Command>& out);
+               std::vector<Command>& out, const VisionSystem* vision = nullptr);
 
     [[nodiscard]] const std::vector<AiPlayerState>& players() const noexcept { return players_; }
     void hash_into(StateHasher& h) const;
