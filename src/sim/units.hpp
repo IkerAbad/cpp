@@ -96,6 +96,12 @@ struct UnitType {
     // Firmeza (B1): % que resiste la moral; las pérdidas se escalan por 100 / firmeza.
     // 0 = sin moral (aldeanos, bagaje, ingenios): ni se desbanda ni cuenta como tropa.
     std::int32_t morale_resolve = 0;
+    // Terreno (B2): % de su velocidad fuera de llano (en terreno con speed_percent < 100),
+    // sobre lo que ya resta el terreno: la carreta se atasca (50); el resto, 100.
+    std::int32_t rough_speed_percent = 100;
+    // Carga: % de ataque del primer golpe tras una carrera, solo en terreno que la
+    // permite (llano firme). 100 = no carga.
+    std::int32_t charge_percent = 100;
 };
 
 // Personal sanitario que no es aldeano (cirujano) atendiendo un puesto médico (los
@@ -195,6 +201,7 @@ struct Combatant {
     std::int32_t xp = 0;
     std::int32_t level = 0;
     std::int32_t hero_name = -1;   // índice en la lista de nombres; -1 = no es héroe
+    std::int32_t run_ticks = 0;    // ticks seguidos en marcha (carrera para la carga)
 };
 
 struct Velocity {
@@ -205,6 +212,7 @@ struct Unit {
     UnitTypeId type = 0;
     Fixed radius;
     Fixed speed;
+    std::int32_t rough_speed_percent = 100;  // del tipo (UnitType)
 };
 
 // Orden de movimiento en curso.
@@ -303,6 +311,9 @@ struct MovementParams {
 
     Fixed arrive_radius;     // casillas: a esta distancia del destino se da por llegado
     Fixed waypoint_radius;   // casillas: a esta distancia de una casilla del tramo se pasa a la siguiente
+
+    // Terreno (B2): % de velocidad por tipo de terreno (vacío = todo al 100 %).
+    std::vector<std::int32_t> speed_percent_by_terrain;
 };
 
 }  // namespace rts::sim

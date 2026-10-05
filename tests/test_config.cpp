@@ -29,11 +29,17 @@ constexpr const char* kTerrain = R"(
 name = "agua"
 passable = false
 color = [0, 0, 200]
+speed_percent = 100
+arrow_cover_percent = 100
+charge = false
 
 [[terrain]]
 name = "llanura"
 passable = true
 color = [0, 200, 0]
+speed_percent = 100
+arrow_cover_percent = 100
+charge = true
 )";
 
 constexpr const char* kUnits = R"(
@@ -75,6 +81,8 @@ convoy_capacity = 0
 treatable = true
 care_skill = 0
 morale_resolve = 0
+rough_speed_percent = 100
+charge_percent = 100
 
 [[unit]]
 name = "peon"
@@ -112,6 +120,8 @@ convoy_capacity = 0
 treatable = true
 care_skill = 0
 morale_resolve = 0
+rough_speed_percent = 100
+charge_percent = 100
 )";
 
 constexpr const char* kNodes = R"(
@@ -292,6 +302,14 @@ night_ticks = 7200
 twilight_ticks = 1800
 night_sight_percent = 50
 start_tick = 2400
+
+[terrain]
+enabled = false
+range_per_level_milli_tiles = 500
+max_levels = 3
+ranged_percent_per_level = 10
+melee_percent_per_level = 10
+charge_run_ticks = 20
 
 [morale]
 enabled = true

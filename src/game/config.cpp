@@ -467,6 +467,8 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             info.type.treatable = ur.get_bool("treatable");
             info.type.care_skill = ur.get_i32("care_skill", 0, 1000);
             info.type.morale_resolve = ur.get_i32("morale_resolve", 0, 1000);
+            info.type.rough_speed_percent = ur.get_i32("rough_speed_percent", 1, 100);
+            info.type.charge_percent = ur.get_i32("charge_percent", 100, 1000);
             if (!error && info.type.convoy_capacity > 0 && info.type.worker) {
                 ur.fail("un aldeano no puede ser bagaje ('convoy_capacity' debe ser 0)");
             }
@@ -705,6 +707,9 @@ std::expected<TerrainCatalog, std::string> parse_terrain_catalog(std::string_vie
             info.name = tr.get_string("name");
             info.passable = tr.get_bool("passable");
             info.color = tr.get_color<3>("color");
+            info.speed_percent = tr.get_i32("speed_percent", 1, 100);
+            info.arrow_cover_percent = tr.get_i32("arrow_cover_percent", 0, 100);
+            info.charge = tr.get_bool("charge");
             if (!error && catalog.find(info.name)) {
                 tr.fail(std::format("nombre de terreno repetido: \"{}\"", info.name));
             }
@@ -739,6 +744,22 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     for (const TerrainInfo& t : terrain.types) {
         cfg.world.passable_by_terrain.push_back(t.passable ? 1 : 0);
+    }
+    // Terreno en combate (B2): desactivado, ni la marcha ni el combate lo miran.
+    sim::TerrainCombatParams& tc = cfg.world.combat.terrain;
+    tc.enabled = r.get_bool("terrain.enabled");
+    tc.range_per_level =
+        sim::Fixed::from_ratio(r.get_i32("terrain.range_per_level_milli_tiles", 0, 4 * kMilli), kMilli);
+    tc.max_levels = r.get_i32("terrain.max_levels", 0, 16);
+    tc.ranged_percent_per_level = r.get_i32("terrain.ranged_percent_per_level", 0, 50);
+    tc.melee_percent_per_level = r.get_i32("terrain.melee_percent_per_level", 0, 50);
+    tc.charge_run_ticks = r.get_i32("terrain.charge_run_ticks", 1, kMaxTicks);
+    if (tc.enabled) {
+        for (const TerrainInfo& t : terrain.types) {
+            cfg.world.movement.speed_percent_by_terrain.push_back(t.speed_percent);
+            tc.arrow_cover_percent_by_terrain.push_back(t.arrow_cover_percent);
+            tc.charge_by_terrain.push_back(t.charge ? 1 : 0);
+        }
     }
     for (const UnitInfo& u : units.types) {
         cfg.world.unit_types.push_back(u.type);

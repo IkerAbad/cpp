@@ -59,7 +59,7 @@ World::World(const WorldParams& params)
       movement_(*map_, params.passable_by_terrain, params.movement),
       economy_(map_->width(), map_->height(), params.economy,
                {params.unit_types, params.building_types, params.node_types}, player_count(params)),
-      combat_(map_->width(), map_->height(), params.combat, params.unit_types, params.building_types),
+      combat_(*map_, params.combat, params.unit_types, params.building_types),
       fire_(params.fire, params.unit_types, params.building_types),
       supply_(params.supply, params.unit_types, params.building_types),
       medicine_(params.medicine, params.supply.ration_cost, params.unit_types, params.building_types),

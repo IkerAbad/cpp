@@ -48,9 +48,38 @@ MovementSystem::MovementSystem(const TileMap& map, std::span<const std::uint8_t>
       search_(map.width(), map.height()),
       hpa_(grid_, params.hpa, search_) {
     assert(params.max_neighbors > 0);
+    width_ = map.width();
+    if (!params.speed_percent_by_terrain.empty()) {
+        tile_speed_.resize(static_cast<std::size_t>(map.width()) * static_cast<std::size_t>(map.height()), kPercent);
+        for (std::int32_t y = 0; y < map.height(); ++y) {
+            for (std::int32_t x = 0; x < map.width(); ++x) {
+                const TerrainId t = map.terrain({x, y});
+                if (t < params.speed_percent_by_terrain.size()) {
+                    tile_speed_[static_cast<std::size_t>(y) * static_cast<std::size_t>(width_) +
+                                static_cast<std::size_t>(x)] = params.speed_percent_by_terrain[t];
+                }
+            }
+        }
+    }
     assert(params.time_horizon_ticks > 0);
     fields_.resize(static_cast<std::size_t>(std::max(params.flow_field_cache_size, 1)));
     dirty_sectors_.assign(hpa_.sector_count(), 0);
+}
+
+Fixed MovementSystem::effective_speed(const Unit& unit, FVec2 pos) const noexcept {
+    if (tile_speed_.empty()) {
+        return unit.speed;
+    }
+    const TileCoord t = tile_of(pos);
+    const std::int32_t height = static_cast<std::int32_t>(tile_speed_.size() / static_cast<std::size_t>(width_));
+    const std::int32_t x = std::clamp(t.x, 0, width_ - 1);
+    const std::int32_t y = std::clamp(t.y, 0, height - 1);
+    std::int64_t percent = tile_speed_[static_cast<std::size_t>(y) * static_cast<std::size_t>(width_) +
+                                       static_cast<std::size_t>(x)];
+    if (percent < kPercent) {
+        percent = percent * unit.rough_speed_percent / kPercent;  // fuera de llano
+    }
+    return Fixed::from_raw(static_cast<std::int32_t>(std::int64_t{unit.speed.raw()} * percent / kPercent));
 }
 
 void MovementSystem::set_blocked(TileCoord c, bool blocked) {
@@ -401,7 +430,7 @@ FVec2 MovementSystem::preferred_velocity(entt::registry& registry, entt::entity 
     }
 
     const FVec2 d = target - pos;
-    Fixed speed = unit.speed;
+    Fixed speed = effective_speed(unit, pos);
     if (final_leg) {
         const Fixed dist = length(d);
         speed = dist < speed ? dist : speed;
@@ -650,7 +679,7 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         s_.vel.push_back(v.v);
         s_.pref.push_back(pref);
         s_.radius.push_back(unit.radius);
-        s_.speed.push_back(unit.speed);
+        s_.speed.push_back(effective_speed(unit, pos));
         s_.order.push_back(order);
         s_.arrived.push_back(arrived ? 1 : 0);
         s_.stuck.push_back(stuck);

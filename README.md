@@ -365,6 +365,28 @@ Fuente: Ardant du Picq, [«Battle Studies»](https://www.gutenberg.org/files/729
 - **Torneo:** cuenta las desbandadas de cada partida y las victorias en las que el vencido se desbandó.
 - **Desactivada** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Terreno en combate
+
+El terreno pesa en la marcha y en la pelea (`[terrain]` en `engine.toml`, y por tipo de terreno en `terrain.toml`).
+
+Fuentes:
+- [High ground](https://en.wikipedia.org/wiki/High_ground): «soldiers who are elevated above their enemies can get greater range out of low-speed projectiles» y «soldiers fighting uphill are assumed to tire more quickly and will move more slowly».
+- [The Battle of Courtrai, 1302](https://www.military-history.org/battle-maps/the-battle-of-courtrai-1302.htm): «There was a stream to cross, and many horses refused» y «Men and horses fell into the ditches».
+- [The Mud and the Arrows — Agincourt, 1415](https://frontlinestories.com/stories/mud-and-arrows-agincourt-1415/): «Men in full plate sank to their shins with every step. They were exhausted before they reached the English line».
+
+| Terreno | Marcha | Flechas que llegan | Carga |
+|---|---|---|---|
+| Pradera | 100 % | 100 % | sí |
+| Arena | 85 % | 100 % | sí |
+| Colinas | 75 % | 100 % | no |
+| Bosque | 60 % | 50 % | no |
+
+- **Altura:** por cada nivel de ventaja (hasta 3), el tirador alcanza media casilla más y hiere un 10 % más; cuesta arriba, al revés, sin bajar de la mitad del alcance. Cuerpo a cuerpo, un 10 % por nivel a favor de quien está arriba.
+- **Fuera de llano** cada tipo pierde además su `rough_speed_percent`: la carreta de bueyes se queda al 50 % y el ariete al 60 %. En el bosque, la carreta va al 30 %.
+- **Carga:** tras 1 s seguido en marcha, el primer golpe del caballero vale el doble y el del jinete la mitad más, si el atacante y el blanco pisan pradera o arena.
+- **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
+- **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
+
 ### Niebla de guerra
 
 Solo se sabe lo que alguien ha visto, y lo mismo para la IA, que no tiene ventaja ni desventaja: su capa de percepción solo ve lo visible y lo recordado. Lo calcula la simulación cada 10 ticks, de forma determinista y dentro del hash (`[vision]` en `engine.toml`).

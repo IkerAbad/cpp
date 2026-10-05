@@ -44,6 +44,7 @@ esconden, y un asedio sin suministro fracasa.
 | Logística | Víveres, munición, hambre, bagaje, convoyes, campamento de campaña, trabuquete montado con convoyes |
 | Sanidad | Puesto de socorro, hospital de campaña, hospital, enfermeros, cirujanos, heridas leves, reorganización |
 | Niebla | Tres estados, árboles, altura, día y noche, memoria de edificios |
+| Terreno | Altura para tiradores y cuerpo a cuerpo, bosque que cubre, marcha por terreno, carga en llano |
 | Moral | Bajas cercanas, flanco y retaguardia, contagio, hambre, noche, héroes; desbandada, persecución y rehacerse |
 | IA | Percepción con niebla, 18 módulos, perfiles «básica» y «normal», torneo en la CI |
 | Repeticiones | Grabación automática, reproductor, verificación por hashes, vista por jugador |
@@ -98,7 +99,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   medievales se decidían más por la desbandada que por la muerte de todos.
   - *Terminado:* pruebas de desbandada y de rehacerse; en el torneo hay victorias
     por desbandada.
-- [ ] **B2. Terreno en combate.**
+- [x] **B2. Terreno en combate.**
   - Ventaja de altura (alcance y daño de los tiradores cuesta abajo).
   - El bosque cubre de las flechas.
   - Velocidad por terreno: bosque y colinas lentos; la carreta, muy lenta fuera de

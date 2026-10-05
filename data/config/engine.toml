@@ -181,6 +181,23 @@ twilight_ticks = 1800
 night_sight_percent = 50
 start_tick = 2400
 
+[terrain]
+# Terreno en combate (B2). Los valores por tipo de terreno están en terrain.toml.
+# Altura: «soldiers who are elevated above their enemies can get greater range out of
+# low-speed projectiles (such as rocks, javelins/spears, arrows ...)» y «soldiers
+# fighting uphill are assumed to tire more quickly and will move more slowly»
+# (Wikipedia, «High ground»).
+enabled = true
+# Cada nivel de altura de ventaja (hasta 3) da al tirador media casilla más de alcance
+# y un 10 % más de daño; cuesta arriba, al revés (el alcance no baja de la mitad).
+range_per_level_milli_tiles = 500
+max_levels = 3
+ranged_percent_per_level = 10
+# Cuerpo a cuerpo, un 10 % por nivel: pelear cuesta arriba cansa.
+melee_percent_per_level = 10
+# Carga: 1 s seguido en marcha antes del golpe.
+charge_run_ticks = 20
+
 [morale]
 # Moral y desbandada (B1). Moral de 0 a 1000; las pérdidas se escalan por la firmeza
 # del tipo (units.toml, morale_resolve). Las batallas se decidían por la huida, no por
@@ -385,7 +402,9 @@ build_search_radius_tiles = 24
 # Oleadas fijas: no las usa (ataca por fuerza).
 first_wave = 6
 wave_growth = 4
-defend_radius_tiles = 14
+# Defiende a 20 casillas: con el terreno (B2) la marcha es más lenta y una incursión
+# llega antes de que la tropa vuelva si espera a tenerla encima.
+defend_radius_tiles = 20
 flee_enemy_tiles = 3
 safe_base_tiles = 2
 barracks_queue = 2

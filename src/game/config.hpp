@@ -23,6 +23,9 @@ struct TerrainInfo {
     std::string name;
     bool passable = false;
     std::array<std::uint8_t, 3> color{};  // RGB provisional
+    std::int32_t speed_percent = 100;        // B2: velocidad de marcha
+    std::int32_t arrow_cover_percent = 100;  // B2: daño de proyectiles que llega
+    bool charge = false;                     // B2: la caballería puede cargar
 };
 
 struct TerrainCatalog {

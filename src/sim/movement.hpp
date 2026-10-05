@@ -60,6 +60,9 @@ public:
 
     void hash_into(StateHasher& h) const;
 
+    // Velocidad de una unidad en pos según el terreno (B2).
+    [[nodiscard]] Fixed effective_speed(const Unit& unit, FVec2 pos) const noexcept;
+
 private:
     struct CachedField {
         std::unique_ptr<FlowField> field;
@@ -108,6 +111,8 @@ private:
     }
 
     MovementParams params_;
+    std::int32_t width_ = 0;
+    std::vector<std::int32_t> tile_speed_;  // % de velocidad por casilla (vacío = 100 en todas)
     PassGrid grid_;
     GridSearch search_;
     HpaGraph hpa_;

@@ -11,6 +11,7 @@ add_executable(rts_tests
     test_supply.cpp
     test_medicine.cpp
     test_morale.cpp
+    test_terrain_combat.cpp
     test_vision.cpp
     test_orders.cpp
     test_minimap.cpp

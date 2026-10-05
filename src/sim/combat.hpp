@@ -21,6 +21,7 @@
 #include "sim/morale.hpp"
 #include "sim/movement.hpp"
 #include "sim/tick.hpp"
+#include "sim/tile_map.hpp"
 #include "sim/units.hpp"
 #include "sim/vision.hpp"
 
@@ -42,6 +43,29 @@ enum class TargetClass : std::uint8_t {
     Worker,       // aldeano
     Other,
 };
+
+// Terreno en combate (B2): engine.toml [terrain] y, por tipo, terrain.toml.
+//   - Altura: el tirador más alto alcanza más lejos y hiere más; cuesta arriba, menos.
+//     Cuerpo a cuerpo, pelear cuesta arriba cansa y resta; cuesta abajo suma.
+//   - Bosque: cubre de las flechas (arrow_cover_percent del terreno del blanco).
+//   - Carga: tras charge_run_ticks en marcha, el primer golpe cuerpo a cuerpo de un
+//     tipo con charge_percent > 100 vale ese %, si ambos pisan terreno que lo permite.
+struct TerrainCombatParams {
+    bool enabled = false;
+    Fixed range_per_level;                 // alcance por nivel de altura de ventaja
+    std::int32_t max_levels = 0;           // la diferencia de altura que cuenta, como mucho
+    std::int32_t ranged_percent_per_level = 0;
+    std::int32_t melee_percent_per_level = 0;
+    std::int32_t charge_run_ticks = 1;
+    std::vector<std::int32_t> arrow_cover_percent_by_terrain;  // por TerrainId
+    std::vector<std::uint8_t> charge_by_terrain;               // por TerrainId
+};
+
+// Alcance de un tirador con levels niveles de altura de ventaja (negativo: cuesta
+// arriba). No baja de la mitad del alcance base.
+[[nodiscard]] Fixed slope_range(Fixed range, Fixed per_level, std::int32_t levels) noexcept;
+// Ataque en % con levels niveles de ventaja, a per_level % por nivel.
+[[nodiscard]] std::int32_t slope_percent(std::int32_t percent, std::int32_t per_level, std::int32_t levels) noexcept;
 
 // data/config/engine.toml, sección [combat].
 struct CombatParams {
@@ -70,6 +94,7 @@ struct CombatParams {
     std::vector<TargetClass> target_priority;
     // Una unidad hambrienta (sin víveres) ataca a este % (data: [supply]).
     std::int32_t hungry_attack_percent = 100;
+    TerrainCombatParams terrain;
 };
 
 // Proyectil en vuelo: una entidad propia, sin Unit (el movimiento no lo ve).
@@ -95,7 +120,8 @@ struct CombatTickStats {
 
 class CombatSystem {
 public:
-    CombatSystem(std::int32_t width, std::int32_t height, const CombatParams& params, std::vector<UnitType> units,
+    // map: alturas y terrenos para el terreno en combate (B2); debe vivir más que el sistema.
+    CombatSystem(const TileMap& map, const CombatParams& params, std::vector<UnitType> units,
                  std::vector<BuildingType> buildings);
 
     // Attack, AttackMove y SetStance; cualquier otra orden sobre unidades cancela su blanco.
@@ -171,7 +197,13 @@ private:
                                          entt::entity building) const;
     void apply_hits(entt::registry& registry, MovementSystem& movement, EconomySystem& economy, Tick tick);
     void level_up(entt::registry& registry, entt::entity e, Combatant& c);
+    // B2: niveles de altura de ventaja (con signo, acotados) del punto a sobre el blanco.
+    [[nodiscard]] std::int32_t slope_levels(const entt::registry& registry, FVec2 a, entt::entity target) const;
+    [[nodiscard]] TerrainId terrain_at(FVec2 p) const noexcept;
+    [[nodiscard]] bool charge_ground(TerrainId t) const noexcept;  // llano firme: se puede cargar
+    [[nodiscard]] Fixed effective_range(const CombatStats& st, std::int32_t levels) const noexcept;
 
+    const TileMap* map_;
     std::int32_t width_;
     std::int32_t height_;
     CombatParams params_;

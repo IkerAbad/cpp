@@ -164,7 +164,7 @@ entt::entity EconomySystem::spawn_unit(entt::registry& registry, PlayerId player
     const auto e = registry.create();
     registry.emplace<Position>(e, pos.x, pos.y);
     registry.emplace<Velocity>(e);
-    registry.emplace<Unit>(e, type, ut.radius, ut.speed);
+    registry.emplace<Unit>(e, type, ut.radius, ut.speed, ut.rough_speed_percent);
     registry.emplace<Owner>(e, player);
     registry.emplace<Health>(e, ut.combat.hp, ut.combat.hp);
     registry.emplace<Combatant>(e);

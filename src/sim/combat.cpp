@@ -28,10 +28,11 @@ FVec2 footprint_center(const Footprint& f) noexcept {
 
 }  // namespace
 
-CombatSystem::CombatSystem(std::int32_t width, std::int32_t height, const CombatParams& params,
-                           std::vector<UnitType> units, std::vector<BuildingType> buildings)
-    : width_(width),
-      height_(height),
+CombatSystem::CombatSystem(const TileMap& map, const CombatParams& params, std::vector<UnitType> units,
+                           std::vector<BuildingType> buildings)
+    : map_(&map),
+      width_(map.width()),
+      height_(map.height()),
       params_(params),
       units_(std::move(units)),
       buildings_(std::move(buildings)) {
@@ -167,6 +168,47 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
             }
             return;
     }
+}
+
+bool CombatSystem::charge_ground(TerrainId t) const noexcept {
+    const auto& ok = params_.terrain.charge_by_terrain;
+    return t < ok.size() && ok[t] != 0;
+}
+
+TerrainId CombatSystem::terrain_at(FVec2 p) const noexcept {
+    const TileCoord t = tile_of(p);
+    return map_->terrain({std::clamp(t.x, 0, width_ - 1), std::clamp(t.y, 0, height_ - 1)});
+}
+
+std::int32_t CombatSystem::slope_levels(const entt::registry& registry, FVec2 a, entt::entity target) const {
+    const TerrainCombatParams& tc = params_.terrain;
+    if (!tc.enabled || tc.max_levels <= 0) {
+        return 0;
+    }
+    const auto level_at = [&](FVec2 p) {
+        const TileCoord t = tile_of(p);
+        return std::int32_t{map_->elevation({std::clamp(t.x, 0, width_ - 1), std::clamp(t.y, 0, height_ - 1)})};
+    };
+    const std::int32_t diff = level_at(a) - level_at(aim_point(registry, target));
+    return std::clamp(diff, -tc.max_levels, tc.max_levels);
+}
+
+Fixed CombatSystem::effective_range(const CombatStats& st, std::int32_t levels) const noexcept {
+    if (levels == 0 || st.projectile_speed.raw() == 0) {
+        return st.range;  // cuerpo a cuerpo: la altura no alarga el brazo
+    }
+    return slope_range(st.range, params_.terrain.range_per_level, levels);
+}
+
+Fixed slope_range(Fixed range, Fixed per_level, std::int32_t levels) noexcept {
+    // Un proyectil lento llega más lejos cuesta abajo y menos cuesta arriba.
+    const Fixed r = range + per_level * levels;
+    const Fixed floor = Fixed::from_raw(range.raw() / 2);
+    return r < floor ? floor : r;
+}
+
+std::int32_t slope_percent(std::int32_t percent, std::int32_t per_level, std::int32_t levels) noexcept {
+    return static_cast<std::int32_t>(std::int64_t{percent} * std::max(kPercent + per_level * levels, 0) / kPercent);
 }
 
 void CombatSystem::gather(const entt::registry& registry) {
@@ -490,7 +532,17 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
         }
 
         // 3. Al alcance: golpe o disparo cuando la recarga lo permite. Si no, perseguir.
-        if (in_range(registry, pos, unit.radius, st.range, c.target)) {
+        const TerrainCombatParams& tc = params_.terrain;
+        const std::int32_t levels = slope_levels(registry, pos, c.target);
+        if (tc.enabled) {
+            // Carrera para la carga: ticks seguidos en marcha.
+            if (goal != nullptr && !goal->arrived) {
+                c.run_ticks = std::min(c.run_ticks + 1, tc.charge_run_ticks);
+            } else if (c.cooldown == 0) {
+                c.run_ticks = 0;
+            }
+        }
+        if (in_range(registry, pos, unit.radius, effective_range(st, levels), c.target)) {
             c.chase_failures = 0;
             // Al alcance se detiene, venga de donde venga su movimiento: persecución,
             // ataque-movimiento u orden previa. Si era ataque-movimiento, al quedarse sin
@@ -501,7 +553,19 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             c.chase_order = 0;
             if (c.cooldown == 0) {
                 c.cooldown = st.reload_ticks;
-                const std::int32_t percent = attack_percent(registry, e, c, s_.aura[i] != 0);
+                std::int32_t percent = attack_percent(registry, e, c, s_.aura[i] != 0);
+                if (tc.enabled) {
+                    const bool ranged = st.projectile_speed.raw() != 0;
+                    const std::int32_t per_level = ranged ? tc.ranged_percent_per_level : tc.melee_percent_per_level;
+                    percent = slope_percent(percent, per_level, levels);
+                    const std::int32_t charge = units_[unit.type].charge_percent;
+                    if (!ranged && charge > kPercent && c.run_ticks >= tc.charge_run_ticks &&
+                        registry.all_of<Unit>(c.target) && charge_ground(terrain_at(pos)) &&
+                        charge_ground(terrain_at(aim_point(registry, c.target)))) {
+                        percent = static_cast<std::int32_t>(std::int64_t{percent} * charge / kPercent);
+                    }
+                    c.run_ticks = 0;
+                }
                 if (Supply* sp = registry.try_get<Supply>(e); sp != nullptr && units_[unit.type].supply.ammo > 0) {
                     --sp->ammo;  // no_ammo ya descartó el caso sin munición
                 }
@@ -600,7 +664,16 @@ void CombatSystem::update_projectiles(entt::registry& registry, const EconomySys
             }
         }
         if (target != entt::null) {
-            strike(registry, fire, target, p.attacker, p.attacker_type, p.attack_percent);
+            std::int32_t percent = p.attack_percent;
+            if (params_.terrain.enabled && registry.all_of<Unit>(target)) {
+                // Entre árboles las flechas se quedan en las ramas.
+                const auto& cover = params_.terrain.arrow_cover_percent_by_terrain;
+                const TerrainId t = terrain_at(aim_point(registry, target));
+                if (t < cover.size()) {
+                    percent = static_cast<std::int32_t>(std::int64_t{percent} * cover[t] / kPercent);
+                }
+            }
+            strike(registry, fire, target, p.attacker, p.attacker_type, percent);
             ++stats_.projectiles_hit;
         } else {
             ++stats_.projectiles_missed;
@@ -728,6 +801,9 @@ void CombatSystem::hash_into(StateHasher& h, const entt::registry& registry) con
         h.add_i32(c.xp);
         h.add_i32(c.level);
         h.add_i32(c.hero_name);
+        if (params_.terrain.enabled) {
+            h.add_i32(c.run_ticks);
+        }
     }
     for (const auto [e, p] : registry.view<const Projectile>().each()) {
         h.add_u32(entt::to_integral(e));

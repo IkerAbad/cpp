@@ -4,38 +4,73 @@
 #
 # color: RGB provisional (0-255) para los marcadores planos, hasta que haya arte.
 # passable: si las unidades terrestres pueden entrar (lo usará la búsqueda de caminos en M2).
+#
+# Terreno en combate (B2; engine.toml [terrain] lo activa):
+# speed_percent: % de la velocidad de marcha. En el bosque y en las colinas se anda
+#   despacio, y en la arena algo menos. Fuera de llano (menos de 100), cada unidad
+#   pierde además lo que diga su rough_speed_percent (units.toml): la carreta se atasca.
+#   En Azincourt, en el barro: «Men in full plate sank to their shins with every
+#   step. They were exhausted before they reached the English line»
+#   (frontlinestories.com, «The Mud and the Arrows — Agincourt, 1415»).
+# arrow_cover_percent: % del daño de proyectiles que llega a quien está en esa casilla.
+#   Entre los árboles, las ramas y los troncos paran la mitad.
+# charge: la caballería puede cargar (llano firme). En el bosque o en las colinas, no:
+#   en Courtrai (1302), «There was a stream to cross, and many horses refused» y
+#   «Men and horses fell into the ditches» (military-history.org, «The Battle of
+#   Courtrai, 1302»).
 
 [[terrain]]
 name = "agua_profunda"
 passable = false
 color = [28, 62, 128]
+speed_percent = 100
+arrow_cover_percent = 100
+charge = false
 
 [[terrain]]
 name = "agua"
 passable = false
 color = [44, 96, 168]
+speed_percent = 100
+arrow_cover_percent = 100
+charge = false
 
 [[terrain]]
 name = "arena"
 passable = true
 color = [206, 186, 128]
+speed_percent = 85
+arrow_cover_percent = 100
+charge = true
 
 [[terrain]]
 name = "pradera"
 passable = true
 color = [96, 150, 72]
+speed_percent = 100
+arrow_cover_percent = 100
+charge = true
 
 [[terrain]]
 name = "bosque"
 passable = true
 color = [48, 102, 52]
+speed_percent = 60
+arrow_cover_percent = 50
+charge = false
 
 [[terrain]]
 name = "colinas"
 passable = true
 color = [132, 118, 86]
+speed_percent = 75
+arrow_cover_percent = 100
+charge = false
 
 [[terrain]]
 name = "roca"
 passable = false
 color = [120, 120, 124]
+speed_percent = 100
+arrow_cover_percent = 100
+charge = false
