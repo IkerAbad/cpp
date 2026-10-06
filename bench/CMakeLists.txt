@@ -13,3 +13,8 @@ rts_set_warnings(rts_ai_match)
 add_executable(rts_art_sheet rts_art_sheet.cpp)
 target_link_libraries(rts_art_sheet PRIVATE rts_game_core rts_render_core)
 rts_set_warnings(rts_art_sheet)
+
+# Sonidos en WAV (F2): cada receta y cada pieza, para oírlas sin abrir el juego.
+add_executable(rts_sound_wav rts_sound_wav.cpp)
+target_link_libraries(rts_sound_wav PRIVATE rts_game_core rts_audio)
+rts_set_warnings(rts_sound_wav)

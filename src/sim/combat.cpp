@@ -488,6 +488,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
     new_projectiles_.clear();
     morale_hits_.clear();
     morale_deaths_.clear();
+    struck_.clear();
     gather(registry);
     mark_auras(registry);
     const auto interval = static_cast<std::uint32_t>(params_.acquire_interval_ticks);
@@ -801,6 +802,13 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
     }
     for (const Hit& h : hits_) {
         if (Health* health = registry.try_get<Health>(h.target)) {
+            if (const Position* p = registry.try_get<Position>(h.target)) {
+                struck_.push_back({{p->x, p->y}, h.attacker_type, false});
+            } else if (const Footprint* fp = registry.try_get<Footprint>(h.target)) {
+                const Fixed half = Fixed::from_int(fp->size) / Fixed::from_int(2);
+                struck_.push_back({{Fixed::from_int(fp->origin.x) + half, Fixed::from_int(fp->origin.y) + half},
+                                   h.attacker_type, true});
+            }
             health->hp = std::max(health->hp - h.amount, 0);  // sin desbordar con muchos golpes
             credit(h.attacker, h.amount);
             if (registry.all_of<Unit>(h.target)) {

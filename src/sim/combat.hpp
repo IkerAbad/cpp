@@ -152,6 +152,15 @@ public:
     // Golpes a unidades y bajas de este tick, para la moral.
     [[nodiscard]] std::span<const MoraleHit> morale_hits() const noexcept { return morale_hits_; }
     [[nodiscard]] std::span<const MoraleDeath> morale_deaths() const noexcept { return morale_deaths_; }
+    // Para la presentación (sonido, F2): dónde cayó cada golpe de este tick y qué se
+    // disparó. No entran en el hash: se rehacen cada tick.
+    struct Struck {
+        FVec2 pos;
+        UnitTypeId attacker_type = 0;
+        bool building = false;
+    };
+    [[nodiscard]] std::span<const Struck> struck() const noexcept { return struck_; }
+    [[nodiscard]] std::span<const Projectile> new_projectiles() const noexcept { return new_projectiles_; }
 
     void hash_into(StateHasher& h, const entt::registry& registry) const;
 
@@ -224,6 +233,7 @@ private:
     std::vector<entt::entity> scratch_;
     std::vector<MoraleHit> morale_hits_;
     std::vector<MoraleDeath> morale_deaths_;
+    std::vector<Struck> struck_;
     const VisionSystem* vision_ = nullptr;  // del tick en curso
     const EconomySystem* economy_ = nullptr;  // del tick en curso (mejoras de la herrería)
     CombatTickStats stats_;

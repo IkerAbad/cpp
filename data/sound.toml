@@ -1,0 +1,264 @@
+# Sonido propio (F2): todo se sintetiza por código al arrancar; no se carga ninguna
+# grabación. Cada sonido es una suma de capas; cada capa, un oscilador con envolvente
+# (subida lineal de attack_ms y caída hasta el silencio en decay_ms) y filtros.
+#
+# wave: seno, triangulo, cuadrada, sierra, ruido. El tono va de freq_start_hz a
+# freq_end_hz. repeats/repeat_ms: golpes repetidos (crepitar). variants: versiones con
+# el tono separado variant_cents (100 = un semitono), para que no suene clonado.
+# cooldown_ms: el mismo sonido no se repite antes (cien espadas no suenan cien veces).
+
+[audio]
+sample_rate = 48000
+# Mezcla adelantada a la tarjeta: 60 ms (lo justo para no cortarse).
+latency_ms = 60
+max_voices = 24
+master_percent = 80
+effects_percent = 80
+music_percent = 40
+# Cambio de pieza en 3 s; tras 15 s sin combate a la vista, vuelve la música de paz.
+fade_ms = 3000
+battle_hold_ms = 15000
+# Lo que pasa hasta 200 px fuera de la pantalla aún se oye, cada vez más bajo.
+hearing_margin_px = 200
+pan_percent = 80
+# Un edificio en llamas a la vista crepita cada 0,9 s.
+fire_interval_ms = 900
+
+[events]
+melee_hit = "espada"
+blunt_hit = "golpe"
+shot = "flecha_suelta"
+ranged_hit = "flecha_impacto"
+siege_hit = "ariete"
+death = "caida"
+collapse = "derrumbe"
+fire = "fuego"
+chop = "hacha"
+mine = "pico"
+build = "martillo"
+alarm = "cuerno"
+ready = "listo"
+built = "obra_terminada"
+order = "clic"
+
+[music]
+peace = "paz"
+battle = "batalla"
+
+# --- Efectos ----------------------------------------------------------------------
+
+# Hierro contra hierro: parciales inarmónicos que se apagan, y el chasquido del golpe.
+[[sound]]
+name = "espada"
+volume_percent = 70
+variants = 4
+variant_cents = 60
+cooldown_ms = 90
+layers = [
+  { wave = "seno", freq_start_hz = 2400, freq_end_hz = 2350, attack_ms = 1, decay_ms = 260, volume_percent = 30 },
+  { wave = "seno", freq_start_hz = 3730, freq_end_hz = 3700, attack_ms = 1, decay_ms = 180, volume_percent = 20 },
+  { wave = "seno", freq_start_hz = 5610, freq_end_hz = 5600, attack_ms = 1, decay_ms = 110, volume_percent = 12 },
+  { wave = "ruido", highpass_hz = 3000, attack_ms = 1, decay_ms = 40, volume_percent = 45 },
+]
+
+# Golpe sordo (lanza, maza, herramienta): ruido grave y un latido que cae.
+[[sound]]
+name = "golpe"
+volume_percent = 80
+variants = 3
+variant_cents = 80
+cooldown_ms = 90
+layers = [
+  { wave = "ruido", lowpass_hz = 900, attack_ms = 2, decay_ms = 90, volume_percent = 70 },
+  { wave = "seno", freq_start_hz = 150, freq_end_hz = 70, attack_ms = 1, decay_ms = 130, volume_percent = 60 },
+]
+
+# Cuerda de arco que se suelta: un pellizco que baja y el silbido del astil.
+[[sound]]
+name = "flecha_suelta"
+volume_percent = 60
+variants = 3
+variant_cents = 50
+cooldown_ms = 70
+layers = [
+  { wave = "triangulo", freq_start_hz = 230, freq_end_hz = 170, attack_ms = 2, decay_ms = 170, volume_percent = 55, lowpass_hz = 2500 },
+  { wave = "ruido", highpass_hz = 2000, delay_ms = 10, attack_ms = 20, decay_ms = 90, volume_percent = 18 },
+]
+
+# Flecha que se clava: un golpe seco y corto.
+[[sound]]
+name = "flecha_impacto"
+volume_percent = 60
+variants = 3
+variant_cents = 70
+cooldown_ms = 60
+layers = [
+  { wave = "ruido", lowpass_hz = 1500, attack_ms = 1, decay_ms = 50, volume_percent = 60 },
+  { wave = "seno", freq_start_hz = 320, freq_end_hz = 150, attack_ms = 1, decay_ms = 60, volume_percent = 40 },
+]
+
+# Ariete o piedra de trabuquete: golpe muy grave con retumbo.
+[[sound]]
+name = "ariete"
+volume_percent = 90
+variants = 2
+variant_cents = 60
+cooldown_ms = 250
+layers = [
+  { wave = "ruido", lowpass_hz = 400, attack_ms = 3, decay_ms = 420, volume_percent = 80 },
+  { wave = "seno", freq_start_hz = 85, freq_end_hz = 40, attack_ms = 2, decay_ms = 500, volume_percent = 70 },
+]
+
+# Alguien cae: ropa y peso contra el suelo (sin voces).
+[[sound]]
+name = "caida"
+volume_percent = 60
+variants = 3
+variant_cents = 90
+cooldown_ms = 150
+layers = [
+  { wave = "ruido", lowpass_hz = 600, attack_ms = 15, decay_ms = 220, volume_percent = 60 },
+  { wave = "seno", freq_start_hz = 200, freq_end_hz = 80, attack_ms = 5, decay_ms = 240, volume_percent = 45 },
+]
+
+# Edificio que se viene abajo: retumbo largo con cascotes.
+[[sound]]
+name = "derrumbe"
+volume_percent = 95
+variants = 2
+variant_cents = 80
+cooldown_ms = 600
+layers = [
+  { wave = "ruido", lowpass_hz = 500, attack_ms = 10, decay_ms = 900, volume_percent = 70 },
+  { wave = "ruido", lowpass_hz = 1800, attack_ms = 2, decay_ms = 90, volume_percent = 45, repeats = 6, repeat_ms = 130 },
+  { wave = "seno", freq_start_hz = 60, freq_end_hz = 38, attack_ms = 10, decay_ms = 700, volume_percent = 55 },
+]
+
+# Crepitar del fuego: chasquidos agudos irregulares.
+[[sound]]
+name = "fuego"
+volume_percent = 45
+variants = 3
+variant_cents = 100
+cooldown_ms = 300
+layers = [
+  { wave = "ruido", highpass_hz = 1500, attack_ms = 1, decay_ms = 15, volume_percent = 55, repeats = 14, repeat_ms = 60 },
+  { wave = "ruido", lowpass_hz = 300, attack_ms = 200, decay_ms = 700, volume_percent = 20 },
+]
+
+# Hacha en la madera.
+[[sound]]
+name = "hacha"
+volume_percent = 55
+variants = 3
+variant_cents = 70
+cooldown_ms = 120
+layers = [
+  { wave = "ruido", lowpass_hz = 1200, attack_ms = 1, decay_ms = 70, volume_percent = 70 },
+  { wave = "seno", freq_start_hz = 190, freq_end_hz = 120, attack_ms = 1, decay_ms = 90, volume_percent = 50 },
+]
+
+# Pico en la piedra: tintineo agudo.
+[[sound]]
+name = "pico"
+volume_percent = 45
+variants = 3
+variant_cents = 80
+cooldown_ms = 120
+layers = [
+  { wave = "seno", freq_start_hz = 1800, freq_end_hz = 1780, attack_ms = 1, decay_ms = 90, volume_percent = 30 },
+  { wave = "seno", freq_start_hz = 2930, freq_end_hz = 2900, attack_ms = 1, decay_ms = 60, volume_percent = 18 },
+  { wave = "ruido", highpass_hz = 2500, attack_ms = 1, decay_ms = 25, volume_percent = 40 },
+]
+
+# Martillo en la obra: golpe de madera con algo de tono.
+[[sound]]
+name = "martillo"
+volume_percent = 50
+variants = 3
+variant_cents = 60
+cooldown_ms = 120
+layers = [
+  { wave = "ruido", lowpass_hz = 2000, attack_ms = 1, decay_ms = 40, volume_percent = 60 },
+  { wave = "seno", freq_start_hz = 420, freq_end_hz = 380, attack_ms = 1, decay_ms = 70, volume_percent = 40 },
+]
+
+# Cuerno de aviso: tónica y quinta, con algo de vibrato.
+[[sound]]
+name = "cuerno"
+volume_percent = 60
+variants = 1
+variant_cents = 0
+cooldown_ms = 4000
+layers = [
+  { wave = "sierra", freq_start_hz = 196, freq_end_hz = 190, attack_ms = 90, decay_ms = 1100, volume_percent = 45, lowpass_hz = 1100, vibrato_hz = 5, vibrato_cents = 10 },
+  { wave = "sierra", freq_start_hz = 294, freq_end_hz = 287, attack_ms = 120, decay_ms = 1000, volume_percent = 28, lowpass_hz = 1100, vibrato_hz = 5, vibrato_cents = 10 },
+]
+
+# Unidad lista: dos notas.
+[[sound]]
+name = "listo"
+volume_percent = 45
+variants = 1
+variant_cents = 0
+cooldown_ms = 600
+layers = [
+  { wave = "triangulo", freq_start_hz = 523, freq_end_hz = 523, attack_ms = 5, decay_ms = 260, volume_percent = 45 },
+  { wave = "triangulo", freq_start_hz = 784, freq_end_hz = 784, delay_ms = 140, attack_ms = 5, decay_ms = 320, volume_percent = 40 },
+]
+
+# Edificio terminado: tres notas que suben.
+[[sound]]
+name = "obra_terminada"
+volume_percent = 45
+variants = 1
+variant_cents = 0
+cooldown_ms = 800
+layers = [
+  { wave = "triangulo", freq_start_hz = 392, freq_end_hz = 392, attack_ms = 5, decay_ms = 380, volume_percent = 40 },
+  { wave = "triangulo", freq_start_hz = 523, freq_end_hz = 523, delay_ms = 120, attack_ms = 5, decay_ms = 380, volume_percent = 40 },
+  { wave = "triangulo", freq_start_hz = 659, freq_end_hz = 659, delay_ms = 240, attack_ms = 5, decay_ms = 480, volume_percent = 40 },
+]
+
+# Orden recibida: chasquido breve.
+[[sound]]
+name = "clic"
+volume_percent = 35
+variants = 2
+variant_cents = 120
+cooldown_ms = 80
+layers = [
+  { wave = "seno", freq_start_hz = 1200, freq_end_hz = 900, attack_ms = 1, decay_ms = 30, volume_percent = 40 },
+]
+
+# --- Música -----------------------------------------------------------------------
+# Piezas propias, compuestas por un generador con semilla: melodía de flauta en un modo
+# (dórico: 0 2 3 5 7 9 10; frigio: 0 1 3 5 7 8 10), bordón de tónica y quinta y
+# tamboril. Forma A A B A en frases de cuatro compases. root_hz: tónica del bordón (la
+# melodía va una octava por encima).
+
+[[piece]]
+name = "paz"
+seed = 1415
+tempo_bpm = 96
+root_hz = 147
+mode = [0, 2, 3, 5, 7, 9, 10]
+bars = 32
+beats_per_bar = 3
+melody_percent = 26
+drone_percent = 10
+drum_percent = 12
+drum_density_percent = 30
+
+[[piece]]
+name = "batalla"
+seed = 1212
+tempo_bpm = 132
+root_hz = 147
+mode = [0, 1, 3, 5, 7, 8, 10]
+bars = 16
+beats_per_bar = 4
+melody_percent = 24
+drone_percent = 12
+drum_percent = 28
+drum_density_percent = 75

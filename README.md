@@ -18,6 +18,7 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | en curso: percepción con niebla, 18 módulos |
 | M8 | Multijugador lockstep | hecho (fase E: sala, charla, 2–4 jugadores, relevo de la IA) |
 | F1 | Arte propio generado por código: figuras animadas, edificios, árboles, fuego y humo | hecho |
+| F2 | Sonido propio sintetizado: efectos de combate, trabajo y avisos; música modal compuesta por código | hecho |
 
 El plan completo, con lo que falta y en qué orden, está en [docs/PLAN.md](docs/PLAN.md).
 
@@ -278,6 +279,38 @@ Ningún píxel viene de fuera: todo se pinta por código al arrancar (62 ms en R
   - No hay animación de muerte.
   - Los proyectiles siguen siendo puntos.
   - Las repeticiones grabadas antes de que existiera `art.toml` se ven con los marcadores planos de antes.
+
+### Sonido propio (F2)
+
+Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde `data/sound.toml`. Los efectos están en 15 ms; la música, unos 300 ms, en otro hilo, y entra en cuanto está.
+
+- **Efectos.**
+  - Cada sonido es una suma de capas. Cada capa es un oscilador (seno, triángulo, cuadrada, sierra o ruido) con el tono deslizándose, una envolvente (subida lineal y caída exponencial hasta −60 dB), filtros paso bajo y paso alto, vibrato y golpes repetidos.
+  - Hay 15 efectos: espada (parciales inarmónicos que se apagan), golpe sordo, cuerda de arco, flecha que se clava, ariete, caída, derrumbe, crepitar de fuego, hacha, pico, martillo, cuerno de aviso, unidad lista, edificio terminado y orden recibida.
+  - Cada uno se sintetiza en varias versiones con el tono algo cambiado, que se van turnando para que no suene clonado.
+- **Música.**
+  - Piezas propias, compuestas por un generador con semilla, en dos modos medievales: dórico (paz) y frigio (batalla).
+  - Una flauta (seno con armónicos y vibrato tardío) va sobre un bordón de tónica y quinta, con tamboril.
+  - La forma es A A B A, en frases de cuatro compases que cierran en la tónica.
+  - El bordón tiene ciclos enteros por vuelta, así que la pieza se repite sin salto.
+  - La música de batalla entra cuando hay combate a la vista y la de paz vuelve tras 15 s sin él, con fundido de 3 s.
+- **Qué suena.** Un director de sonido traduce lo que pasa en sonidos:
+  - golpes (filo, golpe sordo, flecha o asedio, según quién golpea) y disparos;
+  - bajas y derrumbes;
+  - obras terminadas propias, avisos, órdenes, golpes de herramienta (hacha, pico o martillo, según la tarea) y fuego.
+  - Para dar esos golpes y disparos, la simulación expone en el snapshot los de cada tick, sin tocar el hash.
+- **Dónde se oye.**
+  - Solo suena lo que el jugador ve: la niebla también calla.
+  - Lo que está en pantalla suena a plena voz y con panorama de igual potencia según su `x`. Lo que está fuera se oye cada vez más bajo hasta 200 px del borde.
+  - Cada sonido tiene una espera mínima entre dos veces seguidas, para que cien espadas no suenen cien veces.
+  - Hay 24 voces como mucho: una nueva sustituye a la más débil.
+- **Salida.**
+  - SDL3 sin hilos propios: cada fotograma se mezclan las muestras justas para mantener 60 ms en cola.
+  - Sin dispositivo de audio, como en la CI, el juego sigue en silencio.
+- **Oírlo sin jugar.** `rts_sound_wav --data data --out sonidos` escribe cada efecto y cada pieza en WAV.
+- **Límite conocido.**
+  - No hay sonidos de ambiente (viento, pájaros, agua).
+  - El volumen solo se cambia en `sound.toml`; las opciones en pantalla son de F5.
 
 ### Repeticiones (M5)
 
@@ -644,6 +677,7 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `unit`: repeticiones | Codificar y decodificar sin pérdida; rechazo de ficheros ajenos, truncados, con cualquier byte cambiado o de otra versión; partida grabada (humano contra IA, órdenes programadas a futuro) reproducida con los mismos hashes; una orden alterada en el tick 800 se detecta en el checkpoint 1000, y quitar una orden también se detecta; grabación con los datos reales reproducida desde su copia |
 | `unit`: red | Sala con arranque manual, ajustes y charla que llegan a todos; charla cortada sin partir un carácter; un invitado que se va y la IA que toma su bando en el mismo tick en los que quedan, con el mismo hash final; partida de cuatro con IA en los puestos pedidos; orden de relevo idempotente; códec de órdenes; órdenes de prueba solo para unidades propias; 2 y 3 jugadores por bucle local acaban con el mismo hash habiendo ejecutado órdenes que solo conocía el otro; una orden que solo ve un mundo en el tick 10 se detecta en el hash del tick 20; rechazo por datos distintos; plazo agotado sin noticias de otro jugador |
 | `unit`: arte | `art.toml` cubre todos los tipos y rechaza nombres que no existen o repetidos y valores no válidos; cada figura tiene sus poses, la capa del jugador en grises, y andar y golpear cambian el dibujo; generación determinista; edificios con altura por encima de su huella y campos a ras de suelo; terreno sin juntas; árboles variados con pinos; atlas sin solapes con los píxeles de cada imagen; escena con lo de delante pintado después, espejo, obra recortada y llamas con humo |
+| `unit`: sonido | El tono que se pide (cruces por cero) y una octava al subir 1200 cents, sin pasar de ±1 y determinista; ruido distinto por semilla y apagado por el filtro; música con la duración de sus compases, sin saturar; mezclador con panorama, robo de la voz más débil, música en bucle y fundido; banco con versiones; director que hace sonar lo visible con panorama, calla lo lejano y lo cubierto por la niebla, respeta las esperas, cambia a música de batalla y vuelve a la de paz, y oye bajas, derrumbes, obras, avisos, órdenes, trabajo y fuego; errores claros en `sound.toml` |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |

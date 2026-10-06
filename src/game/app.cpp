@@ -6,6 +6,7 @@
 #include <cmath>
 #include <filesystem>
 #include <format>
+#include <future>
 #include <limits>
 #include <optional>
 #include <span>
@@ -24,9 +25,11 @@
 #include "game/alerts.hpp"
 #include "game/fixed_step.hpp"
 #include "game/lockstep.hpp"
+#include "game/sound_director.hpp"
 #include "game/minimap.hpp"
 #include "game/replay.hpp"
 #include "game/selection.hpp"
+#include "platform/audio.hpp"
 #include "platform/profile.hpp"
 #include "platform/window.hpp"
 #include "render/projection.hpp"
@@ -324,6 +327,45 @@ struct FrameStats {
     render::SceneStats scene;
 };
 
+// Sonido de la ventana (F2): el mezclador con todo lo sintetizado y la salida de la
+// plataforma. Solo existe si hay dispositivo de audio.
+struct AudioSystem {
+    audio::Mixer mixer;
+    audio::Bank bank;
+    platform::AudioOut out;
+    const audio::SoundSpec* spec;
+    // La música se compone en otro hilo (unos 300 ms): los efectos ya suenan mientras.
+    std::future<std::vector<std::vector<float>>> music_ready;
+    std::int32_t wanted_piece = -1;
+
+    AudioSystem(const audio::SoundSpec& s, platform::AudioOut o)
+        : mixer(s.config.max_voices), bank(s, mixer, false), out(std::move(o)), spec(&s),
+          music_ready(std::async(std::launch::async, [&s] { return audio::Bank::compose_music(s); })) {
+        constexpr float kPercentF = 100.0f;
+        mixer.set_gains(static_cast<float>(s.config.master_percent) / kPercentF,
+                        static_cast<float>(s.config.effects_percent) / kPercentF,
+                        static_cast<float>(s.config.music_percent) / kPercentF);
+    }
+    void pump() {
+        if (music_ready.valid() &&
+            music_ready.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            bank.add_music(mixer, music_ready.get());
+            const std::int32_t piece = wanted_piece;
+            wanted_piece = -2;  // forzar el cambio ahora que hay pistas
+            music(piece);
+        }
+        out.pump(mixer);
+    }
+    void music(std::int32_t piece) {
+        if (piece == wanted_piece) {
+            return;
+        }
+        wanted_piece = piece;
+        constexpr std::int32_t kMsPerS = 1000;
+        mixer.set_music(bank.piece(piece), spec->config.sample_rate / kMsPerS * spec->config.fade_ms);
+    }
+};
+
 // Registro de la charla y línea para escribir (sala y partida en red).
 void draw_chat(LockstepSession& net, const GameData& data, std::string& input) {
     const float input_h = ImGui::GetFrameHeightWithSpacing();
@@ -357,9 +399,10 @@ public:
     // Con replay, reproduce esa repetición (sin órdenes); sin ella, partida nueva que
     // se graba sola.
     WindowedGame(const GameData& data, platform::Window& window, render::Renderer& renderer, const Replay* replay,
-                 const Replay* resume, LockstepSession* net = nullptr)
+                 const Replay* resume, LockstepSession* net = nullptr, AudioSystem* audio = nullptr)
         : data_(data),
           net_(net),
+          audio_(audio),
           local_(net != nullptr ? net->local_player() : kLocalPlayer),
           window_(window),
           renderer_(renderer),
@@ -370,6 +413,9 @@ public:
                                (replay != nullptr ? data.engine.replay.speeds.back() : 1)}),
           selection_(data.engine.selection) {
         view_player_ = local_;
+        if (audio_ != nullptr && !data_.sound.recipes.empty()) {
+            sounds_.emplace(data_.sound, data_);
+        }
         if (replay != nullptr) {
             player_.emplace(*replay);
             replay_end_ = replay->end_tick;
@@ -425,6 +471,9 @@ public:
             }
             simulate(frame_ns);
             update_camera(frame_ns);
+            if (audio_ != nullptr) {
+                audio_->pump();
+            }
             if (!window_.minimized()) {
                 present();
             }
@@ -551,7 +600,74 @@ private:
     }
 
     // Toda orden del jugador pasa por aquí: se graba. En una repetición no se aceptan.
+    // Reloj de la presentación en ms (animaciones y sonido).
+    [[nodiscard]] double now_ms() const noexcept {
+        constexpr double kMsPerS = 1000.0;
+        return anim_time_s_ * kMsPerS;
+    }
+
+    // Dónde se ve en pantalla un punto del mapa; nada si la niebla lo tapa.
+    [[nodiscard]] std::optional<render::Vec2> locate(sim::Position p) const {
+        const render::Vec2 tile{fixed_to_float(p.x), fixed_to_float(p.y)};
+        if (const std::vector<std::uint8_t>* fog = view_fog(); fog != nullptr && curr_.map) {
+            const sim::TileCoord t{static_cast<std::int32_t>(std::floor(tile.x)), static_cast<std::int32_t>(std::floor(tile.y))};
+            if (!curr_.map->contains(t)) {
+                return std::nullopt;
+            }
+            const auto idx = static_cast<std::size_t>(t.y) * static_cast<std::size_t>(curr_.map->width()) +
+                             static_cast<std::size_t>(t.x);
+            if (idx >= fog->size() || static_cast<sim::Fog>((*fog)[idx]) != sim::Fog::Visible) {
+                return std::nullopt;
+            }
+        }
+        return camera_.world_to_screen(proj_.tile_to_world(tile));
+    }
+
+    // Golpes de herramienta: cuando una figura que trabaja llega a la pose de golpe.
+    void work_sound(const sim::SnapshotEntity& se, render::Pose pose, render::Vec2 at) {
+        const auto prev = last_pose_.find(se.id);
+        const bool struck = pose == render::Pose::Strike && (prev == last_pose_.end() || prev->second != pose);
+        last_pose_[se.id] = pose;
+        if (!struck || !sounds_ || se.has_target) {
+            return;
+        }
+        if (se.task == sim::WorkerTask::Build || se.task == sim::WorkerTask::Demolish) {
+            sounds_->on_work(WorkSound::Build, at, renderer_.screen_size(), now_ms());
+        } else if (se.task == sim::WorkerTask::Gather && se.carry_kind == sim::Resource::Wood) {
+            sounds_->on_work(WorkSound::Chop, at, renderer_.screen_size(), now_ms());
+        } else if (se.task == sim::WorkerTask::Gather && se.carry_kind != sim::Resource::Food) {
+            sounds_->on_work(WorkSound::Mine, at, renderer_.screen_size(), now_ms());
+        }
+    }
+
+    // Lo que el director de sonido decidió en este fotograma, al mezclador.
+    void flush_sounds() {
+        if (!sounds_ || audio_ == nullptr) {
+            return;
+        }
+        std::vector<render::Vec2> burning;
+        const render::Vec2 screen = renderer_.screen_size();
+        for (const render::SceneObject& o : objects_) {
+            if (o.fire_permille > 0) {
+                const auto n = static_cast<float>(o.size);
+                const render::Vec2 at = camera_.world_to_screen(proj_.tile_to_world(
+                    {static_cast<float>(o.origin.x) + n * 0.5f, static_cast<float>(o.origin.y) + n * 0.5f}));
+                if (at.x >= 0.0f && at.y >= 0.0f && at.x <= screen.x && at.y <= screen.y) {
+                    burning.push_back(at);
+                }
+            }
+        }
+        sounds_->on_fires(burning, screen, now_ms());
+        for (const audio::SoundCue& c : sounds_->take()) {
+            audio_->bank.play(audio_->mixer, c);
+        }
+        audio_->music(sounds_->music(now_ms()));
+    }
+
     void issue(sim::Command c) {
+        if (sounds_ && !player_) {
+            sounds_->on_order(now_ms());
+        }
         if (net_ != nullptr) {
             net_->submit(std::move(c));  // sale por la red y se graba al ejecutarse
         } else if (recorder_) {
@@ -1001,8 +1117,16 @@ private:
                 recorder_->after_step(world_);
             }
             world_.write_snapshot(curr_);
+            if (sounds_) {
+                sounds_->on_tick(prev_, curr_, local_, [this](sim::Position p) { return locate(p); },
+                                 renderer_.screen_size(), now_ms());
+            }
             if (!player_) {
-                alerts_.update(prev_, curr_, local_);
+                for (const Alert& a : alerts_.update(prev_, curr_, local_)) {
+                    if (sounds_) {
+                        sounds_->on_alert(a.kind, now_ms());
+                    }
+                }
             }
         }
         if (plan.ticks > 0) {
@@ -2241,6 +2365,7 @@ private:
             if (art_) {
                 m.unit_type = se.type;
                 m.pose = pose_of(se, moving_[screen_index_[i]]);
+                work_sound(se, m.pose, m.screen_pos);
                 const auto f = facing_left_.find(se.id);
                 m.mirror = f != facing_left_.end() && f->second;
             }
@@ -2262,6 +2387,7 @@ private:
         const std::optional<sim::TileCoord> hover = hovered_tile();
         draw_ui(hover);
         build_objects(hover);
+        flush_sounds();
 
         render::Scene scene;
         scene.map = curr_.map.get();
@@ -2296,10 +2422,13 @@ private:
 
     const GameData& data_;
     bool art_ = !data_.art.units.empty();  // arte propio (F1); sin él, formas planas
+    std::optional<SoundDirector> sounds_;  // F2; solo con audio y datos de sonido
+    std::unordered_map<std::uint32_t, render::Pose> last_pose_;  // para oír cada golpe de herramienta
     double anim_time_s_ = 0.0;             // reloj de la presentación (animaciones)
     std::vector<bool> moving_;             // por índice de curr_.entities
     std::unordered_map<std::uint32_t, bool> facing_left_;
     LockstepSession* net_;  // partida en red (E2); null: partida local
+    AudioSystem* audio_;    // null: sin sonido
     sim::PlayerId local_;   // jugador de esta máquina
     bool net_waiting_ = false;  // este fotograma faltaron órdenes de otros
     std::string chat_input_;
@@ -2581,6 +2710,14 @@ namespace {
 struct Display {
     std::unique_ptr<platform::Window> window;
     std::unique_ptr<render::Renderer> renderer;
+    std::unique_ptr<AudioSystem> audio;  // null: sin sonido (sin dispositivo o sin datos)
+
+    void pump_audio(std::int32_t piece) {
+        if (audio) {
+            audio->music(piece);
+            audio->pump();
+        }
+    }
 };
 
 std::optional<Display> open_display(const GameData& data) {
@@ -2604,7 +2741,19 @@ std::optional<Display> open_display(const GameData& data) {
         return std::nullopt;
     }
     spdlog::info("Backend GPU: {}", (*renderer)->driver_name());
-    return Display{std::move(*window), std::move(*renderer)};
+    Display display{std::move(*window), std::move(*renderer), nullptr};
+    // Sonido (F2): todo se sintetiza aquí, una vez. Sin dispositivo, en silencio.
+    if (!data.sound.recipes.empty()) {
+        if (auto out = platform::AudioOut::open(data.sound.config.sample_rate, data.sound.config.latency_ms)) {
+            const auto start = SteadyClock::now();
+            display.audio = std::make_unique<AudioSystem>(data.sound, std::move(*out));
+            spdlog::info("Sonido: {} recetas y {} piezas sintetizadas en {:.0f} ms", data.sound.recipes.size(),
+                         data.sound.music.size(), elapsed_ms(start));
+        } else {
+            spdlog::info("Sonido: sin dispositivo de audio, en silencio");
+        }
+    }
+    return display;
 }
 
 struct MenuChoice {
@@ -2643,6 +2792,7 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
     const auto replays = saved_files(base, ".rtsrep", kListed);
     const auto& profiles = base.engine.ai_profile_names;
     while (true) {
+        d.pump_audio(base.sound.peace_music);
         SDL_Event event;
         while (d.window->poll_event(event)) {
             d.renderer->process_event(event);
@@ -2737,6 +2887,7 @@ std::optional<GameData> run_lobby(Display& d, const GameData& base, MatchSetting
     int seats = 2;
     std::string chat_input;
     while (true) {
+        d.pump_audio(base.sound.peace_music);
         SDL_Event event;
         while (d.window->poll_event(event)) {
             d.renderer->process_event(event);
@@ -2823,7 +2974,7 @@ int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* re
     if (!display) {
         return 1;
     }
-    WindowedGame game(data, *display->window, *display->renderer, replay, resume);
+    WindowedGame game(data, *display->window, *display->renderer, replay, resume, nullptr, display->audio.get());
     return game.run(max_frames);
 }
 
@@ -2862,7 +3013,7 @@ int run_net_windowed(const GameData& base, const LaunchOptions& options) {
     if (!display) {
         return 1;
     }
-    WindowedGame game(*data, *display->window, *display->renderer, nullptr, nullptr, &*session);
+    WindowedGame game(*data, *display->window, *display->renderer, nullptr, nullptr, &*session, display->audio.get());
     const int code = game.run(options.max_frames);
     spdlog::info("red: jugador {}, tick {}, estado {}", session->local_player(), game.tick(),
                  session->state() == LockstepState::Running ? "en partida" : session->error());
@@ -2943,7 +3094,7 @@ int run_interactive(const GameData& base) {
         const bool is_load = choice.kind == MenuChoice::Kind::Load;
         try {
             WindowedGame game(*data, *display->window, *display->renderer, is_replay ? &*recorded : nullptr,
-                              is_load ? &*recorded : nullptr, net ? &*net : nullptr);
+                              is_load ? &*recorded : nullptr, net ? &*net : nullptr, display->audio.get());
             game.run(0);
             if (!game.back_to_menu()) {
                 return 0;  // ventana cerrada

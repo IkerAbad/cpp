@@ -139,6 +139,17 @@ struct SnapshotEntity {
     std::uint8_t seen_by = 0xFF;          // bit p: la ve el jugador p (niebla de guerra)
 };
 
+// Lo que pasó en el último tick, para el sonido (F2): golpes y disparos.
+struct SnapshotHit {
+    Position pos;
+    UnitTypeId attacker_type = 0;
+    bool building = false;  // el blanco era un edificio
+};
+struct SnapshotShot {
+    Position pos;
+    UnitTypeId type = 0;  // quien dispara
+};
+
 enum class ObjectKind : std::uint8_t { Building, Resource };
 
 // Objeto estático (edificio o nodo de recurso).
@@ -176,6 +187,8 @@ struct Snapshot {
     std::vector<SnapshotObject> objects;
     std::vector<PlayerState> players;
     std::vector<Position> projectiles;
+    std::vector<SnapshotHit> hits;    // golpes del último tick
+    std::vector<SnapshotShot> shots;  // disparos del último tick
     // Niebla de guerra: luz del día (% de la vista), capa por jugador (Fog por casilla;
     // vacía si no hay niebla) y edificios enemigos recordados por cada jugador.
     std::int32_t daylight_percent = 100;

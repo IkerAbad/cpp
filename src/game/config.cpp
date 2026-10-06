@@ -66,6 +66,14 @@ public:
         return static_cast<std::int32_t>(*value);
     }
 
+    // Entero opcional: si falta, def (el rango se comprueba igual si está).
+    std::int32_t get_i32_or(std::string_view path, std::int32_t def, std::int64_t min, std::int64_t max) {
+        if (!table_.at_path(path)) {
+            return def;
+        }
+        return get_i32(path, min, max);
+    }
+
     std::uint64_t get_u64(std::string_view path) {
         const auto value = table_.at_path(path).value<std::int64_t>();
         if (!value || *value < 0) {
@@ -253,6 +261,7 @@ public:
     }
 
     [[nodiscard]] bool failed() const noexcept { return error_.has_value(); }
+    [[nodiscard]] const toml::table& table() const noexcept { return table_; }
 
     void fail(std::string message) {
         if (!error_) {
@@ -891,6 +900,150 @@ std::expected<render::ArtSpec, std::string> parse_art_spec(std::string_view toml
             a.grain_percent = t.get_i32("grain_percent", 0, 100);
         },
         [&](std::size_t i) { return terrain.types[i].name; });
+    if (error) {
+        return std::unexpected(*error);
+    }
+    return spec;
+}
+
+std::expected<audio::SoundSpec, std::string> parse_sound_spec(std::string_view toml_text, std::string_view source_name) {
+    auto root = parse_toml(toml_text, source_name);
+    if (!root) {
+        return std::unexpected(root.error());
+    }
+    std::optional<std::string> error;
+    Reader r(*root, source_name, "", error);
+    audio::SoundSpec spec;
+    constexpr std::int64_t kMaxRate = 192'000;
+    constexpr std::int64_t kMaxMs = 600'000;
+    constexpr std::int64_t kMaxHz = 20'000;
+    constexpr std::int64_t kMaxVoices = 256;
+    constexpr std::int64_t kMaxRepeats = 64;
+    constexpr std::int64_t kMaxCents = 2400;
+    constexpr std::int64_t kMaxBars = 256;
+    constexpr std::int64_t kMaxBeats = 8;
+    constexpr std::int64_t kMaxTempo = 300;
+    constexpr std::int32_t kSemitones = 12;
+    audio::AudioConfig& c = spec.config;
+    c.sample_rate = r.get_i32("audio.sample_rate", 8000, kMaxRate);
+    c.latency_ms = r.get_i32("audio.latency_ms", 1, kMaxMs);
+    c.max_voices = r.get_i32("audio.max_voices", 1, kMaxVoices);
+    c.master_percent = r.get_i32("audio.master_percent", 0, 100);
+    c.effects_percent = r.get_i32("audio.effects_percent", 0, 100);
+    c.music_percent = r.get_i32("audio.music_percent", 0, 100);
+    c.fade_ms = r.get_i32("audio.fade_ms", 0, kMaxMs);
+    c.battle_hold_ms = r.get_i32("audio.battle_hold_ms", 0, kMaxMs);
+    c.hearing_margin_px = r.get_i32("audio.hearing_margin_px", 0, 10'000);
+    c.pan_percent = r.get_i32("audio.pan_percent", 0, 100);
+    c.fire_interval_ms = r.get_i32("audio.fire_interval_ms", 1, kMaxMs);
+
+    static constexpr std::array<std::pair<std::string_view, audio::Wave>, 5> kWaves{
+        {{"seno", audio::Wave::Sine}, {"triangulo", audio::Wave::Triangle}, {"cuadrada", audio::Wave::Square},
+         {"sierra", audio::Wave::Saw}, {"ruido", audio::Wave::Noise}}};
+    for_each_table(r.get_table_array("sound"), source_name, "sound", error, [&](Reader& sr, std::size_t) {
+        audio::SoundRecipe rec;
+        rec.name = sr.get_string("name");
+        rec.volume_percent = sr.get_i32("volume_percent", 0, 200);
+        rec.variants = sr.get_i32("variants", 1, kMaxRepeats);
+        rec.variant_cents = sr.get_i32("variant_cents", 0, kMaxCents);
+        rec.cooldown_ms = sr.get_i32("cooldown_ms", 0, kMaxMs);
+        for_each_table(sr.get_table_array("layers"), source_name, sr.full("layers"), error, [&](Reader& lr, std::size_t) {
+            audio::Layer l;
+            l.wave = pick(lr, "wave", kWaves);
+            l.freq_start_hz = lr.get_i32_or("freq_start_hz", 0, 0, kMaxHz);
+            l.freq_end_hz = lr.get_i32_or("freq_end_hz", l.freq_start_hz, 0, kMaxHz);
+            l.delay_ms = lr.get_i32_or("delay_ms", 0, 0, kMaxMs);
+            l.attack_ms = lr.get_i32_or("attack_ms", 0, 0, kMaxMs);
+            l.decay_ms = lr.get_i32("decay_ms", 1, kMaxMs);
+            l.volume_percent = lr.get_i32("volume_percent", 0, 200);
+            l.lowpass_hz = lr.get_i32_or("lowpass_hz", 0, 0, kMaxHz);
+            l.highpass_hz = lr.get_i32_or("highpass_hz", 0, 0, kMaxHz);
+            l.vibrato_hz = lr.get_i32_or("vibrato_hz", 0, 0, 100);
+            l.vibrato_cents = lr.get_i32_or("vibrato_cents", 0, 0, kMaxCents);
+            l.repeats = lr.get_i32_or("repeats", 1, 1, kMaxRepeats);
+            l.repeat_ms = lr.get_i32_or("repeat_ms", 0, 0, kMaxMs);
+            if (l.wave != audio::Wave::Noise && l.freq_start_hz == 0 && !lr.failed()) {
+                lr.fail(std::format("'{}': un oscilador que no es ruido necesita freq_start_hz", lr.full("wave")));
+            }
+            rec.layers.push_back(l);
+        });
+        if (rec.layers.empty() && !sr.failed()) {
+            sr.fail(std::format("'{}': un sonido necesita al menos una capa", sr.full("layers")));
+        }
+        spec.recipes.push_back(std::move(rec));
+    });
+    for_each_table(r.get_table_array("piece"), source_name, "piece", error, [&](Reader& pr, std::size_t) {
+        audio::MusicPiece m;
+        m.name = pr.get_string("name");
+        m.seed = static_cast<std::uint32_t>(pr.get_u64("seed"));
+        m.tempo_bpm = pr.get_i32("tempo_bpm", 20, kMaxTempo);
+        m.root_hz = pr.get_i32("root_hz", 20, kMaxHz);
+        m.bars = pr.get_i32("bars", 4, kMaxBars);
+        m.beats_per_bar = pr.get_i32("beats_per_bar", 2, kMaxBeats);
+        m.melody_percent = pr.get_i32("melody_percent", 0, 100);
+        m.drone_percent = pr.get_i32("drone_percent", 0, 100);
+        m.drum_percent = pr.get_i32("drum_percent", 0, 100);
+        m.drum_density_percent = pr.get_i32("drum_density_percent", 0, 100);
+        // El modo: semitonos desde la tónica, empezando por 0, crecientes, dentro de la octava.
+        const toml::array* mode = pr.table().at_path("mode").as_array();
+        if (mode == nullptr || mode->empty()) {
+            pr.fail(std::format("falta la lista '{}'", pr.full("mode")));
+            return;
+        }
+        for (std::size_t i = 0; i < mode->size(); ++i) {
+            const auto v = (*mode)[i].value<std::int64_t>();
+            const std::int64_t prev = m.mode.empty() ? -1 : m.mode.back();
+            if (!v || *v <= prev || *v >= kSemitones || (i == 0 && *v != 0)) {
+                pr.fail(std::format("'{}[{}]': el modo empieza en 0 y sube sin pasar de 11", pr.full("mode"), i));
+                return;
+            }
+            m.mode.push_back(static_cast<std::int32_t>(*v));
+        }
+        spec.music.push_back(std::move(m));
+    });
+
+    const auto recipe_index = [&](std::string_view path) -> std::int32_t {
+        const std::string name = r.get_string(path);
+        for (std::size_t i = 0; i < spec.recipes.size(); ++i) {
+            if (spec.recipes[i].name == name) {
+                return static_cast<std::int32_t>(i);
+            }
+        }
+        if (!r.failed()) {
+            r.fail(std::format("'{}' = \"{}\": no hay ningún [[sound]] con ese nombre", r.full(path), name));
+        }
+        return -1;
+    };
+    audio::EventSounds& e = spec.events;
+    e.melee_hit = recipe_index("events.melee_hit");
+    e.blunt_hit = recipe_index("events.blunt_hit");
+    e.shot = recipe_index("events.shot");
+    e.ranged_hit = recipe_index("events.ranged_hit");
+    e.siege_hit = recipe_index("events.siege_hit");
+    e.death = recipe_index("events.death");
+    e.collapse = recipe_index("events.collapse");
+    e.fire = recipe_index("events.fire");
+    e.chop = recipe_index("events.chop");
+    e.mine = recipe_index("events.mine");
+    e.build = recipe_index("events.build");
+    e.alarm = recipe_index("events.alarm");
+    e.ready = recipe_index("events.ready");
+    e.built = recipe_index("events.built");
+    e.order = recipe_index("events.order");
+    const auto piece_index = [&](std::string_view path) -> std::int32_t {
+        const std::string name = r.get_string(path);
+        for (std::size_t i = 0; i < spec.music.size(); ++i) {
+            if (spec.music[i].name == name) {
+                return static_cast<std::int32_t>(i);
+            }
+        }
+        if (!r.failed()) {
+            r.fail(std::format("'{}' = \"{}\": no hay ninguna [[piece]] con ese nombre", r.full(path), name));
+        }
+        return -1;
+    };
+    spec.peace_music = piece_index("music.peace");
+    spec.battle_music = piece_index("music.battle");
     if (error) {
         return std::unexpected(*error);
     }
@@ -1600,10 +1753,10 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
 namespace {
 
-constexpr std::array<std::string_view, 7> kDataFilePaths{
+constexpr std::array<std::string_view, 8> kDataFilePaths{
     "terrain.toml",       "units.toml",         "resources.toml",
     "buildings.toml",     "config/engine.toml", "scenarios/headless.toml",
-    "art.toml",
+    "art.toml",           "sound.toml",
 };
 
 }  // namespace
@@ -1677,6 +1830,14 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
             return std::unexpected(spec.error());
         }
         data.art = std::move(*spec);
+    }
+    // Sonido (F2), opcional por la misma razón que el arte.
+    if (const auto snd = std::ranges::find(data.files, kDataFilePaths[7], &DataFile::path); snd != data.files.end()) {
+        auto spec = parse_sound_spec(snd->text, snd->path);
+        if (!spec) {
+            return std::unexpected(spec.error());
+        }
+        data.sound = std::move(*spec);
     }
     // Ajustes de la partida elegidos en el menú (opcional).
     const auto match = std::ranges::find(data.files, kMatchSettingsFile, &DataFile::path);

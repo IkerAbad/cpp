@@ -631,6 +631,14 @@ void World::write_snapshot(Snapshot& out) const {
     for (const auto [e, p] : registry_.view<const Projectile>().each()) {
         out.projectiles.push_back({p.pos.x, p.pos.y});
     }
+    out.hits.clear();
+    for (const CombatSystem::Struck& h : combat_.struck()) {
+        out.hits.push_back({{h.pos.x, h.pos.y}, h.attacker_type, h.building});
+    }
+    out.shots.clear();
+    for (const Projectile& p : combat_.new_projectiles()) {
+        out.shots.push_back({{p.pos.x, p.pos.y}, p.attacker_type});
+    }
 }
 
 }  // namespace rts::sim

@@ -37,6 +37,14 @@ target_include_directories(rts_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(rts_sim PUBLIC EnTT::EnTT)
 rts_set_warnings(rts_sim)
 
+# --- Sonido (F2): síntesis y mezcla, sin SDL ------------------------------------
+add_library(rts_audio STATIC
+    audio/synth.cpp
+    audio/mixer.cpp
+    audio/bank.cpp)
+target_include_directories(rts_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+rts_set_warnings(rts_audio)
+
 # --- Red (E1): sockets TCP propios, sin dependencias ------------------------------
 add_library(rts_net STATIC
     net/socket.cpp)
@@ -62,11 +70,12 @@ add_library(rts_game_core STATIC
     game/replay.cpp
     game/wire.cpp
     game/lockstep.cpp
+    game/sound_director.cpp
     game/alerts.cpp
     game/minimap.cpp
     game/selection.cpp)
 target_link_libraries(rts_game_core
-    PUBLIC rts_sim rts_render_core rts_net
+    PUBLIC rts_sim rts_render_core rts_net rts_audio
     PRIVATE tomlplusplus::tomlplusplus)
 rts_set_warnings(rts_game_core)
 
@@ -79,9 +88,10 @@ endif()
 
 # --- Plataforma ----------------------------------------------------------------
 add_library(rts_platform STATIC
-    platform/window.cpp)
+    platform/window.cpp
+    platform/audio.cpp)
 target_include_directories(rts_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(rts_platform PUBLIC SDL3::SDL3 rts_profile)
+target_link_libraries(rts_platform PUBLIC SDL3::SDL3 rts_profile rts_audio)
 rts_set_warnings(rts_platform)
 
 # --- Presentación con GPU ------------------------------------------------------

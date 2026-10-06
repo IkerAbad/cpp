@@ -182,8 +182,11 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   con materiales, árboles, rocas, terreno con textura, llamas y humo, y escena ordenada
   en profundidad. Falta: 8 sentidos (hoy 2, con espejo), animación de muerte y flechas
   dibujadas.
-- [ ] **F2. Sonido propio.** Sonidos sintetizados y música de dominio público o con
-  licencia CC0.
+- [x] **F2. Sonido propio.** Sonidos sintetizados y música de dominio público o con
+  licencia CC0. Hecho, todo propio: 15 efectos sintetizados desde `data/sound.toml` y
+  dos piezas modales (paz y batalla) compuestas por código, que cambian según haya
+  combate a la vista; posición en pantalla, niebla y esperas deciden qué suena. Falta:
+  ambiente (viento, agua, pájaros) y volumen en pantalla (F5).
 - [ ] **F3. Mapas.** Ríos con vados, mapas para 2–4 jugadores y editor de
   escenarios.
 - [ ] **F4. Campaña.** Escenarios históricos con datos propios.

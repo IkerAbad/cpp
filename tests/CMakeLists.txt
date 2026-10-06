@@ -32,6 +32,7 @@ add_executable(rts_tests
     test_replay.cpp
     test_lockstep.cpp
     test_art.cpp
+    test_audio.cpp
     test_rng.cpp
     test_scene.cpp
     test_selection.cpp
