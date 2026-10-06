@@ -1217,6 +1217,59 @@ void logistics(Decision& d) {
 constexpr std::int32_t kScoutNearWeight = 1;
 constexpr std::int32_t kScoutMirrorWeight = 2;
 
+// Exploración continua (D2): con el enemigo localizado, cada explorador va al punto del
+// anillo de patrol_radius_tiles alrededor de su base vital que ahora no se ve, el más
+// cercano a él; así se sabe por dónde se mueve su ejército.
+void patrol(Decision& d) {
+    AiView& v = d.v;
+    std::optional<TileCoord> center;
+    for (std::size_t i = 0; i < v.enemy_buildings.size() && !center; ++i) {
+        if (d.catalog().buildings[v.enemy_building_types[i]].vital) {
+            center = v.enemy_buildings[i];
+        }
+    }
+    if (!center) {
+        return;
+    }
+    const std::int32_t r = d.profile.patrol_radius_tiles;
+    const PassGrid& grid = d.grid;
+    for (std::size_t i = 0; i < d.ai.scouts.size(); ++i) {
+        const entt::entity s = d.ai.scouts[i];
+        std::erase(v.idle_army, s);
+        const TileCoord at = tile_of(d.registry.get<Position>(s));
+        const MoveGoal* g = d.registry.try_get<MoveGoal>(s);
+        TileCoord& target = d.ai.scout_targets[i];
+        if (target.x >= 0 && g != nullptr && !g->arrived) {
+            continue;  // de camino
+        }
+        std::optional<TileCoord> best;
+        std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
+        // Ocho puntos del anillo, en orden fijo.
+        constexpr std::array<std::array<std::int32_t, 2>, 8> kRing{
+            {{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {1, -1}}};
+        for (const auto& [dx, dy] : kRing) {
+            const TileCoord t{std::clamp(center->x + dx * r, 0, grid.width() - 1),
+                              std::clamp(center->y + dy * r, 0, grid.height() - 1)};
+            if (!grid.passable(t) || grid.component(t) != grid.component(at) || t == target ||
+                d.vision->sees_footprint(d.me(), Footprint{t, 1})) {
+                continue;
+            }
+            const std::int32_t dist = octile_distance(at, t);
+            if (dist < best_d) {
+                best_d = dist;
+                best = t;
+            }
+        }
+        if (best) {
+            target = *best;
+            Command c = d.order(CommandType::Move);
+            c.target = *best;
+            c.units = {entt::to_integral(s)};
+            d.out.push_back(std::move(c));
+        }
+    }
+}
+
 void explore(Decision& d) {
     AiView& v = d.v;
     std::vector<entt::entity>& scouts = d.ai.scouts;
@@ -1233,7 +1286,7 @@ void explore(Decision& d) {
     for (const BuildingTypeId t : v.enemy_building_types) {
         enemy_known = enemy_known || d.catalog().buildings[t].vital;
     }
-    if (d.vision == nullptr || !d.vision->enabled() || enemy_known) {
+    if (d.vision == nullptr || !d.vision->enabled() || (enemy_known && d.profile.patrol_radius_tiles <= 0)) {
         scouts.clear();  // ya sabe dónde atacar: vuelven a ser tropa
         targets.clear();
         return;
@@ -1250,6 +1303,10 @@ void explore(Decision& d) {
             targets.push_back({-1, -1});
             it = v.idle_army.erase(it);
         }
+    }
+    if (enemy_known) {
+        patrol(d);  // exploración continua: vigilar lo que no se ve alrededor del enemigo
+        return;
     }
     const std::int32_t step = std::max(d.profile.explore_step_tiles, 1);
     const PassGrid& grid = d.grid;
@@ -1380,7 +1437,13 @@ void attack_strength(Decision& d) {
         own_total += strength(types[s.type], s.hp);
     }
     const std::int64_t enemy_total = enemy_armed_strength(d);
-    if (own_total * kPercent < enemy_total * d.profile.attack_ratio_percent) {
+    // De noche el rival ve la mitad: basta menos ventaja para atacar (D2).
+    std::int32_t ratio = d.profile.attack_ratio_percent;
+    if (d.profile.night_attack_ratio_percent > 0 && d.vision != nullptr && d.vision->enabled() &&
+        d.vision->daylight_percent(d.tick) < kPercent) {
+        ratio = d.profile.night_attack_ratio_percent;
+    }
+    if (own_total * kPercent < enemy_total * ratio) {
         return;
     }
     Command c = d.order(CommandType::AttackMove);
@@ -1614,11 +1677,150 @@ void medicine(Decision& d) {
     }
 }
 
+// Punto a `dist` casillas de from en dirección a to (from si coinciden).
+TileCoord step_toward(TileCoord from, TileCoord to, std::int32_t dist) {
+    const std::int32_t dx = to.x - from.x;
+    const std::int32_t dy = to.y - from.y;
+    const std::int32_t len = std::max(std::abs(dx), std::abs(dy));
+    if (len == 0) {
+        return from;
+    }
+    const std::int32_t k = std::min(dist, len);
+    return {from.x + dx * k / len, from.y + dy * k / len};
+}
+
+// Emboscada (D2): con niebla, unos tiradores esperan quietos en un claro del bosque
+// camino del enemigo; entre los árboles no se les ve hasta tenerlos encima.
+void ambush(Decision& d) {
+    AiView& v = d.v;
+    auto& team = d.ai.ambushers;
+    std::erase_if(team, [&](entt::entity e) {
+        return !d.registry.valid(e) || !d.registry.all_of<Owner>(e) || d.registry.get<Owner>(e).player != d.me();
+    });
+    for (const entt::entity e : team) {
+        std::erase(v.idle_army, e);  // los emboscados no son tropa para los demás módulos
+    }
+    const auto target = attack_target(d);
+    if (d.vision == nullptr || !d.vision->enabled() || !target || d.profile.ambush_size <= 0 || v.threatened) {
+        return;
+    }
+    if (d.ai.ambush_spot.x < 0) {
+        // El claro con más árboles alrededor cerca del punto elegido.
+        const TileCoord aim = step_toward(v.base, *target, d.profile.ambush_distance_tiles);
+        // La base está bajo un edificio: su región es la de alguna casilla libre al lado.
+        std::uint32_t home_comp = 0;
+        for (std::int32_t r = 1; r <= d.profile.defend_radius_tiles && home_comp == 0; ++r) {
+            for (std::int32_t dx = -r; dx <= r && home_comp == 0; ++dx) {
+                home_comp = d.grid.component({v.base.x + dx, v.base.y + r});
+            }
+        }
+        const std::int32_t search = d.profile.ambush_search_tiles;
+        const std::int32_t wood = d.profile.ambush_wood_tiles;
+        std::int32_t best_trees = d.profile.ambush_min_trees - 1;
+        std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
+        for (std::int32_t y = aim.y - search; y <= aim.y + search; ++y) {
+            for (std::int32_t x = aim.x - search; x <= aim.x + search; ++x) {
+                const TileCoord t{x, y};
+                if (!d.grid.passable(t) || d.grid.component(t) != home_comp) {
+                    continue;
+                }
+                std::int32_t trees = 0;
+                for (std::int32_t wy = y - wood; wy <= y + wood; ++wy) {
+                    for (std::int32_t wx = x - wood; wx <= x + wood; ++wx) {
+                        const entt::entity o = d.economy.occupant({wx, wy});
+                        const ResourceNode* n = o != entt::null ? d.registry.try_get<ResourceNode>(o) : nullptr;
+                        trees += n != nullptr && n->kind == Resource::Wood && !d.registry.all_of<Owner>(o) ? 1 : 0;
+                    }
+                }
+                const std::int32_t dist = chebyshev(t, aim);
+                if (trees > best_trees || (trees == best_trees && trees >= d.profile.ambush_min_trees && dist < best_d)) {
+                    best_trees = trees;
+                    best_d = dist;
+                    d.ai.ambush_spot = t;
+                }
+            }
+        }
+        if (d.ai.ambush_spot.x < 0) {
+            d.ai.ambush_spot = {-2, -2};  // no hay bosque que valga: no se vuelve a buscar
+        }
+    }
+    if (d.ai.ambush_spot.x < 0) {
+        return;
+    }
+    // Completar el grupo con tiradores ociosos en casa.
+    std::vector<entt::entity> fresh;
+    for (auto it = v.idle_army.begin(); it != v.idle_army.end() && std::cmp_less(team.size(), d.profile.ambush_size);) {
+        const UnitType& t = d.catalog().units[d.registry.get<Unit>(*it).type];
+        if (t.combat.projectile_speed.raw() != 0 && chebyshev(tile_of(d.registry.get<Position>(*it)), v.base) <=
+                                                         d.profile.defend_radius_tiles) {
+            team.push_back(*it);
+            fresh.push_back(*it);
+            it = v.idle_army.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    if (fresh.empty()) {
+        return;
+    }
+    Command go = d.order(CommandType::Move);
+    go.target = d.ai.ambush_spot;
+    go.units = ids(fresh);
+    d.out.push_back(std::move(go));
+    Command hold = d.order(CommandType::SetStance);
+    hold.kind = static_cast<std::uint8_t>(Stance::HoldGround);
+    hold.units = ids(fresh);
+    d.out.push_back(std::move(hold));
+}
+
+// Torres (D2): levanta torres a tower_offset_tiles de la base, hacia el enemigo; si
+// atacan la base, los tiradores ociosos se guarnecen en ellas.
+void towers(Decision& d) {
+    AiView& v = d.v;
+    if (!d.params.tower || d.profile.towers <= 0 || v.own_type_count.empty()) {
+        return;
+    }
+    const BuildingTypeId tower = *d.params.tower;
+    if (!v.threatened) {
+        if (v.own_type_count[tower] < d.profile.towers && v.barracks_complete) {
+            const auto target = attack_target(d);
+            const TileCoord mirror{d.grid.width() - 1 - v.base.x, d.grid.height() - 1 - v.base.y};
+            d.place(tower, step_toward(v.base, target.value_or(mirror), d.profile.tower_offset_tiles));
+        }
+        return;
+    }
+    const std::int32_t places = d.catalog().buildings[tower].garrison;
+    for (const auto [e, b, o] : d.registry.view<const Building, const Owner>().each()) {
+        if (o.player != d.me() || b.type != tower || !b.working()) {
+            continue;
+        }
+        std::int32_t inside = 0;
+        for (const auto [g, gar] : d.registry.view<const Garrisoned>().each()) {
+            inside += gar.tower == e ? 1 : 0;
+        }
+        Command c = d.order(CommandType::Garrison);
+        c.object = entt::to_integral(e);
+        for (auto it = v.idle_army.begin(); it != v.idle_army.end() && inside < places;) {
+            const UnitType& t = d.catalog().units[d.registry.get<Unit>(*it).type];
+            if (t.combat.projectile_speed.raw() != 0 && !d.registry.all_of<Garrisoned>(*it)) {
+                c.units.push_back(entt::to_integral(*it));
+                ++inside;
+                it = v.idle_army.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        if (!c.units.empty()) {
+            d.out.push_back(std::move(c));
+        }
+    }
+}
+
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
     army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics, explore,
-    assault, medicine,
+    assault, medicine, ambush, towers,
 };
 
 }  // namespace
@@ -1690,6 +1892,14 @@ void AiSystem::hash_into(StateHasher& h) const {
         h.add_i32(ai.waves_sent);
         // Lo que solo existe con niebla de guerra entra solo si existe: sin niebla, el
         // hash es el de siempre.
+        if (!ai.ambushers.empty() || ai.ambush_spot.x != -1) {
+            h.add_u64(ai.ambushers.size());
+            for (const entt::entity e : ai.ambushers) {
+                h.add_u32(entt::to_integral(e));
+            }
+            h.add_i32(ai.ambush_spot.x);
+            h.add_i32(ai.ambush_spot.y);
+        }
         if (!ai.scouts.empty() || !ai.explore_done.empty() || !ai.enemy_seen_milli.empty()) {
             h.add_u64(ai.scouts.size());
             for (std::size_t i = 0; i < ai.scouts.size(); ++i) {

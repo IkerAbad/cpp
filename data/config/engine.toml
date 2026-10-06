@@ -422,6 +422,8 @@ siege_engine = "trabuquete"
 # Sanidad (módulo sanidad): el puesto médico que levanta y el cirujano que forma.
 medical_post = "hospital_campana"
 surgeon = "cirujano"
+# Torres (módulo torres).
+tower = "torre_madera"
 dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero", hierro = "campamento_minero" }
 
 # Perfiles: cada jugador de la IA elige uno con ai_profile en [[player]]. La
@@ -484,6 +486,15 @@ siege_engines = 0
 medical_min_army = 0
 wounded_percent = 0
 surgeons = 0
+night_attack_ratio_percent = 0
+patrol_radius_tiles = 0
+ambush_size = 0
+ambush_distance_tiles = 0
+ambush_min_trees = 0
+ambush_wood_tiles = 0
+ambush_search_tiles = 0
+towers = 0
+tower_offset_tiles = 0
 siege_front_tiles = 0
 # explorar: con niebla, un explorador recorre lo no explorado (rejilla de 12
 # casillas) hasta encontrar un edificio vital enemigo.
@@ -497,7 +508,7 @@ army = ["leva", "hombre_armas", "arquero"]
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
 [[ai.profile]]
 name = "normal"
-behaviors = ["defensa", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad"]
+behaviors = ["defensa", "emboscada", "torres", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
@@ -551,6 +562,20 @@ siege_engines = 2
 medical_min_army = 6
 wounded_percent = 50
 surgeons = 1
+# Guerra con niebla (D2): de noche ataca con el 110 % de la fuerza enemiga (de día,
+# 130); localizado el enemigo, el explorador sigue vigilando a 18 casillas de su base;
+# 4 tiradores emboscados en un claro con 15 árboles o más a 3 casillas, buscado a 8 del
+# punto a 25 casillas de la base camino del enemigo; y 2 torres a 10 casillas de la
+# base hacia el enemigo, que se guarnecen si atacan la base.
+night_attack_ratio_percent = 110
+patrol_radius_tiles = 18
+ambush_size = 4
+ambush_distance_tiles = 25
+ambush_min_trees = 15
+ambush_wood_tiles = 3
+ambush_search_tiles = 8
+towers = 2
+tower_offset_tiles = 10
 siege_front_tiles = 20
 scouts = 1
 explore_step_tiles = 12

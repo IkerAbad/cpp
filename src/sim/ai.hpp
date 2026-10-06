@@ -49,6 +49,8 @@ enum class AiBehavior : std::uint8_t {
     Explore,         // con niebla de guerra: un explorador recorre lo no explorado
     Assault,         // ante un recinto cerrado: brecha en el muro más cercano (ingenios, escalas, fuego)
     Medicine,        // puesto médico, enfermeros, cirujanos y heridos al puesto
+    Ambush,          // con niebla: tiradores escondidos en el bosque, camino del enemigo
+    Towers,          // torres hacia el enemigo; si atacan la base, se guarnecen
     Count,
 };
 
@@ -99,6 +101,21 @@ struct AiProfile {
     std::int32_t medical_min_army = 0;
     std::int32_t wounded_percent = 0;
     std::int32_t surgeons = 0;
+    // Guerra con niebla (D2). De noche ataca con esta ventaja (0 = como de día). Con el
+    // enemigo localizado, los exploradores siguen vigilando a patrol_radius_tiles de su
+    // base (0 = vuelven a ser tropa). Emboscada: ambush_size tiradores en un claro del
+    // bosque con al menos ambush_min_trees árboles a ambush_wood_tiles o menos, buscado a
+    // ambush_search_tiles del punto a ambush_distance_tiles de la base camino del
+    // enemigo. Torres: hasta `towers`, a tower_offset_tiles de la base hacia el enemigo.
+    std::int32_t night_attack_ratio_percent = 0;
+    std::int32_t patrol_radius_tiles = 0;
+    std::int32_t ambush_size = 0;
+    std::int32_t ambush_distance_tiles = 0;
+    std::int32_t ambush_min_trees = 0;
+    std::int32_t ambush_wood_tiles = 0;
+    std::int32_t ambush_search_tiles = 0;
+    std::int32_t towers = 0;
+    std::int32_t tower_offset_tiles = 0;
     // abastecer: una unidad que no pelea vuelve a abastecerse cuando sus víveres o su
     // munición bajan de este % de lo que puede llevar.
     std::int32_t resupply_percent = 0;
@@ -146,6 +163,7 @@ struct AiParams {
     Stock ladder_cost{};  // escala de asedio (de [climb]; módulo asalto)
     std::optional<BuildingTypeId> medical_post;  // módulo sanidad
     std::optional<UnitTypeId> surgeon;           // módulo sanidad
+    std::optional<BuildingTypeId> tower;         // módulo torres
     std::vector<AiProfile> profiles;
 };
 
@@ -165,6 +183,8 @@ struct AiPlayerState {
     std::vector<TileCoord> scout_targets;   // punto al que va cada uno (paralelo a scouts)
     std::vector<TileCoord> explore_done;    // puntos visitados o inalcanzables: no se repiten
     std::vector<std::int64_t> enemy_seen_milli;  // por tipo: unidades enemigas recordadas (milésimas)
+    std::vector<entt::entity> ambushers;    // tiradores emboscados (módulo emboscada)
+    TileCoord ambush_spot{-1, -1};          // su claro del bosque (-1: sin elegir)
 };
 
 class AiSystem {

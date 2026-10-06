@@ -494,6 +494,11 @@ Solo se sabe lo que alguien ha visto, y lo mismo para la IA, que no tiene ventaj
   - `explorar`: un explorador (jinete si lo hay) busca primero alrededor del punto simétrico de su base respecto al centro del mapa, como haría un jugador, sin alejarse demasiado de donde está. No repite puntos que no ha podido ver.
   - Recuerda el ejército enemigo que ha visto y lo va olvidando, un 1 % por segundo.
   - El perfil «normal» mantiene 6 tropas de guardia aunque no haya visto al enemigo: lo que no se ve no es que no exista.
+  - Guerra con niebla (D2), perfil «normal»:
+    - De noche ataca con el 110 % de la fuerza enemiga, frente al 130 % de día: el rival ve la mitad.
+    - Localizado el enemigo, el explorador sigue vigilando los puntos que no se ven a 18 casillas de su base (`patrol_radius_tiles`).
+    - Módulo `emboscada`: 4 tiradores esperan quietos en un claro del bosque, a 25 casillas de la base camino del enemigo, donde no se les ve hasta tenerlos encima.
+    - Módulo `torres`: 2 torres de madera a 10 casillas de la base, hacia el enemigo; si atacan la base, los tiradores ociosos se guarnecen en ellas.
 - **Desactivada** (`enabled = false`, como en las pruebas de movimiento, combate y economía) todo se ve, y el hash es exactamente el de antes de la niebla.
 
 ### Menú y fin de partida

@@ -147,7 +147,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
 - [x] **D1. Sanidad en la IA.** Lleva a sus heridos a los puestos, tiene enfermeros y
   cirujanos.
-- [ ] **D2. Guerra con niebla.** Emboscadas en el bosque, ataques de noche,
+- [x] **D2. Guerra con niebla.** Emboscadas en el bosque, ataques de noche,
   exploración continua y defensa con torres.
 - [ ] **D3. Moral y formaciones en la IA.** Usa B1 a B5.
 - [ ] **D4. Niveles.** Fácil, normal, difícil y experto, diferenciados por los

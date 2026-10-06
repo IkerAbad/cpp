@@ -32,7 +32,7 @@ constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior:
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
     "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",     "explorar",
-    "asalto",      "sanidad",
+    "asalto",      "sanidad",  "emboscada",     "torres",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -1105,6 +1105,12 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
             r.fail(std::format("'ai.medical_post' = \"{}\": no es un puesto médico de buildings.toml", post));
         }
     }
+    if (const std::string tower = r.get_string("ai.tower"); !error && !tower.empty()) {
+        ai.tower = catalogs.buildings.find(tower);
+        if (!ai.tower || catalogs.buildings.types[*ai.tower].type.garrison <= 0) {
+            r.fail(std::format("'ai.tower' = \"{}\": no es una torre de buildings.toml", tower));
+        }
+    }
     if (const std::string surgeon = r.get_string("ai.surgeon"); !error && !surgeon.empty()) {
         ai.surgeon = units.find(surgeon);
         if (!ai.surgeon) {
@@ -1193,6 +1199,15 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.medical_min_army = pr.get_i32("medical_min_army", 0, 1000);
         p.wounded_percent = pr.get_i32("wounded_percent", 0, 100);
         p.surgeons = pr.get_i32("surgeons", 0, 100);
+        p.night_attack_ratio_percent = pr.get_i32("night_attack_ratio_percent", 0, 1000);
+        p.patrol_radius_tiles = pr.get_i32("patrol_radius_tiles", 0, 256);
+        p.ambush_size = pr.get_i32("ambush_size", 0, 100);
+        p.ambush_distance_tiles = pr.get_i32("ambush_distance_tiles", 0, 256);
+        p.ambush_min_trees = pr.get_i32("ambush_min_trees", 0, 1000);
+        p.ambush_wood_tiles = pr.get_i32("ambush_wood_tiles", 0, 16);
+        p.ambush_search_tiles = pr.get_i32("ambush_search_tiles", 0, 64);
+        p.towers = pr.get_i32("towers", 0, 32);
+        p.tower_offset_tiles = pr.get_i32("tower_offset_tiles", 0, 64);
         p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);
         p.upkeep_reserve_percent = pr.get_i32("upkeep_reserve_percent", 0, 1000);
         p.camp_distance_tiles = pr.get_i32("camp_distance_tiles", 0, 1024);

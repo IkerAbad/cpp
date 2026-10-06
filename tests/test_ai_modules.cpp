@@ -724,3 +724,167 @@ TEST_CASE("IA: sanidad: levanta el puesto, le pone enfermero y cirujano y le man
         CHECK(std::ranges::find(treat->units, fine) == treat->units.end());
     }
 }
+
+// --- Guerra con niebla (D2) -------------------------------------------------------
+
+namespace {
+
+WorldParams foggy(std::int32_t start_tick) {
+    WorldParams p = flat_two_players();
+    p.vision.enabled = true;
+    p.vision.interval_ticks = 1;
+    p.vision.day_ticks = 1000;
+    p.vision.night_ticks = 1000;
+    p.vision.twilight_ticks = 0;
+    p.vision.night_sight_percent = 50;
+    p.vision.start_tick = start_tick;
+    p.building_types[kCenter].sight_tiles = 6;
+    return p;
+}
+
+std::vector<Command> think_fog(const World& world, AiParams params) {
+    AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+    std::vector<Command> out;
+    ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out, &world.vision());
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("IA: de noche ataca con menos ventaja que de día") {
+    const auto attacks = [](std::int32_t start_tick) {
+        World world(foggy(start_tick));
+        ai_base(world);
+        for (std::int32_t i = 0; i < 7; ++i) {
+            world.spawn_unit(kAi, kSoldier, {145, 140 + i});
+        }
+        world.spawn_unit(kAi, kSoldier, {60, 62});  // vigía junto al ejército enemigo
+        for (std::int32_t i = 0; i < 7; ++i) {
+            world.spawn_unit(kRival, kSoldier, {60 + i % 2, 60 + i / 4});
+        }
+        world.spawn_building(kRival, kHouse, {50, 50}, true);
+        world.step();
+        AiParams params = test_ai_params();
+        params.profiles[1].behaviors = {AiBehavior::AttackStrength};
+        params.profiles[1].attack_ratio_percent = 130;
+        params.profiles[1].night_attack_ratio_percent = 110;
+        const auto out = think_fog(world, params);
+        return std::ranges::any_of(out, [](const Command& c) { return c.type == CommandType::AttackMove; });
+    };
+    CHECK_FALSE(attacks(0));  // de día: 8 contra 7 (114 %) no basta
+    CHECK(attacks(1000));     // de noche, sí
+}
+
+TEST_CASE("IA: emboscada de tiradores en un claro del bosque, camino del enemigo") {
+    World world(foggy(0));
+    ai_base(world);
+    world.spawn_building(kRival, kCenter, {100, 150}, true);
+    world.spawn_unit(kAi, kSoldier, {104, 152});  // vigía: el centro enemigo se ve
+    // Bosque a 25 casillas de la base, hacia el enemigo, con un claro en medio y una
+    // senda hacia el este para llegar a él.
+    for (std::int32_t y = 145; y <= 157; ++y) {
+        for (std::int32_t x = 120; x <= 132; ++x) {
+            const bool clearing = std::abs(x - 126) <= 1 && std::abs(y - 151) <= 1;
+            const bool path = y == 151 && x > 126;
+            if (!clearing && !path) {
+                world.spawn_node(kTree, {x, y});
+            }
+        }
+    }
+    std::vector<std::uint32_t> archers;
+    for (std::int32_t i = 0; i < 5; ++i) {
+        archers.push_back(world.spawn_unit(kAi, kArcher, {146, 145 + i}));
+    }
+    world.step();
+    AiParams params = test_ai_params();
+    params.profiles[1].behaviors = {AiBehavior::Ambush};
+    params.profiles[1].ambush_size = 4;
+    params.profiles[1].ambush_distance_tiles = 25;
+    params.profiles[1].ambush_min_trees = 15;
+    params.profiles[1].ambush_wood_tiles = 3;
+    params.profiles[1].ambush_search_tiles = 8;
+    const auto out = think_fog(world, params);
+    const auto go = std::ranges::find(out, CommandType::Move, &Command::type);
+    const auto hold = std::ranges::find(out, CommandType::SetStance, &Command::type);
+    REQUIRE(go != out.end());
+    REQUIRE(hold != out.end());
+    CHECK(go->units.size() == 4);
+    CHECK(hold->units == go->units);
+    CHECK(std::abs(go->target.x - 126) <= 1);  // en el claro
+    CHECK(std::abs(go->target.y - 151) <= 1);
+    // Sin niebla no hay emboscada.
+    AiSystem plain(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+    std::vector<Command> none;
+    plain.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, none);
+    CHECK(none.empty());
+}
+
+TEST_CASE("IA: localizado el enemigo, el explorador sigue vigilando alrededor de su base") {
+    World world(foggy(0));
+    ai_base(world);
+    world.spawn_building(kRival, kCenter, {100, 150}, true);
+    const auto scout = world.spawn_unit(kAi, kSoldier, {104, 152});
+    world.step();
+    AiParams params = test_ai_params();
+    params.profiles[1].behaviors = {AiBehavior::Explore};
+    params.profiles[1].scouts = 1;
+    params.profiles[1].patrol_radius_tiles = 15;
+    const auto out = think_fog(world, params);
+    REQUIRE(out.size() == 1);
+    CHECK(out[0].units == std::vector<std::uint32_t>{scout});
+    CHECK(std::max(std::abs(out[0].target.x - 101), std::abs(out[0].target.y - 151)) == 15);
+    CHECK_FALSE(world.vision().sees_footprint(kAi, rts::sim::Footprint{out[0].target, 1}));
+    // Sin patrulla, el explorador vuelve a ser tropa.
+    params.profiles[1].patrol_radius_tiles = 0;
+    CHECK(think_fog(world, params).empty());
+}
+
+TEST_CASE("IA: levanta torres hacia el enemigo y, si atacan la base, las guarnece") {
+    WorldParams p = flat_two_players();
+    rts::sim::BuildingType t = p.building_types[kHouse];
+    t.size = 1;
+    t.population = 0;
+    t.garrison = 2;
+    const auto tower = static_cast<rts::sim::BuildingTypeId>(p.building_types.size());
+    p.building_types.push_back(t);
+    AiParams params = test_ai_params();
+    params.tower = tower;
+    params.profiles[1].behaviors = {AiBehavior::Towers};
+    params.profiles[1].towers = 1;
+    params.profiles[1].tower_offset_tiles = 10;
+    const auto think = [&](const World& world) {
+        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        std::vector<Command> out;
+        ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+        return out;
+    };
+    SUBCASE("en calma: la torre, hacia el enemigo") {
+        World world(p);
+        ai_base(world);
+        world.spawn_unit(kAi, kVillager, {145, 145});
+        world.spawn_building(kRival, kCenter, {60, 150}, true);
+        world.step();
+        const auto out = think(world);
+        const auto place = std::ranges::find(out, CommandType::Place, &Command::type);
+        REQUIRE(place != out.end());
+        CHECK(place->kind == tower);
+        CHECK(place->target.x < 151);  // al oeste de la base, del lado del enemigo
+    }
+    SUBCASE("atacada la base: los tiradores a la torre") {
+        World world(p);
+        ai_base(world);
+        const auto t_id = *world.spawn_building(kAi, tower, {146, 150}, true);
+        const auto a = world.spawn_unit(kAi, kArcher, {147, 147});
+        const auto b = world.spawn_unit(kAi, kArcher, {148, 147});
+        world.spawn_unit(kAi, kArcher, {149, 147});
+        world.spawn_unit(kRival, kSoldier, {145, 155});  // en la base
+        world.step();
+        const auto out = think(world);
+        const auto gar = std::ranges::find(out, CommandType::Garrison, &Command::type);
+        REQUIRE(gar != out.end());
+        CHECK(gar->object == t_id);
+        CHECK(gar->units.size() == 2);  // las plazas que hay
+        (void)a;
+        (void)b;
+    }
+}

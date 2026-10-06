@@ -461,6 +461,7 @@ carrier = ""
 siege_engine = ""
 medical_post = ""
 surgeon = ""
+tower = ""
 dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
@@ -503,6 +504,15 @@ siege_engines = 0
 medical_min_army = 0
 wounded_percent = 0
 surgeons = 0
+night_attack_ratio_percent = 0
+patrol_radius_tiles = 0
+ambush_size = 0
+ambush_distance_tiles = 0
+ambush_min_trees = 0
+ambush_wood_tiles = 0
+ambush_search_tiles = 0
+towers = 0
+tower_offset_tiles = 0
 siege_front_tiles = 0
 scouts = 0
 fog_guard_army = 0
