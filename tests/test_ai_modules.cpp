@@ -630,3 +630,97 @@ TEST_CASE("IA: con hambre lejos de casa, saquea la granja enemiga sin defensa; d
     CHECK(guarded_out[0].target == rts::sim::TileCoord{151, 151});
     (void)s2;
 }
+
+TEST_CASE("IA: sanidad: levanta el puesto, le pone enfermero y cirujano y le manda los heridos") {
+    WorldParams p = flat_two_players();
+    for (auto& u : p.unit_types) {
+        u.treatable = !u.combat.buildings_only;
+    }
+    rts::sim::UnitType surgeon = p.unit_types[kVillager];
+    surgeon.worker = false;
+    surgeon.care_skill = 250;
+    const auto surgeon_type = static_cast<rts::sim::UnitTypeId>(p.unit_types.size());
+    p.unit_types.push_back(surgeon);
+    rts::sim::BuildingType post = p.building_types[kHouse];
+    post.population = 0;
+    post.beds = 4;
+    post.nurses = 1;
+    post.care_percent = 100;
+    post.heal_to_percent = 100;
+    post.trains = {surgeon_type};
+    const auto post_type = static_cast<rts::sim::BuildingTypeId>(p.building_types.size());
+    p.building_types.push_back(post);
+    AiParams params = test_ai_params();
+    params.medical_post = post_type;
+    params.surgeon = surgeon_type;
+    params.profiles[1].behaviors = {AiBehavior::Medicine};
+    params.profiles[1].medical_min_army = 2;
+    params.profiles[1].wounded_percent = 50;
+    params.profiles[1].surgeons = 1;
+    const auto think = [&](const World& world) {
+        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        std::vector<Command> out;
+        ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+        return out;
+    };
+
+    SUBCASE("sin puesto y con ejército: lo levanta") {
+        World world(p);
+        ai_base(world);
+        world.spawn_unit(kAi, kVillager, {140, 140});
+        world.spawn_unit(kAi, kSoldier, {145, 140});
+        world.spawn_unit(kAi, kSoldier, {146, 140});
+        world.step();
+        const auto out = think(world);
+        const auto place = std::ranges::find(out, CommandType::Place, &Command::type);
+        REQUIRE(place != out.end());
+        CHECK(place->kind == post_type);
+    }
+    SUBCASE("con puesto: enfermero, cirujano y los heridos que no pelean") {
+        World world(p);
+        ai_base(world);
+        const auto post_id = *world.spawn_building(kAi, post_type, {140, 150}, true);
+        const auto villager = world.spawn_unit(kAi, kVillager, {140, 140});
+        const auto hurt = world.spawn_unit(kAi, kSoldier, {145, 140});
+        const auto fine = world.spawn_unit(kAi, kSoldier, {146, 140});
+        world.step();
+        // Herir al primero: un enemigo lo golpea hasta dejarlo por debajo de la mitad.
+        const auto foe = world.spawn_unit(kRival, kSoldier, {145, 141});
+        Command atk;
+        atk.type = CommandType::Attack;
+        atk.player = kRival;
+        atk.units = {foe};
+        atk.object = hurt;
+        world.issue(atk);
+        const auto& h = world.registry().get<rts::sim::Health>(static_cast<entt::entity>(hurt));
+        for (int t = 0; t < 2000 && h.hp * 2 >= h.max_hp; ++t) {
+            world.step();
+        }
+        REQUIRE(h.hp * 2 < h.max_hp);
+        REQUIRE(h.hp > 0);
+        // Fuera el enemigo; el herido deja de pelear.
+        Command away = move_order(world.tick(), {foe}, {30, 30});
+        away.player = kRival;
+        world.issue(away);
+        Command stop;
+        stop.type = CommandType::Stop;
+        stop.player = kAi;
+        stop.units = {hurt};
+        world.issue(stop);
+        for (int t = 0; t < 60; ++t) {
+            world.step();
+        }
+        const auto out = think(world);
+        const auto tend = std::ranges::find(out, CommandType::Tend, &Command::type);
+        const auto train = std::ranges::find(out, CommandType::Train, &Command::type);
+        const auto treat = std::ranges::find(out, CommandType::Treat, &Command::type);
+        REQUIRE(tend != out.end());
+        CHECK(tend->units == std::vector<std::uint32_t>{villager});
+        REQUIRE(train != out.end());
+        CHECK(train->kind == surgeon_type);
+        CHECK(train->object == post_id);
+        REQUIRE(treat != out.end());
+        CHECK(treat->units == std::vector<std::uint32_t>{hurt});
+        CHECK(std::ranges::find(treat->units, fine) == treat->units.end());
+    }
+}

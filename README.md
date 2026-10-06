@@ -335,7 +335,7 @@ Fuentes:
 - **Comida:** los pacientes comen como un aldeano, del almacén del jugador; sin comida no mejoran.
 - **Alta:** sale sin víveres ni munición y tarda 20 s en reorganizarse antes de poder atacar. Cualquier otra orden lo saca antes de tiempo, con la misma reorganización.
 - **Curación natural:** fuera de los puestos solo sanan solas las heridas leves (70 % de vida o más), con la unidad comida y 10 s sin recibir daño. Las graves no.
-- **IA:** aún no usa la sanidad; se le enseñará cuando toda la estructura del juego esté terminada.
+- **IA** (módulo `sanidad` del perfil «normal», D1): con 6 tropas o más levanta un hospital de campaña junto a su base, le pone aldeanos de enfermeros hasta llenar sus plazas y forma un cirujano. Los heridos por debajo del 50 % de vida que no están peleando van a él.
 
 ### Moral y desbandada
 

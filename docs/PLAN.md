@@ -145,7 +145,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
 ### Fase D — Inteligencia artificial (M7)
 
-- [ ] **D1. Sanidad en la IA.** Lleva a sus heridos a los puestos, tiene enfermeros y
+- [x] **D1. Sanidad en la IA.** Lleva a sus heridos a los puestos, tiene enfermeros y
   cirujanos.
 - [ ] **D2. Guerra con niebla.** Emboscadas en el bosque, ataques de noche,
   exploración continua y defensa con torres.

@@ -1530,11 +1530,95 @@ void assault(Decision& d) {
     }
 }
 
+// Sanidad (D1): un puesto médico junto a la base cuando hay ejército; aldeanos de
+// enfermeros hasta llenar sus plazas; cirujanos; y los heridos que no pelean, al puesto.
+void medicine(Decision& d) {
+    AiView& v = d.v;
+    if (!d.params.medical_post || v.own_type_count.empty()) {
+        return;
+    }
+    const BuildingTypeId post_type = *d.params.medical_post;
+    if (v.own_type_count[post_type] == 0) {
+        if (!v.threatened && std::cmp_greater_equal(v.army.size(), d.profile.medical_min_army) && v.barracks_complete) {
+            d.place(post_type, v.base);
+        }
+        return;
+    }
+    // El puesto propio en uso más cercano a la base.
+    entt::entity post = entt::null;
+    std::int32_t best = std::numeric_limits<std::int32_t>::max();
+    for (const auto [e, b, f, o] : d.registry.view<const Building, const Footprint, const Owner>().each()) {
+        if (o.player == d.me() && b.type == post_type && b.working()) {
+            const std::int32_t dist = chebyshev(center_of(f), v.base);
+            if (dist < best) {
+                best = dist;
+                post = e;
+            }
+        }
+    }
+    if (post == entt::null) {
+        return;
+    }
+    const BuildingType& pt = d.catalog().buildings[post_type];
+    // Personal: cirujanos y aldeanos que lo atienden.
+    std::int32_t staff = 0;
+    std::int32_t surgeons = 0;
+    for (const auto [e, u, o] : d.registry.view<const Unit, const Owner>().each()) {
+        if (o.player != d.me()) {
+            continue;
+        }
+        if (d.params.surgeon && u.type == *d.params.surgeon) {
+            ++surgeons;
+        }
+        const Worker* w = d.registry.try_get<Worker>(e);
+        const Carer* c = d.registry.try_get<Carer>(e);
+        if ((w != nullptr && w->task == WorkerTask::Nurse && w->building == post) || (c != nullptr && c->post == post)) {
+            ++staff;
+        }
+    }
+    if (d.params.surgeon && surgeons < d.profile.surgeons) {
+        const ProductionQueue* q = d.registry.try_get<ProductionQueue>(post);
+        const Stock& cost = d.catalog().units[*d.params.surgeon].cost;
+        if (q != nullptr && q->items.empty() && affordable(d.budget, cost)) {
+            Command c = d.order(CommandType::Train);
+            c.object = entt::to_integral(post);
+            c.kind = *d.params.surgeon;
+            d.out.push_back(std::move(c));
+            spend(d.budget, cost);
+        }
+    }
+    if (staff < pt.nurses) {
+        const auto nurses = d.take_builders(1);
+        if (!nurses.empty()) {
+            Command c = d.order(CommandType::Tend);
+            c.object = entt::to_integral(post);
+            c.units = ids(nurses);
+            d.out.push_back(std::move(c));
+        }
+    }
+    // Heridos que no pelean: al puesto.
+    Command treat = d.order(CommandType::Treat);
+    treat.object = entt::to_integral(post);
+    for (const UnitSeen& s : v.soldiers) {
+        if (s.target != entt::null || !d.catalog().units[s.type].treatable ||
+            d.registry.any_of<Patient, Reorganizing, Routing, Garrisoned, Climbing>(s.entity)) {
+            continue;
+        }
+        const std::int32_t max_hp = d.registry.get<Health>(s.entity).max_hp;
+        if (std::int64_t{s.hp} * kPercent < std::int64_t{max_hp} * d.profile.wounded_percent) {
+            treat.units.push_back(entt::to_integral(s.entity));
+        }
+    }
+    if (!treat.units.empty()) {
+        d.out.push_back(std::move(treat));
+    }
+}
+
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
     army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics, explore,
-    assault,
+    assault, medicine,
 };
 
 }  // namespace

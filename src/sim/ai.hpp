@@ -48,6 +48,7 @@ enum class AiBehavior : std::uint8_t {
     Logistics,       // campamento avanzado camino del objetivo, abastecido por convoyes
     Explore,         // con niebla de guerra: un explorador recorre lo no explorado
     Assault,         // ante un recinto cerrado: brecha en el muro más cercano (ingenios, escalas, fuego)
+    Medicine,        // puesto médico, enfermeros, cirujanos y heridos al puesto
     Count,
 };
 
@@ -93,6 +94,11 @@ struct AiProfile {
     std::int32_t raid_safe_radius_tiles = 0;
     // Saqueo (C2): una granja enemiga con enemigos armados a esta distancia no se saquea.
     std::int32_t pillage_guard_tiles = 0;
+    // Sanidad (D1): puesto médico con este ejército o más; heridos por debajo de este %
+    // de vida al puesto (los que no pelean); hasta tantos cirujanos.
+    std::int32_t medical_min_army = 0;
+    std::int32_t wounded_percent = 0;
+    std::int32_t surgeons = 0;
     // abastecer: una unidad que no pelea vuelve a abastecerse cuando sus víveres o su
     // munición bajan de este % de lo que puede llevar.
     std::int32_t resupply_percent = 0;
@@ -138,6 +144,8 @@ struct AiParams {
     std::optional<UnitTypeId> siege_engine;  // se monta en el campamento (trabuquete)
     std::array<BuildingTypeId, kResourceCount> dropoff{};  // almacén para cada recurso
     Stock ladder_cost{};  // escala de asedio (de [climb]; módulo asalto)
+    std::optional<BuildingTypeId> medical_post;  // módulo sanidad
+    std::optional<UnitTypeId> surgeon;           // módulo sanidad
     std::vector<AiProfile> profiles;
 };
 

@@ -459,6 +459,8 @@ workshop = "fuerte"
 camp = ""
 carrier = ""
 siege_engine = ""
+medical_post = ""
+surgeon = ""
 dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
@@ -498,6 +500,9 @@ camp_offset_tiles = 0
 convoy_carriers = 0
 baggage_offset_tiles = 0
 siege_engines = 0
+medical_min_army = 0
+wounded_percent = 0
+surgeons = 0
 siege_front_tiles = 0
 scouts = 0
 fog_guard_army = 0

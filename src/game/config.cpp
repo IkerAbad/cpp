@@ -32,7 +32,7 @@ constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior:
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
     "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",     "explorar",
-    "asalto",
+    "asalto",      "sanidad",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -1099,6 +1099,18 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     ai.farm = r.get_named("ai.farm", catalogs.buildings, "buildings.toml");
     ai.workshop = r.get_named("ai.workshop", catalogs.buildings, "buildings.toml");
     // Logística (módulo logistica): "" en los dos = sin campamentos ni convoyes.
+    if (const std::string post = r.get_string("ai.medical_post"); !error && !post.empty()) {
+        ai.medical_post = catalogs.buildings.find(post);
+        if (!ai.medical_post || catalogs.buildings.types[*ai.medical_post].type.beds <= 0) {
+            r.fail(std::format("'ai.medical_post' = \"{}\": no es un puesto médico de buildings.toml", post));
+        }
+    }
+    if (const std::string surgeon = r.get_string("ai.surgeon"); !error && !surgeon.empty()) {
+        ai.surgeon = units.find(surgeon);
+        if (!ai.surgeon) {
+            r.fail(std::format("'ai.surgeon' = \"{}\": no está en units.toml", surgeon));
+        }
+    }
     const std::string camp = r.get_string("ai.camp");
     const std::string carrier = r.get_string("ai.carrier");
     if (!error && camp.empty() != carrier.empty()) {
@@ -1178,6 +1190,9 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.raid_group = pr.get_i32("raid_group", 1, 1000);
         p.raid_safe_radius_tiles = pr.get_i32("raid_safe_radius_tiles", 0, 256);
         p.pillage_guard_tiles = pr.get_i32("pillage_guard_tiles", 0, 256);
+        p.medical_min_army = pr.get_i32("medical_min_army", 0, 1000);
+        p.wounded_percent = pr.get_i32("wounded_percent", 0, 100);
+        p.surgeons = pr.get_i32("surgeons", 0, 100);
         p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);
         p.upkeep_reserve_percent = pr.get_i32("upkeep_reserve_percent", 0, 1000);
         p.camp_distance_tiles = pr.get_i32("camp_distance_tiles", 0, 1024);
