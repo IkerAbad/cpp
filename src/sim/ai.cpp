@@ -8,6 +8,8 @@
 
 #include "sim/combat.hpp"
 #include "sim/fire.hpp"
+#include "sim/climb.hpp"
+#include "sim/garrison.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::sim {
@@ -1411,10 +1413,103 @@ void focus_fire(Decision& d) {
     }
 }
 
+// Asalto: si el ejército en campaña no puede llegar a su objetivo (recinto cerrado sin
+// puerta propia que cruzar), abre brecha en el tramo de muro enemigo más cercano: los
+// ingenios lo golpean, la infantería que sabe lo escala si hay madera para escalas y
+// el resto lo ataca (la madera arde; la piedra solo cede al asedio). Las puertas no
+// hacen falta: quien llega a una se queda ante ella y la ataca solo.
+void assault(Decision& d) {
+    const AiView& v = d.v;
+    const auto target = attack_target(d);
+    if (!target) {
+        return;
+    }
+    std::vector<const UnitSeen*> field;
+    for (const UnitSeen& s : v.soldiers) {
+        if (chebyshev(s.tile, v.base) > d.profile.defend_radius_tiles &&
+            !d.registry.any_of<Climbing, Garrisoned>(s.entity)) {
+            field.push_back(&s);
+        }
+    }
+    if (field.empty()) {
+        return;
+    }
+    // ¿Comparte componente con alguna casilla junto al objetivo? Entonces se llega.
+    const std::uint32_t army_comp = d.grid.component(field.front()->tile);
+    if (army_comp == 0) {
+        return;
+    }
+    constexpr std::int32_t kReachRing = 3;  // el objetivo puede ocupar hasta 3x3 casillas
+    for (std::int32_t dy = -kReachRing; dy <= kReachRing; ++dy) {
+        for (std::int32_t dx = -kReachRing; dx <= kReachRing; ++dx) {
+            if (d.grid.component({target->x + dx, target->y + dy}) == army_comp) {
+                return;
+            }
+        }
+    }
+    // Encerrado: el tramo de muro (o puerta) enemigo más cercano al ejército.
+    std::int64_t sx = 0;
+    std::int64_t sy = 0;
+    for (const UnitSeen* s : field) {
+        sx += s->tile.x;
+        sy += s->tile.y;
+    }
+    const auto n = static_cast<std::int64_t>(field.size());
+    const TileCoord center{static_cast<std::int32_t>(sx / n), static_cast<std::int32_t>(sy / n)};
+    const auto& buildings = d.catalog().buildings;
+    std::optional<std::size_t> best;
+    std::int32_t best_d = std::numeric_limits<std::int32_t>::max();
+    for (std::size_t i = 0; i < v.enemy_building_entities.size(); ++i) {
+        const BuildingType& bt = buildings[v.enemy_building_types[i]];
+        if (!bt.climbable && !bt.gate) {
+            continue;
+        }
+        const std::int32_t dist = chebyshev(v.enemy_buildings[i], center);
+        if (dist < best_d) {
+            best_d = dist;
+            best = i;
+        }
+    }
+    if (!best) {
+        return;
+    }
+    const entt::entity wall = v.enemy_building_entities[*best];
+    if (!d.registry.valid(wall)) {
+        return;  // recordado, pero ya no está
+    }
+    const BuildingType& wt = buildings[v.enemy_building_types[*best]];
+    const bool wood = wt.material == Material::Wood;
+    const auto& types = d.catalog().units;
+    Command hit = d.order(CommandType::Attack);
+    hit.object = entt::to_integral(wall);
+    Command climb = d.order(CommandType::Climb);
+    climb.object = hit.object;
+    for (const UnitSeen* s : field) {
+        if (s->target == wall) {
+            continue;  // ya está en ello
+        }
+        const UnitType& t = types[s->type];
+        if (t.combat.siege || (wood && !t.combat.buildings_only)) {
+            hit.units.push_back(entt::to_integral(s->entity));
+        } else if (wt.climbable && t.climbs && affordable(d.budget, d.params.ladder_cost)) {
+            for (std::size_t r = 0; r < kResourceCount; ++r) {
+                d.budget[r] -= d.params.ladder_cost[r];
+            }
+            climb.units.push_back(entt::to_integral(s->entity));
+        }
+    }
+    for (Command* c : {&hit, &climb}) {
+        if (!c->units.empty()) {
+            d.out.push_back(std::move(*c));
+        }
+    }
+}
+
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
     army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics, explore,
+    assault,
 };
 
 }  // namespace

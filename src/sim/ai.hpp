@@ -47,6 +47,7 @@ enum class AiBehavior : std::uint8_t {
     Resupply,        // tropas cortas de víveres o munición vuelven a abastecerse
     Logistics,       // campamento avanzado camino del objetivo, abastecido por convoyes
     Explore,         // con niebla de guerra: un explorador recorre lo no explorado
+    Assault,         // ante un recinto cerrado: brecha en el muro más cercano (ingenios, escalas, fuego)
     Count,
 };
 
@@ -134,6 +135,7 @@ struct AiParams {
     std::optional<UnitTypeId> carrier;       // bagaje de los convoyes (módulo logistica)
     std::optional<UnitTypeId> siege_engine;  // se monta en el campamento (trabuquete)
     std::array<BuildingTypeId, kResourceCount> dropoff{};  // almacén para cada recurso
+    Stock ladder_cost{};  // escala de asedio (de [climb]; módulo asalto)
     std::vector<AiProfile> profiles;
 };
 

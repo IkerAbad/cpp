@@ -95,6 +95,8 @@ struct CombatParams {
     // Una unidad hambrienta (sin víveres) ataca a este % (data: [supply]).
     std::int32_t hungry_attack_percent = 100;
     TerrainCombatParams terrain;
+    // Escalando un muro (B4: [climb]): el daño que recibe, a este %.
+    std::int32_t climb_exposed_percent = 100;
 };
 
 // Proyectil en vuelo: una entidad propia, sin Unit (el movimiento no lo ve).
@@ -166,6 +168,7 @@ private:
         std::vector<std::uint8_t> aura;
         std::vector<TargetClass> klass;   // clase como blanco (sin contar a quién ataca)
         std::vector<entt::entity> aiming; // a quién tiene por blanco (null: a nadie)
+        std::vector<std::uint8_t> shielded;  // dentro de una torre: no se le puede atacar
         std::vector<std::uint32_t> cell_start;
         std::vector<std::uint32_t> cell_units;
     };

@@ -387,6 +387,25 @@ Fuentes:
 - **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Fortificaciones
+
+Muros, puertas, torres y escalas (B4). Todo de una casilla, para trazarlo tramo a tramo (Mayús + clic sigue colocando).
+
+| Edificio | Material | Vida | Coste | Para qué |
+|---|---|---|---|---|
+| Empalizada | madera | 300 | 10 de madera | muro rápido; arde |
+| Puerta de empalizada | madera | 400 | 30 de madera | solo deja pasar al dueño |
+| Muralla | piedra | 1800 | 20 de piedra | solo cae por asedio |
+| Puerta de muralla | piedra | 1600 | 30 de piedra y 20 de madera | solo deja pasar al dueño |
+| Torre de madera | madera | 600 | 60 de madera | 3 plazas, 1 nivel de altura |
+| Torre de piedra | piedra | 2200 | 80 de piedra y 20 de madera | 5 plazas, 2 niveles de altura |
+
+- **Puertas:** dejan pasar a las unidades del dueño y a nadie más. El enemigo que llega a una se queda ante ella y acaba atacándola.
+- **Torres** (clic derecho con tropas): dentro no se puede atacar a nadie, y los tiradores disparan con la altura de la torre sumada a la del terreno, así que llegan más lejos y hieren más. Cualquier otra orden, o el botón «Vaciar la torre», los saca; si la torre cae, salen a su alrededor.
+- **Escalas** (Ctrl + clic derecho en un muro enemigo, `[climb]` en `engine.toml`): la leva y los hombres de armas llevan cada uno una escala de 15 de madera. Tardan 5 s en subir y, en lo alto, reciben un 50 % más de daño. Bajan a la casilla opuesta del muro; si está ocupada, la escalada fracasa.
+- **IA** (módulo `asalto` del perfil «normal»): la búsqueda de caminos rodea los muros. Si su ejército no puede llegar al objetivo (recinto cerrado), abre brecha en el tramo más cercano: los ingenios lo golpean, la infantería lo escala si hay madera y el resto le prende fuego si es de madera.
+- **Limitación:** dos tramos en diagonal dejan pasar por la esquina; hay que trazar los muros en línea recta.
+
 ### Fatiga
 
 Marchar cansa y descansar repone (`[fatigue]` en `engine.toml`; `stamina` por tipo en `units.toml`).

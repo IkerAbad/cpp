@@ -32,6 +32,7 @@ constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior:
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
     "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",     "explorar",
+    "asalto",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -470,6 +471,7 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             info.type.rough_speed_percent = ur.get_i32("rough_speed_percent", 1, 100);
             info.type.charge_percent = ur.get_i32("charge_percent", 100, 1000);
             info.type.stamina = ur.get_i32("stamina", 0, 1000);
+            info.type.climbs = ur.get_bool("climbs");
             if (!error && info.type.convoy_capacity > 0 && info.type.worker) {
                 ur.fail("un aldeano no puede ser bagaje ('convoy_capacity' debe ser 0)");
             }
@@ -557,6 +559,10 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.care_percent = br.get_i32("care_percent", 0, 1000);
         info.type.heal_to_percent = br.get_i32("heal_to_percent", 0, 100);
         info.type.sight_tiles = br.get_i32("sight_tiles", 0, 32);
+        info.type.gate = br.get_bool("gate");
+        info.type.garrison = br.get_i32("garrison", 0, 64);
+        info.type.garrison_levels = br.get_i32("garrison_levels", 0, 8);
+        info.type.climbable = br.get_bool("climbable");
         if (!error && info.type.beds > 0 && (info.type.care_percent <= 0 || info.type.heal_to_percent <= 0)) {
             br.fail("un puesto médico ('beds' > 0) necesita 'care_percent' y 'heal_to_percent' mayores que 0");
         }
@@ -891,6 +897,17 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     md.light_wound_percent = r.get_i32("medicine.light_wound_percent", 0, 100);
     md.natural_heal_interval_ticks = r.get_i32("medicine.natural_heal_interval_ticks", 0, kMaxTicks);
     md.calm_ticks = r.get_i32("medicine.calm_ticks", 0, kMaxTicks);
+
+    cfg.world.garrison.enter_reach =
+        sim::Fixed::from_ratio(r.get_i32("garrison.enter_reach_milli_tiles", 0, 4 * kMilli), kMilli);
+
+    sim::ClimbParams& cl = cfg.world.climb;
+    cl.ladder_cost = r.get_stock("climb.ladder_cost");
+    cl.climb_ticks = r.get_i32("climb.climb_ticks", 1, kMaxTicks);
+    cl.reach = sim::Fixed::from_ratio(r.get_i32("climb.reach_milli_tiles", 0, 4 * kMilli), kMilli);
+    cl.exposed_percent = r.get_i32("climb.exposed_percent", 100, 1000);
+    cfg.world.combat.climb_exposed_percent = cl.exposed_percent;
+    cfg.world.ai.ladder_cost = cl.ladder_cost;
 
     sim::FatigueParams& fa = cfg.world.fatigue;
     fa.enabled = r.get_bool("fatigue.enabled");

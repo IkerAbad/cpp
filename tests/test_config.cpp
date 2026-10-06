@@ -84,6 +84,7 @@ morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 0
+climbs = false
 
 [[unit]]
 name = "peon"
@@ -124,6 +125,7 @@ morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 0
+climbs = false
 )";
 
 constexpr const char* kNodes = R"(
@@ -175,6 +177,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [9, 9, 9]
 
@@ -200,6 +206,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [8, 8, 8]
 )";
@@ -312,6 +322,15 @@ max_levels = 3
 ranged_percent_per_level = 10
 melee_percent_per_level = 10
 charge_run_ticks = 20
+
+[garrison]
+enter_reach_milli_tiles = 800
+
+[climb]
+ladder_cost = { madera = 15 }
+climb_ticks = 100
+reach_milli_tiles = 800
+exposed_percent = 150
 
 [fatigue]
 enabled = false

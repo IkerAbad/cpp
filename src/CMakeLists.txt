@@ -21,6 +21,8 @@ add_library(rts_sim STATIC
     sim/medicine.cpp
     sim/morale.cpp
     sim/fatigue.cpp
+    sim/garrison.cpp
+    sim/climb.cpp
     sim/vision.cpp
     sim/map_gen.cpp
     sim/movement.cpp

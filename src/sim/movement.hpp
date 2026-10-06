@@ -49,6 +49,12 @@ public:
     // flujo cuyo pasillo tocan y caminos en curso que ahora atraviesan una casilla
     // bloqueada (se replanifican).
     void set_blocked(TileCoord c, bool blocked);
+    // Puerta (B4): la casilla es de paso para las unidades de owner y cerrada para las
+    // demás. kNoGate la vuelve una casilla normal.
+    static constexpr std::int32_t kNoGate = -1;
+    void set_gate(TileCoord c, std::int32_t owner);
+    // ¿Puede la unidad de owner entrar en la casilla c? (rejilla y puertas)
+    [[nodiscard]] bool can_enter(TileCoord c, std::int32_t owner) const noexcept;
     [[nodiscard]] bool grid_dirty() const noexcept { return grid_dirty_; }
     void commit_grid_changes(entt::registry& registry);
 
@@ -88,6 +94,7 @@ private:
         std::vector<std::uint8_t> waiting;  // esperando camino del planificador
         std::vector<Fixed> blob_radius;  // radio esperado del racimo de su orden
         std::vector<FVec2> goal_point;
+        std::vector<std::int32_t> owner;  // jugador (-1 sin dueño): para las puertas
         std::vector<FVec2> chosen;
         std::vector<FVec2> correction;
         // Rejilla espacial por ordenación por conteo: cell_start[c]..cell_start[c+1].
@@ -115,7 +122,8 @@ private:
 
     MovementParams params_;
     std::int32_t width_ = 0;
-    std::vector<std::int32_t> tile_speed_;  // % de velocidad por casilla (vacío = 100 en todas)
+    std::vector<std::int32_t> tile_speed_;
+    std::vector<std::int32_t> gate_owner_;  // por casilla: dueño de la puerta (vacío = ninguna)  // % de velocidad por casilla (vacío = 100 en todas)
     PassGrid grid_;
     GridSearch search_;
     HpaGraph hpa_;

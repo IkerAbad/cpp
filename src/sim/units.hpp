@@ -105,6 +105,8 @@ struct UnitType {
     // Fatiga (B3): aguante; el cansancio se acumula a 100 / stamina del ritmo base.
     // 0 = no se cansa (aldeanos, bagaje, ingenios).
     std::int32_t stamina = 0;
+    // Escalas (B4): sabe tomar un muro con escalas (infantería a pie).
+    bool climbs = false;
 };
 
 // Personal sanitario que no es aldeano (cirujano) atendiendo un puesto médico (los
@@ -275,6 +277,11 @@ enum class CommandType : std::uint8_t {
     // object (edificio propio que produce) -> target: punto de reunión de lo que
     // produzca (kind = kClearRally: quitarlo).
     SetRally,
+    // units -> object (torre propia): guarnecerla (B4). Con kind = kUngarrison y sin
+    // unidades: vaciar la torre object.
+    Garrison,
+    // units -> object (tramo de muro enemigo): escalarlo (B4).
+    Climb,
     Count,        // número de tipos (no es una orden)
 };
 
@@ -283,6 +290,8 @@ inline constexpr std::uint32_t kNoObject = 0xFFFF'FFFFU;
 inline constexpr std::uint8_t kQueueMove = 1;
 // SetRally con este kind quita el punto de reunión.
 inline constexpr std::uint8_t kClearRally = 1;
+// Garrison con este kind vacía la torre.
+inline constexpr std::uint8_t kUngarrison = 1;
 
 // Puntos de paso pendientes: al llegar al destino en curso, va al siguiente. También
 // lleva al punto de reunión a lo recién producido.

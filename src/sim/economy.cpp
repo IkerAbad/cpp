@@ -130,6 +130,7 @@ void EconomySystem::release(MovementSystem& movement, const Footprint& f) {
         for (std::int32_t x = f.origin.x; x < f.origin.x + f.size; ++x) {
             occupant_[tile_index({x, y})] = entt::null;
             movement.set_blocked({x, y}, false);
+            movement.set_gate({x, y}, MovementSystem::kNoGate);
         }
     }
 }
@@ -207,6 +208,15 @@ std::optional<entt::entity> EconomySystem::place_building(entt::registry& regist
         registry.emplace<ProductionQueue>(e);
     }
     occupy(movement, f, e);
+    if (bt.gate) {
+        const std::int32_t gate_owner = registry.get<Owner>(e).player;
+        for (std::int32_t y = f.origin.y; y < f.origin.y + f.size; ++y) {
+            for (std::int32_t x = f.origin.x; x < f.origin.x + f.size; ++x) {
+                movement.set_blocked({x, y}, false);
+                movement.set_gate({x, y}, gate_owner);
+            }
+        }
+    }
     return e;
 }
 
@@ -285,6 +295,8 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
 
     switch (command.type) {
         case CommandType::SetStance:
+        case CommandType::Garrison:  // los aldeanos no guarnecen ni escalan: siguen con lo suyo
+        case CommandType::Climb:
         case CommandType::Count:
             return;
         case CommandType::Move:

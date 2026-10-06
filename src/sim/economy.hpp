@@ -76,6 +76,14 @@ struct BuildingType {
     std::int32_t care_percent = 0;
     std::int32_t heal_to_percent = 0;
     std::int32_t sight_tiles = 0;  // vista (niebla de guerra)
+    // Puerta (B4): sus casillas dejan pasar a las unidades del dueño y a nadie más.
+    bool gate = false;
+    // Torre (B4): plazas de guarnición (0 = no admite) y niveles de altura que da a
+    // los tiradores de dentro (se suman a la ventaja del terreno, B2).
+    std::int32_t garrison = 0;
+    std::int32_t garrison_levels = 0;
+    // Tramo de muro que se puede escalar (B4).
+    bool climbable = false;
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {

@@ -7,6 +7,8 @@
 #include <limits>
 #include <utility>
 
+#include "sim/climb.hpp"
+#include "sim/garrison.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::sim {
@@ -148,6 +150,8 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
         case CommandType::Count:
         case CommandType::SetRally:
             return;
+        case CommandType::Garrison:
+        case CommandType::Climb:
         case CommandType::Extinguish:
         case CommandType::Demolish:
         case CommandType::Convoy:
@@ -221,6 +225,7 @@ void CombatSystem::gather(const entt::registry& registry) {
     s_.owner.clear();
     s_.klass.clear();
     s_.aiming.clear();
+    s_.shielded.clear();
     const auto view = registry.view<const Position, const Unit, const Owner, const Health>();
     for (const entt::entity e : view) {
         const Position& p = view.get<const Position>(e);
@@ -242,6 +247,8 @@ void CombatSystem::gather(const entt::registry& registry) {
         s_.klass.push_back(k);
         const Combatant* c = registry.try_get<Combatant>(e);
         s_.aiming.push_back(c != nullptr ? c->target : entt::entity{entt::null});
+        const Garrisoned* g = registry.try_get<Garrisoned>(e);
+        s_.shielded.push_back(g != nullptr && g->inside ? 1 : 0);
     }
     const std::size_t n = s_.entity.size();
     s_.aura.assign(n, 0);
@@ -306,6 +313,11 @@ void CombatSystem::mark_auras(const entt::registry& registry) {
 }
 
 bool CombatSystem::is_enemy_target(const entt::registry& registry, entt::entity target, PlayerId me) const {
+    if (registry.valid(target)) {
+        if (const Garrisoned* g = registry.try_get<Garrisoned>(target); g != nullptr && g->inside) {
+            return false;  // a cubierto en su torre: hay que tomar la torre
+        }
+    }
     return registry.valid(target) && registry.all_of<Health, Owner>(target) && registry.get<Owner>(target).player != me &&
            (registry.all_of<Unit, Position>(target) || registry.all_of<Building, Footprint>(target));
 }
@@ -322,7 +334,7 @@ entt::entity CombatSystem::acquire(const entt::registry& registry, std::size_t i
     std::size_t best_tier = std::numeric_limits<std::size_t>::max();
     std::int64_t best_d = std::numeric_limits<std::int64_t>::max();
     for_each_near(s_.pos[i], sight, [&](std::size_t j) {
-        if (s_.owner[j] == s_.owner[i]) {
+        if (s_.owner[j] == s_.owner[i] || s_.shielded[j] != 0) {
             return;
         }
         const std::int64_t d = length_sq_wide(s_.pos[j] - s_.pos[i]);
@@ -458,13 +470,12 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
             continue;
         }
         Combatant& c = *cp;
-        if (c.cooldown > 0 &&
-            (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e) || registry.all_of<Routing>(e))) {
+        if (c.cooldown > 0 && registry.any_of<Patient, Reorganizing, Routing, Climbing>(e)) {
             --c.cooldown;
         }
-        if (registry.all_of<Patient>(e) || registry.all_of<Reorganizing>(e) || registry.all_of<Routing>(e)) {
-            // Herido camino del puesto o ingresado, reorganizándose tras el alta o en
-            // desbandada: no pelea (se le puede atacar).
+        if (registry.any_of<Patient, Reorganizing, Routing, Climbing>(e)) {
+            // Herido camino del puesto o ingresado, reorganizándose tras el alta, en
+            // desbandada o escalando un muro: no pelea (se le puede atacar).
             c.target = entt::null;
             c.explicit_target = false;
             c.attack_move = false;
@@ -536,7 +547,13 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
 
         // 3. Al alcance: golpe o disparo cuando la recarga lo permite. Si no, perseguir.
         const TerrainCombatParams& tc = params_.terrain;
-        const std::int32_t levels = slope_levels(registry, pos, c.target);
+        std::int32_t levels = slope_levels(registry, pos, c.target);
+        const Garrisoned* garrison = registry.try_get<Garrisoned>(e);
+        const bool in_tower = garrison != nullptr && garrison->inside;
+        if (in_tower && tc.enabled && registry.valid(garrison->tower) && registry.all_of<Building>(garrison->tower)) {
+            // Desde lo alto de la torre (B4): su altura se suma a la del terreno.
+            levels += buildings_[registry.get<Building>(garrison->tower).type].garrison_levels;
+        }
         if (tc.enabled) {
             // Carrera para la carga: ticks seguidos en marcha.
             if (goal != nullptr && !goal->arrived) {
@@ -582,6 +599,11 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                     ++stats_.projectiles_fired;
                 }
             }
+            continue;
+        }
+        if (in_tower) {
+            c.target = entt::null;  // en la torre: no sale a perseguir
+            c.explicit_target = false;
             continue;
         }
         if (c.stance == Stance::HoldGround && !c.explicit_target) {
@@ -639,7 +661,7 @@ void CombatSystem::update_projectiles(entt::registry& registry, const EconomySys
         std::size_t best = s_.entity.size();
         std::int64_t best_d = std::numeric_limits<std::int64_t>::max();
         for_each_near(p.dest, Fixed::from_int(1) + hit_radius, [&](std::size_t j) {
-            if (s_.owner[j] == p.owner || !registry.valid(s_.entity[j])) {
+            if (s_.owner[j] == p.owner || s_.shielded[j] != 0 || !registry.valid(s_.entity[j])) {
                 return;
             }
             const Fixed reach = s_.radius[j] + hit_radius;
@@ -730,6 +752,12 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
             }
         }
     };
+    for (Hit& h : hits_) {
+        if (const Climbing* cl = registry.try_get<Climbing>(h.target); cl != nullptr && cl->timer >= 0) {
+            // En lo alto de la escala no hay cómo cubrirse.
+            h.amount = static_cast<std::int32_t>(std::int64_t{h.amount} * params_.climb_exposed_percent / kPercent);
+        }
+    }
     for (const Hit& h : hits_) {
         if (Health* health = registry.try_get<Health>(h.target)) {
             health->hp = std::max(health->hp - h.amount, 0);  // sin desbordar con muchos golpes

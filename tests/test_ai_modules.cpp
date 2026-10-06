@@ -523,3 +523,69 @@ TEST_CASE("IA: con niebla y sin conocer al enemigo, manda un explorador a lo no 
     ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, none);
     CHECK(none.empty());
 }
+
+TEST_CASE("IA: ante un recinto cerrado abre brecha en el muro más cercano; si hay paso, no") {
+    WorldParams p = flat_two_players();
+    p.unit_types[kSoldier].climbs = true;
+    rts::sim::BuildingType wall = p.building_types[kHouse];
+    wall.size = 1;
+    wall.population = 0;
+    wall.material = rts::sim::Material::Stone;
+    wall.climbable = true;
+    const auto wall_type = static_cast<rts::sim::BuildingTypeId>(p.building_types.size());
+    p.building_types.push_back(wall);
+
+    const auto ring = [&](World& world, bool gap) {
+        // Centro urbano del rival en (60, 60)-(62, 62), rodeado a 2 casillas.
+        world.spawn_building(kRival, kCenter, {60, 60}, true);
+        for (std::int32_t i = 57; i <= 65; ++i) {
+            for (const rts::sim::TileCoord t : {rts::sim::TileCoord{i, 57}, rts::sim::TileCoord{i, 65},
+                                                rts::sim::TileCoord{57, i}, rts::sim::TileCoord{65, i}}) {
+                if (gap && t == rts::sim::TileCoord{61, 65}) {
+                    continue;
+                }
+                world.spawn_building(kRival, wall_type, t, true);
+            }
+        }
+    };
+    const auto army = [&](World& world) {
+        std::vector<std::uint32_t> ids;
+        for (std::int32_t i = 0; i < 3; ++i) {
+            ids.push_back(world.spawn_unit(kAi, kSoldier, {61 + i, 72}));
+        }
+        ids.push_back(world.spawn_unit(kAi, kRam, {60, 73}));
+        return ids;
+    };
+
+    SUBCASE("cerrado: el ariete golpea el muro y la infantería lo escala") {
+        World world(p);
+        ai_base(world);
+        ring(world, false);
+        army(world);
+        world.step();
+        AiParams params = test_ai_params();
+        params.profiles[1].behaviors = {AiBehavior::Assault};
+        params.ladder_cost = stock(0, 15, 0, 0);
+        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        std::vector<Command> out;
+        ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+        const auto attack = std::ranges::find(out, CommandType::Attack, &Command::type);
+        const auto climb = std::ranges::find(out, CommandType::Climb, &Command::type);
+        REQUIRE(attack != out.end());
+        REQUIRE(climb != out.end());
+        CHECK(attack->units.size() == 1);  // el ariete
+        CHECK(climb->units.size() == 3);   // los soldados
+        CHECK(attack->object == climb->object);
+        // Un tramo del lado sur, el más cercano al ejército.
+        const auto& f = world.registry().get<rts::sim::Footprint>(static_cast<entt::entity>(climb->object));
+        CHECK(f.origin.y == 65);
+    }
+    SUBCASE("con un hueco: se llega, no hace falta brecha") {
+        World world(p);
+        ai_base(world);
+        ring(world, true);
+        army(world);
+        world.step();
+        CHECK(think_with(world, {AiBehavior::Assault}).empty());
+    }
+}

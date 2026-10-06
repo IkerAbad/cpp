@@ -550,6 +550,9 @@ private:
     }
 
     [[nodiscard]] bool sees_entity(const sim::SnapshotEntity& e) const {
+        if (e.garrisoned) {
+            return false;  // dentro de una torre: se cuenta en ella, no se dibuja
+        }
         return !view_player_ || e.owner == *view_player_ || (e.seen_by & (1U << *view_player_)) != 0;
     }
 
@@ -687,6 +690,10 @@ private:
         } else if (const auto enemy = enemy_unit_at(screen_pos)) {
             c.type = sim::CommandType::Attack;
             c.object = *enemy;
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner != kLocalPlayer &&
+                   window_.ctrl_held() && data_.buildings.types[o->type].type.climbable) {
+            c.type = sim::CommandType::Climb;  // Ctrl: tomar el muro con escalas
+            c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner != kLocalPlayer) {
             c.type = sim::CommandType::Attack;
             c.object = o->id;
@@ -738,6 +745,31 @@ private:
                     if (!sub->units.empty()) {
                         issue(std::move(*sub));
                     }
+                }
+                if (c.units.empty()) {
+                    return;
+                }
+            }
+            // Torre terminada: las tropas (no los aldeanos ni el bagaje) la guarnecen.
+            if (binfo.type.garrison > 0 && o->complete) {
+                sim::Command garrison = local_command(sim::CommandType::Garrison);
+                garrison.object = o->id;
+                garrison.units.clear();
+                std::erase_if(c.units, [&](std::uint32_t id) {
+                    const auto it = std::ranges::find(curr_.entities, id, &sim::SnapshotEntity::id);
+                    if (it == curr_.entities.end()) {
+                        return false;
+                    }
+                    const sim::UnitType& ut = data_.units.types[it->type].type;
+                    const bool troop = !ut.worker && ut.convoy_capacity == 0 && !ut.combat.buildings_only &&
+                                       ut.combat.auto_attack;
+                    if (troop) {
+                        garrison.units.push_back(id);
+                    }
+                    return troop;
+                });
+                if (!garrison.units.empty()) {
+                    issue(std::move(garrison));
                 }
                 if (c.units.empty()) {
                     return;
@@ -1117,6 +1149,9 @@ private:
         if (e.routing) {
             ImGui::TextColored(kWarnColor, "en desbandada: huye y no obedece hasta rehacerse");
         }
+        if (e.climbing) {
+            ImGui::TextColored(kWarnColor, "subiendo por una escala: no pelea y está expuesto");
+        }
         if (e.fatigue >= 0) {
             ImGui::Text("cansancio %d %%%s", e.fatigue * kPercent / sim::kFullFatigue,
                         e.forced_march ? " · a paso forzado" : "");
@@ -1163,6 +1198,8 @@ private:
         ImGui::BulletText("Punto de color: lo que lleva un aldeano");
         ImGui::BulletText("Inicial en rojo: con hambre o sin munición");
         ImGui::BulletText("Inicial en amarillo: en desbandada (huye y no obedece)");
+        ImGui::BulletText("Ctrl + clic derecho en un muro enemigo: escalarlo (leva y hombres de armas)");
+        ImGui::BulletText("Clic derecho en una torre propia con tropas: guarnecerla");
         ImGui::SeparatorText("Logística");
         ImGui::BulletText("Las tropas gastan víveres; los tiradores, munición");
         ImGui::BulletText("Se reponen junto al centro urbano, el molino, el cuartel o un campamento");
@@ -1737,6 +1774,17 @@ private:
             ImGui::ProgressBar(static_cast<float>(o->progress) / static_cast<float>(info.type.build_ticks), {-1.0f, 0.0f},
                                "en obra");
             return;
+        }
+        if (info.type.garrison > 0) {
+            ImGui::Text("Guarnición: %d de %d", o->garrison, info.type.garrison);
+            ImGui::TextDisabled("Clic derecho con tropas: guarnecerla (dentro no se las puede atacar)");
+            if (o->garrison > 0 && ImGui::SmallButton("Vaciar la torre")) {
+                sim::Command c = local_command(sim::CommandType::Garrison);
+                c.units.clear();
+                c.object = id;
+                c.kind = sim::kUngarrison;
+                issue(std::move(c));
+            }
         }
         if (info.type.trains.empty()) {
             return;

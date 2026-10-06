@@ -5,6 +5,7 @@
 #include <cassert>
 #include <limits>
 
+#include "sim/economy.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::sim {
@@ -90,6 +91,30 @@ Fixed MovementSystem::effective_speed(const entt::registry& registry, entt::enti
         return unit.speed;
     }
     return Fixed::from_raw(static_cast<std::int32_t>(std::int64_t{unit.speed.raw()} * percent / kPercent));
+}
+
+void MovementSystem::set_gate(TileCoord c, std::int32_t owner) {
+    if (!grid_.contains(c)) {
+        return;
+    }
+    if (gate_owner_.empty()) {
+        if (owner == kNoGate) {
+            return;
+        }
+        gate_owner_.assign(static_cast<std::size_t>(grid_.width()) * static_cast<std::size_t>(grid_.height()), kNoGate);
+    }
+    gate_owner_[grid_.index(c)] = owner;
+}
+
+bool MovementSystem::can_enter(TileCoord c, std::int32_t owner) const noexcept {
+    if (!grid_.passable(c)) {
+        return false;
+    }
+    if (gate_owner_.empty()) {
+        return true;
+    }
+    const std::int32_t gate = gate_owner_[grid_.index(c)];
+    return gate == kNoGate || gate == owner;
 }
 
 void MovementSystem::set_blocked(TileCoord c, bool blocked) {
@@ -592,13 +617,19 @@ void MovementSystem::integrate_and_separate(std::size_t n) {
         const FVec2 v = s_.chosen[i];
         const FVec2 p = s_.pos[i];
         FVec2 next = p + v;
-        if (!grid_.passable(tile_of(next))) {
+        const std::int32_t owner = s_.owner[i];
+        // Quien ya está en una puerta ajena (se construyó encima, o la cruzaba cuando cambió
+        // de dueño) puede moverse dentro de ella para salir.
+        const auto enter = [&](FVec2 q) {
+            return can_enter(tile_of(q), owner) || (tile_of(q) == tile_of(p) && grid_.passable(tile_of(q)));
+        };
+        if (!enter(next)) {
             const FVec2 only_x{p.x + v.x, p.y};
             const FVec2 only_y{p.x, p.y + v.y};
-            if (grid_.passable(tile_of(only_x))) {
+            if (enter(only_x)) {
                 next = only_x;
                 s_.chosen[i] = {v.x, Fixed{}};
-            } else if (grid_.passable(tile_of(only_y))) {
+            } else if (enter(only_y)) {
                 next = only_y;
                 s_.chosen[i] = {Fixed{}, v.y};
             } else {
@@ -639,7 +670,8 @@ void MovementSystem::integrate_and_separate(std::size_t n) {
     }
     for (std::size_t i = 0; i < n; ++i) {
         const FVec2 next = s_.pos[i] + s_.correction[i];
-        if (grid_.passable(tile_of(next))) {
+        if (can_enter(tile_of(next), s_.owner[i]) ||
+            (tile_of(next) == tile_of(s_.pos[i]) && grid_.passable(tile_of(next)))) {
             s_.pos[i] = next;
         }
     }
@@ -663,6 +695,7 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
     s_.waiting.clear();
     s_.blob_radius.clear();
     s_.goal_point.clear();
+    s_.owner.clear();
     for (const entt::entity e : view) {
         const auto& [p, v, unit] = view.get<Position, Velocity, Unit>(e);
         const FVec2 pos{p.x, p.y};
@@ -698,6 +731,8 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         s_.waiting.push_back(follow != nullptr && follow->waiting ? 1 : 0);
         s_.blob_radius.push_back(cluster_radius(unit.radius, group) + params_.arrive_radius);
         s_.goal_point.push_back(goal_point);
+        const Owner* own = registry.try_get<Owner>(e);
+        s_.owner.push_back(own != nullptr ? std::int32_t{own->player} : kNoGate);
     }
     const std::size_t n = s_.entity.size();
 

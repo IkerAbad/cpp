@@ -65,6 +65,8 @@ World::World(const WorldParams& params)
       medicine_(params.medicine, params.supply.ration_cost, params.unit_types, params.building_types),
       morale_(map_->width(), map_->height(), params.morale, params.unit_types, params.combat.hero_aura_radius),
       fatigue_(params.fatigue, params.unit_types),
+      garrison_(params.garrison, params.unit_types, params.building_types),
+      climb_(params.climb, params.unit_types, params.building_types),
       vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
@@ -260,6 +262,8 @@ void World::apply_command(const Command& command) {
             registry_.remove<Waypoints>(e);  // otra orden: se olvidan los puntos de paso
         }
     }
+    garrison_.apply(registry_, movement_, economy_, command, units, next_order_id_, tick_);
+    climb_.apply(registry_, movement_, economy_, command, units, next_order_id_, tick_);
     economy_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     combat_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     fire_.apply(registry_, movement_, command, units, next_order_id_, tick_);
@@ -297,6 +301,8 @@ void World::step() {
     economy_.update(registry_, movement_, next_order_id_, tick_);
     supply_.update(registry_, movement_, economy_, next_order_id_, tick_);
     medicine_.update(registry_, movement_, economy_, next_order_id_, tick_);
+    garrison_.update(registry_, movement_, economy_, next_order_id_, tick_);
+    climb_.update(registry_, movement_, economy_, next_order_id_, tick_);
     combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_, &vision_);
     morale_.update(registry_, movement_, combat_.morale_hits(), combat_.morale_deaths(),
                    vision_.daylight_percent(tick_), next_order_id_, tick_);
@@ -435,6 +441,8 @@ std::uint64_t World::state_hash() const {
     medicine_.hash_into(h, registry_);
     morale_.hash_into(h, registry_);
     fatigue_.hash_into(h, registry_);
+    garrison_.hash_into(h, registry_);
+    climb_.hash_into(h, registry_);
     vision_.hash_into(h);
     ai_.hash_into(h);
     return h.value();
@@ -492,6 +500,12 @@ void World::write_snapshot(Snapshot& out) const {
         if (const Fatigue* f = registry_.try_get<Fatigue>(e)) {
             s.fatigue = f->value;
             s.forced_march = f->forced;
+        }
+        if (const Garrisoned* g = registry_.try_get<Garrisoned>(e); g != nullptr && g->inside) {
+            s.garrisoned = true;
+        }
+        if (const Climbing* cl = registry_.try_get<Climbing>(e); cl != nullptr && cl->timer >= 0) {
+            s.climbing = true;
         }
         if (const Carer* c = registry_.try_get<Carer>(e)) {
             s.tending = true;
@@ -552,6 +566,16 @@ void World::write_snapshot(Snapshot& out) const {
             }
         }
         out.objects.push_back(std::move(o));
+    }
+    // Guarnición de cada torre.
+    for (const auto [e, g] : registry_.view<const Garrisoned>().each()) {
+        if (!g.inside) {
+            continue;
+        }
+        const auto it = std::ranges::find(out.objects, entt::to_integral(g.tower), &SnapshotObject::id);
+        if (it != out.objects.end()) {
+            ++it->garrison;
+        }
     }
     out.players.assign(economy_.players().begin(), economy_.players().end());
     out.daylight_percent = vision_.enabled() ? vision_.daylight_percent(tick_) : kPercent;

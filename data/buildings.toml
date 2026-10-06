@@ -23,6 +23,13 @@
 #   heal_to_percent: hasta qué % de la vida cura (lo que queda, si es leve, sana solo).
 # sight_tiles: vista del edificio (niebla de guerra): el centro urbano y el
 #   campamento vigilan lejos; una casa, poco.
+# gate: puerta (B4): sus casillas dejan pasar a las unidades del dueño y a nadie más;
+#   el enemigo que llega a ella se queda ante ella y acaba atacándola (la de madera
+#   se quema; la de piedra solo cae por asedio).
+# garrison: torre (B4): plazas de guarnición (0 = no admite). Dentro no se puede atacar
+#   a nadie; los tiradores disparan con garrison_levels niveles de altura a favor (se
+#   suman a los del terreno: más alcance y más daño).
+# climbable: tramo de muro que el enemigo puede tomar con escalas (B4).
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -52,6 +59,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 8
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "piedra"
 color = [196, 176, 140]
 
@@ -77,6 +88,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 3
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [176, 132, 96]
 
@@ -102,6 +117,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [120, 92, 60]
 
@@ -127,6 +146,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [132, 132, 140]
 
@@ -152,6 +175,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [206, 184, 110]
 
@@ -177,6 +204,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 6
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [150, 70, 60]
 
@@ -202,6 +233,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 2
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [214, 190, 92]
 
@@ -229,6 +264,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 5
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [120, 96, 64]
 
@@ -258,6 +297,10 @@ nurses = 0
 care_percent = 0
 heal_to_percent = 0
 sight_tiles = 7
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [168, 140, 84]
 
@@ -290,6 +333,10 @@ nurses = 1
 care_percent = 70
 heal_to_percent = 70
 sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [220, 220, 210]
 
@@ -315,6 +362,10 @@ nurses = 3
 care_percent = 100
 heal_to_percent = 100
 sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "madera"
 color = [235, 235, 225]
 
@@ -340,5 +391,190 @@ nurses = 6
 care_percent = 150
 heal_to_percent = 100
 sight_tiles = 5
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
 material = "piedra"
 color = [240, 240, 240]
+
+# Fortificaciones (B4), de una casilla para trazarlas tramo a tramo. La empalizada,
+# troncos clavados, se levanta deprisa pero arde; la muralla de piedra solo cae por
+# asedio (ariete, zapa o trabuquete). Las puertas solo abren a su dueño.
+
+[[building]]
+name = "empalizada"
+size_tiles = 1
+cost = { madera = 10 }
+build_ticks = 120
+hp = 300
+accepts = []
+population = 0
+armor = { cuerpo = 4, proyectil = 20 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 1
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = true
+material = "madera"
+color = [150, 110, 70]
+
+[[building]]
+name = "puerta_empalizada"
+size_tiles = 1
+cost = { madera = 30 }
+build_ticks = 240
+hp = 400
+accepts = []
+population = 0
+armor = { cuerpo = 4, proyectil = 20 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 2
+gate = true
+garrison = 0
+garrison_levels = 0
+climbable = false
+material = "madera"
+color = [170, 125, 80]
+
+[[building]]
+name = "muralla"
+size_tiles = 1
+cost = { piedra = 20 }
+build_ticks = 480
+hp = 1800
+accepts = []
+population = 0
+armor = { cuerpo = 8, proyectil = 40 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 2
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = true
+material = "piedra"
+color = [150, 150, 150]
+
+[[building]]
+name = "puerta_muralla"
+size_tiles = 1
+cost = { piedra = 30, madera = 20 }
+build_ticks = 600
+hp = 1600
+accepts = []
+population = 0
+armor = { cuerpo = 8, proyectil = 40 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 2
+gate = true
+garrison = 0
+garrison_levels = 0
+climbable = false
+material = "piedra"
+color = [170, 165, 150]
+
+# Torres (B4): de una casilla, para levantarlas en la línea del muro. La de madera es
+# una plataforma de troncos; la de piedra, más alta y más dura.
+
+[[building]]
+name = "torre_madera"
+size_tiles = 1
+cost = { madera = 60 }
+build_ticks = 400
+hp = 600
+accepts = []
+population = 0
+armor = { cuerpo = 4, proyectil = 20 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 7
+gate = false
+garrison = 3
+garrison_levels = 1
+climbable = false
+material = "madera"
+color = [140, 100, 60]
+
+[[building]]
+name = "torre_piedra"
+size_tiles = 1
+cost = { piedra = 80, madera = 20 }
+build_ticks = 900
+hp = 2200
+accepts = []
+population = 0
+armor = { cuerpo = 8, proyectil = 40 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 9
+gate = false
+garrison = 5
+garrison_levels = 2
+climbable = false
+material = "piedra"
+color = [130, 130, 140]

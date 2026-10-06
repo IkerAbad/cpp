@@ -81,6 +81,9 @@
 #   arquero, ligero (110); el jinete ligero, montado y sin armadura, aguanta más (120).
 #   En Azincourt, «Men in full plate sank to their shins with every step. They were
 #   exhausted before they reached the English line».
+# climbs: sabe tomar un muro con escalas (B4; engine.toml [climb]): la infantería a
+#   pie, leva y hombres de armas. Ni los tiradores, que necesitan las manos libres, ni
+#   la caballería.
 # convoy_capacity: bagaje que lleva suministros (0 = no es bagaje). La acémila carga
 #   como un hombre y medio y va a su paso; la carreta de bueyes carga cinco veces más
 #   pero va a la mitad de velocidad. Sus animales comen de la carga.
@@ -126,6 +129,7 @@ morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 0
+climbs = false
 
 [[unit]]
 name = "leva"
@@ -166,6 +170,7 @@ morale_resolve = 70
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 100
+climbs = true
 
 [[unit]]
 name = "hombre_armas"
@@ -206,6 +211,7 @@ morale_resolve = 120
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 90
+climbs = true
 
 [[unit]]
 name = "arquero"
@@ -246,6 +252,7 @@ morale_resolve = 90
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 110
+climbs = false
 
 [[unit]]
 name = "ballestero"
@@ -286,6 +293,7 @@ morale_resolve = 100
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 100
+climbs = false
 
 [[unit]]
 name = "jinete"
@@ -326,6 +334,7 @@ morale_resolve = 110
 rough_speed_percent = 100
 charge_percent = 150
 stamina = 120
+climbs = false
 
 [[unit]]
 name = "caballero"
@@ -366,6 +375,7 @@ morale_resolve = 150
 rough_speed_percent = 100
 charge_percent = 200
 stamina = 80
+climbs = false
 
 [[unit]]
 name = "ariete"
@@ -406,6 +416,7 @@ morale_resolve = 0
 rough_speed_percent = 60
 charge_percent = 100
 stamina = 0
+climbs = false
 
 [[unit]]
 name = "zapador"
@@ -446,6 +457,7 @@ morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 0
+climbs = false
 
 # Bagaje. Sin armas (no busca pelea); vulnerable: cortar convoyes es la forma de
 # rendir a un ejército sin combatir.
@@ -488,6 +500,7 @@ morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 0
+climbs = false
 
 [[unit]]
 name = "carreta"
@@ -528,6 +541,7 @@ morale_resolve = 0
 rough_speed_percent = 50
 charge_percent = 100
 stamina = 0
+climbs = false
 
 [[unit]]
 name = "trabuquete"
@@ -568,6 +582,7 @@ morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 0
+climbs = false
 
 # Barbero cirujano: oficio de pago (oro), sin armas. Hubo barberos cirujanos en
 # Valencia en el siglo XV y, más tarde, uno por compañía en algunos ejércitos. Atiende
@@ -611,3 +626,4 @@ morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
 stamina = 100
+climbs = false

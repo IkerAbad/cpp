@@ -16,7 +16,9 @@
 #include "sim/fire.hpp"
 #include "sim/fixed.hpp"
 #include "sim/map_gen.hpp"
+#include "sim/climb.hpp"
 #include "sim/fatigue.hpp"
+#include "sim/garrison.hpp"
 #include "sim/medicine.hpp"
 #include "sim/morale.hpp"
 #include "sim/movement.hpp"
@@ -83,6 +85,8 @@ struct WorldParams {
     MedicineParams medicine;
     MoraleParams morale;
     FatigueParams fatigue;
+    GarrisonParams garrison;
+    ClimbParams climb;
     VisionParams vision;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
@@ -118,6 +122,8 @@ struct SnapshotEntity {
     bool routing = false;                 // en desbandada
     std::int32_t fatigue = -1;            // cansancio (0..kFullFatigue); -1 = no se cansa
     bool forced_march = false;            // a paso forzado
+    bool garrisoned = false;              // dentro de una torre (no se dibuja)
+    bool climbing = false;                // subiendo por una escala
     std::uint8_t seen_by = 0xFF;          // bit p: la ve el jugador p (niebla de guerra)
 };
 
@@ -142,6 +148,7 @@ struct SnapshotObject {
     Stock store{};                   // campamentos: su almacén de suministros
     std::uint8_t seen_by = 0xFF;     // bit p: lo ve ahora el jugador p (niebla de guerra)
     TileCoord rally{-1, -1};         // edificios que producen: punto de reunión (-1: ninguno)
+    std::int32_t garrison = 0;       // torres: unidades dentro
 };
 
 // Copia de solo lectura del estado que se presenta. El render nunca toca el registro.
@@ -182,6 +189,8 @@ public:
     [[nodiscard]] const MedicineSystem& medicine() const noexcept { return medicine_; }
     [[nodiscard]] const MoraleSystem& morale() const noexcept { return morale_; }
     [[nodiscard]] const FatigueSystem& fatigue() const noexcept { return fatigue_; }
+    [[nodiscard]] const GarrisonSystem& garrison() const noexcept { return garrison_; }
+    [[nodiscard]] const ClimbSystem& climb() const noexcept { return climb_; }
     [[nodiscard]] const VisionSystem& vision() const noexcept { return vision_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
@@ -223,6 +232,8 @@ private:
     MedicineSystem medicine_;
     MoraleSystem morale_;
     FatigueSystem fatigue_;
+    GarrisonSystem garrison_;
+    ClimbSystem climb_;
     VisionSystem vision_;
     AiSystem ai_;
     entt::registry registry_;

@@ -198,6 +198,18 @@ melee_percent_per_level = 10
 # Carga: 1 s seguido en marcha antes del golpe.
 charge_run_ticks = 20
 
+[garrison]
+# Guarnición de torres (B4): se entra estando a 0,8 casillas o menos de la huella.
+enter_reach_milli_tiles = 800
+
+[climb]
+# Escalas de asedio (B4). Cada escalador lleva su escala, de 15 de madera, pagada al dar
+# la orden. Tarda 5 s en subir y, en lo alto, sin cubrirse, recibe un 50 % más de daño.
+ladder_cost = { madera = 15 }
+climb_ticks = 100
+reach_milli_tiles = 800
+exposed_percent = 150
+
 [fatigue]
 # Fatiga (B3). Cansancio de 0 a 100000 (agotada). Vegetius: «They should march with the
 # common military step twenty miles in five summer-hours, and with the full step,
@@ -409,7 +421,7 @@ army = ["leva", "hombre_armas", "arquero"]
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
 [[ai.profile]]
 name = "normal"
-behaviors = ["defensa", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra"]
+behaviors = ["defensa", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
