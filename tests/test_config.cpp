@@ -518,6 +518,7 @@ retreat_morale = 0
 formation_engage_tiles = 0
 forge_at_villagers = 0
 defend_forced_march = false
+think_every = 1
 siege_front_tiles = 0
 scouts = 0
 fog_guard_army = 0
@@ -996,7 +997,7 @@ TEST_CASE("Configuración: los ajustes de partida del menú viajan como un fiche
     REQUIRE(base.has_value());
     rts::game::MatchSettings s;
     s.seed = 12345;
-    s.rival = "basica";
+    s.rival = "facil";
     s.fog = false;
     const auto d = rts::game::with_match_settings(*base, s);
     REQUIRE_MESSAGE(d.has_value(), (d ? std::string() : d.error()));
@@ -1004,7 +1005,7 @@ TEST_CASE("Configuración: los ajustes de partida del menú viajan como un fiche
     CHECK(d->engine.world.setup.seed == 12345);
     CHECK_FALSE(d->engine.world.vision.enabled);
     REQUIRE_FALSE(d->engine.world.ai_players.empty());
-    CHECK(d->engine.ai_profile_names[d->engine.world.ai_players.front().profile] == "basica");
+    CHECK(d->engine.ai_profile_names[d->engine.world.ai_players.front().profile] == "facil");
     // Van en los ficheros (y por tanto en la repetición), una sola vez.
     CHECK(std::ranges::count(d->files, rts::game::kMatchSettingsFile, &rts::game::DataFile::path) == 1);
     const auto again = rts::game::with_match_settings(*d, s);

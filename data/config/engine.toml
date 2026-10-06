@@ -434,7 +434,7 @@ dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_miner
 # recoleccion, ejercito, ataque, ejercito_contra, ataque_fuerza, concentrar, taller,
 # apagar, incendiar, abastecer, logistica, explorar. Se ejecutan en el orden de la lista.
 [[ai.profile]]
-name = "basica"
+name = "facil"
 behaviors = ["defensa", "explorar", "abastecer", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito", "ataque"]
 villager_target = 25
 # Reparto deseado de los aldeanos que recogen (suma 100).
@@ -501,6 +501,7 @@ retreat_morale = 0
 formation_engage_tiles = 0
 forge_at_villagers = 0
 defend_forced_march = false
+think_every = 1
 siege_front_tiles = 0
 # explorar: con niebla, un explorador recorre lo no explorado (rejilla de 12
 # casillas) hasta encontrar un edificio vital enemigo.
@@ -512,9 +513,16 @@ army = ["leva", "hombre_armas", "arquero"]
 # Perfil por defecto: mismos costes y reglas, mejores decisiones. Ejército según el
 # rival, ataque cuando su fuerza supera a la enemiga (y retirada si pierde la
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
+# Niveles (D4): fácil, normal, difícil y experto. Juegan con las mismas reglas y costes;
+# los separa lo que piensan (los módulos que usan) y la paciencia. Medido en 40
+# partidas: normal gana a fácil el 82 % y experto el 90 %; entre normal, difícil y
+# experto la diferencia aún no es significativa (52 % y 47 %): los módulos de más
+# juegan más rico (emboscadas, formaciones, sanidad), pero todavía no más fuerte. La
+# logística, medida aparte, resta (32 %): ningún nivel la usa hasta mejorarla.
+# Normal: economía, ejército según el rival, ataque por fuerza y fuego concentrado.
 [[ai.profile]]
 name = "normal"
-behaviors = ["defensa", "emboscada", "torres", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "logistica", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "herreria"]
+behaviors = ["defensa", "explorar", "abastecer", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "ataque_fuerza", "concentrar"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
@@ -592,12 +600,194 @@ forge_at_villagers = 18
 # Volver a defender a paso forzado: medido en el torneo, la tropa llega agotada (cansa
 # el triple) y pierde más de lo que gana llegando antes. Desactivado.
 defend_forced_march = false
+think_every = 1
 siege_front_tiles = 20
 scouts = 1
 explore_step_tiles = 12
 # Con niebla, al menos 6 tropas de guardia aunque no haya visto al enemigo.
 fog_guard_army = 6
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
+
+# Difícil: como el normal, y además emboscadas, formaciones según la situación,
+# retirada por moral, incendios, taller y asalto de recintos, y sanidad.
+[[ai.profile]]
+name = "dificil"
+behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad"]
+villager_target = 30
+gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
+house_margin = 5
+barracks_at_villagers = 8
+dropoff_distance_tiles = 12
+dropoff_min_gatherers = 3
+builders = 2
+gatherers_per_farm = 2
+build_gap_tiles = 1
+build_search_radius_tiles = 24
+# Oleadas fijas: no las usa (ataca por fuerza).
+first_wave = 6
+wave_growth = 4
+# Defiende a 20 casillas: con el terreno (B2) la marcha es más lenta y una incursión
+# llega antes de que la tropa vuelva si espera a tenerla encima.
+defend_radius_tiles = 20
+flee_enemy_tiles = 3
+safe_base_tiles = 2
+barracks_queue = 2
+villager_queue = 2
+# Ataca con 6 o más tropas ociosas si su fuerza es al menos el 130 % de la enemiga
+# conocida; se retira si, a 8 casillas de su ejército en campaña, baja del 60 %.
+attack_ratio_percent = 130
+retreat_ratio_percent = 60
+min_attack_army = 6
+engage_radius_tiles = 8
+# apagar: 3 aldeanos por edificio en llamas. incendiar: grupos de 3 jinetes contra
+# edificios de madera sin enemigos armados a 10 casillas.
+extinguishers_per_fire = 3
+# Hasta 20 aldeanos solo entrena tropas si su ejército es más débil que el enemigo.
+army_min_villagers = 20
+raid_unit = "jinete"
+raid_group = 3
+raid_safe_radius_tiles = 10
+# Saqueo (C2): con hambre y sin fuente propia más cerca, saquea una granja enemiga si
+# no hay enemigos armados a 8 casillas de ella.
+pillage_guard_tiles = 8
+resupply_percent = 30
+upkeep_reserve_percent = 50
+# logistica: 2 acémilas siguen al ejército en campaña 4 casillas por detrás y
+# vuelven a casa a cargar. Asedio: con su ejército en campaña a 20 casillas o menos
+# del objetivo, si queda a más de 30 de toda fuente de suministro, campamento a
+# 9 casillas de él (dentro del alcance del trabuquete) y hasta 2 trabuquetes.
+camp_distance_tiles = 30
+camp_offset_tiles = 9
+convoy_carriers = 2
+baggage_offset_tiles = 4
+siege_engines = 2
+# Sanidad (D1): hospital de campaña junto a la base con 6 tropas o más; los heridos por
+# debajo del 50 % de vida que no pelean, a él; y un cirujano.
+medical_min_army = 6
+wounded_percent = 50
+surgeons = 1
+# Guerra con niebla (D2): de noche ataca con el 110 % de la fuerza enemiga (de día,
+# 130); localizado el enemigo, el explorador sigue vigilando a 18 casillas de su base;
+# 4 tiradores emboscados en un claro con 15 árboles o más a 3 casillas, buscado a 8 del
+# punto a 25 casillas de la base camino del enemigo; y 2 torres a 10 casillas de la
+# base hacia el enemigo, que se guarnecen si atacan la base.
+night_attack_ratio_percent = 110
+patrol_radius_tiles = 18
+ambush_size = 4
+ambush_distance_tiles = 25
+ambush_min_trees = 15
+ambush_wood_tiles = 3
+ambush_search_tiles = 8
+towers = 2
+tower_offset_tiles = 10
+# Moral y formaciones (D3): se retira si la moral media del ejército en campaña baja de
+# 400 (de 1000, antes de que se desbande a 250); forma con enemigos a 8 casillas o
+# menos (columna para marchar, línea para los tiradores, cuadro contra la caballería);
+# herrería con 18 aldeanos.
+retreat_morale = 400
+formation_engage_tiles = 8
+forge_at_villagers = 18
+# Volver a defender a paso forzado: medido en el torneo, la tropa llega agotada (cansa
+# el triple) y pierde más de lo que gana llegando antes. Desactivado.
+defend_forced_march = false
+think_every = 1
+siege_front_tiles = 20
+scouts = 1
+explore_step_tiles = 12
+# Con niebla, al menos 6 tropas de guardia aunque no haya visto al enemigo.
+fog_guard_army = 6
+army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
+
+# Experto: como el difícil, con herrería; y más paciente: ataca con 10 tropas o más y
+# el 150 % de la fuerza enemiga.
+[[ai.profile]]
+name = "experto"
+behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "herreria"]
+villager_target = 30
+gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
+house_margin = 5
+barracks_at_villagers = 8
+dropoff_distance_tiles = 12
+dropoff_min_gatherers = 3
+builders = 2
+gatherers_per_farm = 2
+build_gap_tiles = 1
+build_search_radius_tiles = 24
+# Oleadas fijas: no las usa (ataca por fuerza).
+first_wave = 6
+wave_growth = 4
+# Defiende a 20 casillas: con el terreno (B2) la marcha es más lenta y una incursión
+# llega antes de que la tropa vuelva si espera a tenerla encima.
+defend_radius_tiles = 20
+flee_enemy_tiles = 3
+safe_base_tiles = 2
+barracks_queue = 2
+villager_queue = 2
+# Ataca con 6 o más tropas ociosas si su fuerza es al menos el 130 % de la enemiga
+# conocida; se retira si, a 8 casillas de su ejército en campaña, baja del 60 %.
+attack_ratio_percent = 150
+retreat_ratio_percent = 60
+min_attack_army = 10
+engage_radius_tiles = 8
+# apagar: 3 aldeanos por edificio en llamas. incendiar: grupos de 3 jinetes contra
+# edificios de madera sin enemigos armados a 10 casillas.
+extinguishers_per_fire = 3
+# Hasta 20 aldeanos solo entrena tropas si su ejército es más débil que el enemigo.
+army_min_villagers = 20
+raid_unit = "jinete"
+raid_group = 3
+raid_safe_radius_tiles = 10
+# Saqueo (C2): con hambre y sin fuente propia más cerca, saquea una granja enemiga si
+# no hay enemigos armados a 8 casillas de ella.
+pillage_guard_tiles = 8
+resupply_percent = 30
+upkeep_reserve_percent = 50
+# logistica: 2 acémilas siguen al ejército en campaña 4 casillas por detrás y
+# vuelven a casa a cargar. Asedio: con su ejército en campaña a 20 casillas o menos
+# del objetivo, si queda a más de 30 de toda fuente de suministro, campamento a
+# 9 casillas de él (dentro del alcance del trabuquete) y hasta 2 trabuquetes.
+camp_distance_tiles = 30
+camp_offset_tiles = 9
+convoy_carriers = 2
+baggage_offset_tiles = 4
+siege_engines = 2
+# Sanidad (D1): hospital de campaña junto a la base con 6 tropas o más; los heridos por
+# debajo del 50 % de vida que no pelean, a él; y un cirujano.
+medical_min_army = 6
+wounded_percent = 50
+surgeons = 1
+# Guerra con niebla (D2): de noche ataca con el 110 % de la fuerza enemiga (de día,
+# 130); localizado el enemigo, el explorador sigue vigilando a 18 casillas de su base;
+# 4 tiradores emboscados en un claro con 15 árboles o más a 3 casillas, buscado a 8 del
+# punto a 25 casillas de la base camino del enemigo; y 2 torres a 10 casillas de la
+# base hacia el enemigo, que se guarnecen si atacan la base.
+night_attack_ratio_percent = 110
+patrol_radius_tiles = 18
+ambush_size = 4
+ambush_distance_tiles = 25
+ambush_min_trees = 15
+ambush_wood_tiles = 3
+ambush_search_tiles = 8
+towers = 2
+tower_offset_tiles = 10
+# Moral y formaciones (D3): se retira si la moral media del ejército en campaña baja de
+# 400 (de 1000, antes de que se desbande a 250); forma con enemigos a 8 casillas o
+# menos (columna para marchar, línea para los tiradores, cuadro contra la caballería);
+# herrería con 18 aldeanos.
+retreat_morale = 400
+formation_engage_tiles = 8
+forge_at_villagers = 18
+# Volver a defender a paso forzado: medido en el torneo, la tropa llega agotada (cansa
+# el triple) y pierde más de lo que gana llegando antes. Desactivado.
+defend_forced_march = false
+think_every = 1
+siege_front_tiles = 20
+scouts = 1
+explore_step_tiles = 12
+# Con niebla, al menos 6 tropas de guardia aunque no haya visto al enemigo.
+fog_guard_army = 6
+army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
+
 
 [setup]
 seed = 20260924

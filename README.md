@@ -231,13 +231,13 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - **Percepción:** un resumen de lo que el jugador sabe, rehecho en cada decisión. Es el único sitio que lee el mundo; cuando haya niebla de guerra, filtrará con la misma visibilidad que un humano.
   - **Módulos:** `defensa`, `aldeanos`, `casas`, `cuartel`, `granjas`, `almacenes`, `obras`, `recoleccion`, `ejercito` y `ataque`. Comparten el presupuesto de la decisión.
   - **Perfiles** (`[[ai.profile]]`): qué módulos usa, en qué orden y con qué umbrales. Una dificultad nueva es un perfil con más módulos o módulos que piensan mejor; ningún parámetro de un perfil toca la economía ni las reglas.
-  - Perfiles: `basica` (la IA original, de referencia) y `normal` (por defecto).
+  - Niveles (D4): `facil` (la IA original), `normal` (por defecto), `dificil` y `experto`, con las mismas reglas y costes. Los separan los módulos que usan y la paciencia. Medido en 40 partidas, `normal` gana a `facil` el 82 % y `experto` el 90 %. Entre `normal`, `dificil` y `experto` la diferencia aún no es significativa (52 % y 47 %): los altos juegan más rico (emboscadas, formaciones, sanidad, herrería), pero todavía no más fuerte. La logística resta (32 % medida aparte), así que ningún nivel la usa hasta mejorarla.
 - **Qué añade `normal`.** Juega con las mismas reglas y la misma información; solo decide mejor:
   - `ejercito_contra`: entrena el tipo que más rinde contra lo que tiene el rival, por unidad de coste. Contra un ejército, compara cuánto mata por tick con cuánto le matan. Sin unidades armadas enemigas, elige lo que antes derriba sus edificios. Todo sale de la fórmula de daño y de los datos.
   - `ataque_fuerza`: ataca cuando la fuerza estimada de su ejército (vida × daño por tick) llega al 130 % de la enemiga conocida, y se retira si en la batalla baja del 60 %. Esa histéresis evita que oscile entre atacar y retirarse.
   - `concentrar`: cada unidad que pelea remata al enemigo armado que necesita menos golpes suyos. Los aldeanos enemigos no son prioridad: primero, lo que amenaza al ejército.
   - Economía: dos aldeanos en cola y casas con más margen.
-- **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `basica` 32 de 40 (80 %), 11 de ellas por derrota (al caer el centro urbano) y el resto a los puntos (valor vivo de unidades y edificios). Rematar exige asedio (arietes).
+- **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `facil` 33 de 40 (82 %) y `experto` 36 de 40 (90 %). Casi todas se deciden a los puntos (valor vivo de unidades y edificios): rematar exige asedio.
 
 ### Repeticiones (M5)
 
@@ -570,7 +570,7 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
 | CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
-| CI torneo de IA | `normal` gana a `basica` al menos en el 70 % de 10 partidas de 30 minutos |
+| CI torneo de IA | `normal` y `experto` ganan a `facil` al menos en el 70 % de 20 partidas de 30 minutos |
 | CI `replay-cross` | La repetición grabada en Linux con GCC se verifica con MSVC, clang-cl, Clang y GCC |
 
 Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el cambio de diseño es intencionado, se actualiza `kExpectedHash` en el mismo commit y se justifica en el mensaje.

@@ -125,6 +125,9 @@ struct AiProfile {
     std::int32_t formation_engage_tiles = 0;
     std::int32_t forge_at_villagers = 0;
     bool defend_forced_march = false;  // vuelve a paso forzado si atacan la base
+    // Niveles (D4): decide solo una de cada think_every veces que le toca (tiempo de
+    // reacción; 1 = siempre). Pensar más despacio no es hacer trampas al revés.
+    std::int32_t think_every = 1;
     // abastecer: una unidad que no pelea vuelve a abastecerse cuando sus víveres o su
     // munición bajan de este % de lo que puede llevar.
     std::int32_t resupply_percent = 0;

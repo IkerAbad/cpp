@@ -1219,6 +1219,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.formation_engage_tiles = pr.get_i32("formation_engage_tiles", 0, 64);
         p.forge_at_villagers = pr.get_i32("forge_at_villagers", 0, 1000);
         p.defend_forced_march = pr.get_bool("defend_forced_march");
+        p.think_every = pr.get_i32("think_every", 1, 100);
         p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);
         p.upkeep_reserve_percent = pr.get_i32("upkeep_reserve_percent", 0, 1000);
         p.camp_distance_tiles = pr.get_i32("camp_distance_tiles", 0, 1024);

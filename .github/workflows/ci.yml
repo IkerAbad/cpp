@@ -224,7 +224,9 @@ jobs:
       # La IA "normal" debe ganar a la "básica" en al menos el 70 % de 10 partidas de 30
       # minutos (5 semillas con los lados cambiados). Determinista: no hay suerte.
       - name: Torneo de IA (normal contra básica)
-        run: build/linux-clang-release/bench/rts_ai_match --data data --a normal --b basica --games 10 --min-win-percent 70
+        run: |
+          build/linux-clang-release/bench/rts_ai_match --data data --a normal --b facil --games 20 --min-win-percent 70
+          build/linux-clang-release/bench/rts_ai_match --data data --a experto --b facil --games 20 --min-win-percent 70
 
       # Criterio de M5: una partida de 30 minutos grabada se reproduce con los mismos
       # 180 hashes intermedios y el mismo hash final.

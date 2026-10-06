@@ -1964,6 +1964,10 @@ void AiSystem::think(const entt::registry& registry, const EconomySystem& econom
         if ((tick + interval - static_cast<std::uint32_t>(ai.player) % interval) % interval != 0) {
             continue;
         }
+        const AiProfile& profile = params_.profiles[profiles_[i]];
+        if ((tick / interval) % static_cast<std::uint32_t>(std::max(profile.think_every, 1)) != 0) {
+            continue;  // más lento de reflejos: esta vez no decide
+        }
         const PlayerState& ps = economy.players()[ai.player];
         Decision d{registry, economy,  grid, params_, supply_, params_.profiles[profiles_[i]], ai, tick, out, ps, {},
                    ps.stock, ps.population};
