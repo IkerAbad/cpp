@@ -640,6 +640,50 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
             r.fail(std::format("los requisitos (requires) de \"{}\" forman un ciclo", catalog.types[b].name));
         }
     }
+    // Mejoras (C1): [[upgrade]], opcional. requires nombra otra mejora anterior.
+    const toml::array* ups = r.get_table_array("upgrade", false);
+    if (ups != nullptr && ups->size() > static_cast<std::size_t>(kByteMax) + 1) {
+        r.fail(std::format("hay {} mejoras y el máximo es {}", ups->size(), kByteMax + 1));
+    }
+    for_each_table(ups, source_name, "upgrade", error, [&](Reader& ur, std::size_t) {
+        UpgradeInfo info;
+        info.name = ur.get_string("name");
+        info.label = ur.get_string("label");
+        const std::string at = ur.get_string("at");
+        const auto at_id = catalog.find(at);
+        if (!at_id) {
+            ur.fail(std::format("'{}' = \"{}\" no es un edificio", ur.full("at"), at));
+            return;
+        }
+        info.type.at = *at_id;
+        info.type.cost = ur.get_stock("cost");
+        info.type.research_ticks = ur.get_i32("research_ticks", 1, kMaxTicks);
+        const std::string req = ur.get_string("requires");
+        if (!req.empty()) {
+            const auto it = std::ranges::find(catalog.upgrades, req, &UpgradeInfo::name);
+            if (it == catalog.upgrades.end()) {
+                ur.fail(std::format("'{}' = \"{}\" no es una mejora anterior", ur.full("requires"), req));
+                return;
+            }
+            info.type.requires_upgrade = static_cast<sim::UpgradeId>(it - catalog.upgrades.begin());
+        }
+        for (const std::string& cls : ur.get_string_list("classes")) {
+            const auto c = std::ranges::find(units.classes, cls);
+            if (c == units.classes.end()) {
+                ur.fail(std::format("'{}' contiene \"{}\", que no es una clase de units.toml", ur.full("classes"), cls));
+                return;
+            }
+            info.type.classes |= 1U << static_cast<std::uint32_t>(c - units.classes.begin());
+        }
+        info.type.attack_melee = ur.get_i32("attack_melee", 0, kMaxAmount);
+        info.type.attack_pierce = ur.get_i32("attack_pierce", 0, kMaxAmount);
+        info.type.armor_melee = ur.get_i32("armor_melee", 0, kMaxAmount);
+        info.type.armor_pierce = ur.get_i32("armor_pierce", 0, kMaxAmount);
+        if (!ur.failed() && std::ranges::find(catalog.upgrades, info.name, &UpgradeInfo::name) != catalog.upgrades.end()) {
+            ur.fail(std::format("nombre de mejora repetido: \"{}\"", info.name));
+        }
+        catalog.upgrades.push_back(std::move(info));
+    });
     if (error) {
         return std::unexpected(*error);
     }
@@ -773,6 +817,9 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     }
     for (const BuildingInfo& b : catalogs.buildings.types) {
         cfg.world.building_types.push_back(b.type);
+    }
+    for (const UpgradeInfo& u : catalogs.buildings.upgrades) {
+        cfg.world.upgrades.push_back(u.type);
     }
     for (const NodeInfo& n : catalogs.nodes.types) {
         cfg.world.node_types.push_back(n.type);

@@ -79,17 +79,17 @@ TEST_CASE("Combate: la fórmula de daño resta armadura por tipo, suma bonus y n
     const auto& reg = world.registry();
     const auto& cb = world.combat();
     // Soldado 5 cuerpo contra soldado con armadura 1: 4.
-    CHECK(cb.damage(kSoldier, 100, reg, ent(enemy_soldier)) == 4);
+    CHECK(cb.damage(kSoldier, 0, 100, reg, ent(enemy_soldier)) == 4);
     // Contra un aldeano sin armadura: 5.
-    CHECK(cb.damage(kSoldier, 100, reg, ent(villager)) == 5);
+    CHECK(cb.damage(kSoldier, 0, 100, reg, ent(villager)) == 5);
     // Arquero 4 proyectil + 1 de bonus contra infantería.
-    CHECK(cb.damage(kArcher, 100, reg, ent(enemy_soldier)) == 5);
+    CHECK(cb.damage(kArcher, 0, 100, reg, ent(enemy_soldier)) == 5);
     // Contra la casa (armadura 3/8): 5-3 = 2 cuerpo; 4-8 < 0 -> mínimo 1.
-    CHECK(cb.damage(kSoldier, 100, reg, ent(*house)) == 2);
-    CHECK(cb.damage(kArcher, 100, reg, ent(*house)) == 1);
-    CHECK(cb.damage(kVillager, 100, reg, ent(*house)) == 1);
+    CHECK(cb.damage(kSoldier, 0, 100, reg, ent(*house)) == 2);
+    CHECK(cb.damage(kArcher, 0, 100, reg, ent(*house)) == 1);
+    CHECK(cb.damage(kVillager, 0, 100, reg, ent(*house)) == 1);
     // Porcentaje de ataque (nivel/aura): 5 * 150 % = 7 -> 7 - 1 = 6.
-    CHECK(cb.damage(kSoldier, 150, reg, ent(enemy_soldier)) == 6);
+    CHECK(cb.damage(kSoldier, 0, 150, reg, ent(enemy_soldier)) == 6);
 }
 
 TEST_CASE("Combate: dos soldados iguales que se atacan mueren en el mismo tick") {

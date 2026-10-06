@@ -79,9 +79,15 @@ std::int32_t hit_damage(const CombatStats& a, std::int32_t percent, std::int32_t
     return static_cast<std::int32_t>(std::clamp<std::int64_t>(sum, 1, kMaxHitDamage));
 }
 
-std::int32_t CombatSystem::damage(UnitTypeId attacker_type, std::int32_t percent, const entt::registry& registry,
-                                  entt::entity target) const {
-    const CombatStats& a = units_[attacker_type].combat;
+std::int32_t CombatSystem::damage(UnitTypeId attacker_type, PlayerId attacker_owner, std::int32_t percent,
+                                  const entt::registry& registry, entt::entity target) const {
+    CombatStats a = units_[attacker_type].combat;
+    if (economy_ != nullptr) {
+        // Mejoras del atacante: el ataque, solo si ya lo tenía.
+        const UpgradeBonus up = economy_->upgrade_bonus(attacker_owner, a.armor_class);
+        a.attack_melee += a.attack_melee > 0 ? up.attack_melee : 0;
+        a.attack_pierce += a.attack_pierce > 0 ? up.attack_pierce : 0;
+    }
     std::int32_t armor_melee = 0;
     std::int32_t armor_pierce = 0;
     ArmorClassId armor_class = 0;
@@ -93,6 +99,11 @@ std::int32_t CombatSystem::damage(UnitTypeId attacker_type, std::int32_t percent
         armor_melee = t.armor_melee + extra;
         armor_pierce = t.armor_pierce + extra;
         armor_class = t.armor_class;
+        if (economy_ != nullptr && registry.all_of<Owner>(target)) {
+            const UpgradeBonus up = economy_->upgrade_bonus(registry.get<Owner>(target).player, t.armor_class);
+            armor_melee += up.armor_melee;
+            armor_pierce += up.armor_pierce;
+        }
     } else if (const Building* b = registry.try_get<Building>(target)) {
         const BuildingType& bt = buildings_[b->type];
         armor_melee = bt.armor_melee;
@@ -153,6 +164,7 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
         }
         case CommandType::Count:
         case CommandType::SetRally:
+        case CommandType::Research:
             return;
         case CommandType::Garrison:
         case CommandType::Climb:
@@ -428,7 +440,8 @@ void CombatSystem::clear_target(entt::registry& registry, MovementSystem& moveme
 }
 
 void CombatSystem::strike(const entt::registry& registry, FireSystem& fire, entt::entity target,
-                          entt::entity attacker, UnitTypeId attacker_type, std::int32_t percent) {
+                          entt::entity attacker, UnitTypeId attacker_type, PlayerId attacker_owner,
+                          std::int32_t percent) {
     const CombatStats& st = units_[attacker_type].combat;
     if (const Building* b = registry.try_get<Building>(target)) {
         const bool stone = buildings_[b->type].material == Material::Stone;
@@ -444,7 +457,7 @@ void CombatSystem::strike(const entt::registry& registry, FireSystem& fire, entt
             return;
         }
     }
-    hits_.push_back({target, attacker, damage(attacker_type, percent, registry, target), attacker_type});
+    hits_.push_back({target, attacker, damage(attacker_type, attacker_owner, percent, registry, target), attacker_type});
 }
 
 bool CombatSystem::can_harm_building(const entt::registry& registry, UnitTypeId attacker_type,
@@ -465,6 +478,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                           FireSystem& fire, std::uint32_t& next_order_id, Tick tick, const VisionSystem* vision) {
     stats_ = CombatTickStats{};
     vision_ = vision;
+    economy_ = &economy;
     hits_.clear();
     new_projectiles_.clear();
     morale_hits_.clear();
@@ -601,7 +615,7 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                     --sp->ammo;  // no_ammo ya descartó el caso sin munición
                 }
                 if (st.projectile_speed.raw() == 0) {
-                    strike(registry, fire, c.target, e, unit.type, percent);
+                    strike(registry, fire, c.target, e, unit.type, s_.owner[i], percent);
                     ++stats_.melee_hits;
                 } else {
                     // Apunta a donde está el blanco ahora: si se mueve, puede esquivarlo.
@@ -709,7 +723,7 @@ void CombatSystem::update_projectiles(entt::registry& registry, const EconomySys
                     percent = static_cast<std::int32_t>(std::int64_t{percent} * cover[t] / kPercent);
                 }
             }
-            strike(registry, fire, target, p.attacker, p.attacker_type, percent);
+            strike(registry, fire, target, p.attacker, p.attacker_type, p.owner, percent);
             ++stats_.projectiles_hit;
         } else {
             ++stats_.projectiles_missed;

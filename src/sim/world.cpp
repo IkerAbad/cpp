@@ -58,7 +58,7 @@ World::World(const WorldParams& params)
     : map_(make_map(params)),
       movement_(*map_, params.passable_by_terrain, params.movement),
       economy_(map_->width(), map_->height(), params.economy,
-               {params.unit_types, params.building_types, params.node_types}, player_count(params)),
+               {params.unit_types, params.building_types, params.node_types, params.upgrades}, player_count(params)),
       combat_(*map_, params.combat, params.unit_types, params.building_types),
       fire_(params.fire, params.unit_types, params.building_types),
       supply_(params.supply, params.unit_types, params.building_types),
@@ -552,6 +552,10 @@ void World::write_snapshot(Snapshot& out) const {
             o.complete = b->complete;
             o.burned = b->burned;
             o.rally = b->rally;
+            if (const Research* rs = registry_.try_get<Research>(e)) {
+                o.research = rs->upgrade;
+                o.research_progress = rs->progress;
+            }
             if (const Fire* fire = registry_.try_get<Fire>(e)) {
                 o.fire = fire->intensity;
             }

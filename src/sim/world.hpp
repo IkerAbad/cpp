@@ -78,6 +78,7 @@ struct WorldParams {
     std::vector<UnitType> unit_types;                // por UnitTypeId
     std::vector<BuildingType> building_types;        // por BuildingTypeId
     std::vector<ResourceNodeType> node_types;        // por NodeTypeId
+    std::vector<UpgradeType> upgrades;               // por UpgradeId (herrería, C1)
     MovementParams movement;
     EconomyParams economy;
     CombatParams combat;
@@ -153,6 +154,8 @@ struct SnapshotObject {
     std::uint8_t seen_by = 0xFF;     // bit p: lo ve ahora el jugador p (niebla de guerra)
     TileCoord rally{-1, -1};         // edificios que producen: punto de reunión (-1: ninguno)
     std::int32_t garrison = 0;       // torres: unidades dentro
+    std::int32_t research = -1;      // herrería: mejora en curso (-1: ninguna)
+    std::int32_t research_progress = 0;
 };
 
 // Copia de solo lectura del estado que se presenta. El render nunca toca el registro.

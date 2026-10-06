@@ -704,6 +704,67 @@ TEST_CASE("Configuración: los datos del repositorio son válidos") {
     CHECK_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
 }
 
+TEST_CASE("Configuración: las mejoras de la herrería se leen con su requisito y sus clases") {
+    const auto data = load_game_data(RTS_DATA_DIR);
+    REQUIRE(data.has_value());
+    const auto& ups = data->buildings.upgrades;
+    const auto find = [&](std::string_view name) {
+        return std::ranges::find(ups, name, &rts::game::UpgradeInfo::name);
+    };
+    const auto plate = find("arnes_placas");
+    const auto mail = find("cota_reforzada");
+    REQUIRE(plate != ups.end());
+    REQUIRE(mail != ups.end());
+    REQUIRE(plate->type.requires_upgrade.has_value());
+    CHECK(*plate->type.requires_upgrade == mail - ups.begin());
+    CHECK(plate->type.at == data->buildings.find("herreria"));
+    CHECK(data->engine.world.upgrades.size() == ups.size());
+    // Un requisito que no existe se rechaza.
+    CHECK(rts::game::parse_building_catalog(R"(
+[[building]]
+name = "h"
+size_tiles = 1
+cost = {}
+build_ticks = 1
+hp = 1
+accepts = []
+population = 0
+armor = { cuerpo = 0, proyectil = 0 }
+class = "infanteria"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 1
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
+material = "madera"
+color = [0, 0, 0]
+
+[[upgrade]]
+name = "u"
+label = "U"
+at = "h"
+cost = {}
+research_ticks = 1
+requires = "no_existe"
+classes = []
+attack_melee = 0
+attack_pierce = 0
+armor_melee = 0
+armor_pierce = 0
+)", units()).has_value() == false);
+}
+
 TEST_CASE("Unidades: el catálogo convierte milésimas a Fixed y rechaza radios mayores de media casilla") {
     const UnitCatalog c = units();
     REQUIRE(c.types.size() == 2);

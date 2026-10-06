@@ -1133,6 +1133,50 @@ private:
         }
     }
 
+    // Herrería (C1): mejoras que se investigan aquí, en curso, hechas o por hacer.
+    void draw_research(const sim::SnapshotObject& o, std::uint32_t id) {
+        const auto& ups = data_.buildings.upgrades;
+        if (std::ranges::none_of(ups, [&](const UpgradeInfo& u) { return u.type.at == o.type; })) {
+            return;
+        }
+        ImGui::SeparatorText("Mejoras");
+        const sim::PlayerState* me = kLocalPlayer < curr_.players.size() ? &curr_.players[kLocalPlayer] : nullptr;
+        const auto done = [&](std::size_t u) {
+            return me != nullptr && u < me->researched.size() && me->researched[u] != 0;
+        };
+        if (o.research >= 0) {
+            const UpgradeInfo& u = ups[static_cast<std::size_t>(o.research)];
+            ImGui::ProgressBar(static_cast<float>(o.research_progress) / static_cast<float>(u.type.research_ticks),
+                               {-1.0f, 0.0f}, u.label.c_str());
+            if (ImGui::SmallButton("Anular (se devuelve el coste)")) {
+                sim::Command c = local_command(sim::CommandType::CancelTrain);
+                c.units.clear();
+                c.object = id;
+                issue(std::move(c));
+            }
+        }
+        for (std::size_t i = 0; i < ups.size(); ++i) {
+            const UpgradeInfo& u = ups[i];
+            if (u.type.at != o.type) {
+                continue;
+            }
+            if (done(i)) {
+                ImGui::TextDisabled("%s: hecha", u.label.c_str());
+                continue;
+            }
+            const bool ready = !u.type.requires_upgrade || done(*u.type.requires_upgrade);
+            ImGui::BeginDisabled(!ready || o.research >= 0 || me == nullptr || !affordable(me->stock, u.type.cost));
+            if (ImGui::Button(std::format("{} ({})", u.label, cost_text(u.type.cost)).c_str())) {
+                sim::Command c = local_command(sim::CommandType::Research);
+                c.units.clear();
+                c.object = id;
+                c.kind = static_cast<std::uint8_t>(i);
+                issue(std::move(c));
+            }
+            ImGui::EndDisabled();
+        }
+    }
+
     // Estado sanitario de una unidad.
     void draw_care_text(const sim::SnapshotEntity& e) const {
         if (e.admitted) {
@@ -1798,6 +1842,7 @@ private:
                                "en obra");
             return;
         }
+        draw_research(*o, id);
         if (info.type.garrison > 0) {
             ImGui::Text("Guarnición: %d de %d", o->garrison, info.type.garrison);
             ImGui::TextDisabled("Clic derecho con tropas: guarnecerla (dentro no se las puede atacar)");

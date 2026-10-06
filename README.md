@@ -387,6 +387,24 @@ Fuentes:
 - **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Herrería y mejoras
+
+La herrería (requiere cuartel) investiga mejoras de armas y armaduras, de una en una, pagando al empezar (`[[upgrade]]` en `buildings.toml`). Se pueden anular y se devuelve el coste. Lo investigado vale para todas las unidades del jugador de esas clases, tanto las que ya tiene como las nuevas.
+
+| Mejora | Requiere | Clases | Efecto | Coste |
+|---|---|---|---|---|
+| Armas templadas | — | infantería, caballería | +1 cuerpo a cuerpo | 60 hierro, 40 madera |
+| Hojas de acero | armas templadas | infantería, caballería | +1 cuerpo a cuerpo | 120 hierro, 60 oro |
+| Puntas de hierro | — | tiradores | +1 proyectil | 50 hierro, 60 madera |
+| Puntas de punzón | puntas de hierro | tiradores | +1 proyectil | 100 hierro, 50 oro |
+| Cota de malla con placas | — | infantería, caballería | +1/+1 armadura | 80 hierro, 40 oro |
+| Arnés de placas | cota con placas | caballería | +2/+2 armadura | 200 hierro, 150 oro |
+| Gambesón acolchado | — | tiradores | +1 armadura contra proyectiles | 60 comida, 30 oro |
+
+Fuente: [Plate armour](https://en.wikipedia.org/wiki/Plate_armour): «Single plates of metal armour were again used from the late 13th century on, to protect joints and shins, and these were worn over a mail hauberk», «By about 1420, complete suits of plate armour had been developed in Europe», y su coste «was enormous, and inevitably restricted to the wealthy». Por eso el arnés de placas es caro y solo para la caballería.
+
+- **IA:** aún no investiga (fase D).
+
 ### Formaciones
 
 Línea, columna y cuadro (`[formation]` en `engine.toml`; botones en el panel de la tropa). Una formación solo vale con al menos 4 en ella a 3 casillas o menos; al moverse, cada una va a su puesto.

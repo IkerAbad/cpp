@@ -194,8 +194,40 @@ struct PlayerStats {
     std::int32_t peak_population = 0;
 };
 
+// Mejora de la herrería (C1): se investiga en un edificio de tipo at, pagando cost, en
+// research_ticks; exige antes la mejora requires. Suma su ataque y armadura a todas las
+// unidades del jugador (las que ya tiene y las nuevas) de las clases de armadura del
+// bit classes; el ataque, solo al que ya lo tenía (las puntas no dan tajo a nadie).
+using UpgradeId = std::uint8_t;
+struct UpgradeType {
+    BuildingTypeId at = 0;
+    Stock cost{};
+    std::int32_t research_ticks = 1;
+    std::optional<UpgradeId> requires_upgrade;
+    std::uint32_t classes = 0;  // bit c: aplica a la clase de armadura c
+    std::int32_t attack_melee = 0;
+    std::int32_t attack_pierce = 0;
+    std::int32_t armor_melee = 0;
+    std::int32_t armor_pierce = 0;
+};
+
+// Lo que suman las mejoras investigadas a una clase de armadura.
+struct UpgradeBonus {
+    std::int32_t attack_melee = 0;
+    std::int32_t attack_pierce = 0;
+    std::int32_t armor_melee = 0;
+    std::int32_t armor_pierce = 0;
+};
+
+// Investigación en curso en un edificio (una a la vez).
+struct Research {
+    UpgradeId upgrade = 0;
+    std::int32_t progress = 0;
+};
+
 struct PlayerState {
     Stock stock{};
+    std::vector<std::uint8_t> researched;  // por UpgradeId: 1 = investigada (vacío: ninguna)
     std::int32_t population = 0;
     std::int32_t population_cap = 0;
     bool started = false;   // ha tenido alguna unidad o edificio
@@ -220,6 +252,7 @@ struct EconomyCatalog {
     std::vector<UnitType> units;
     std::vector<BuildingType> buildings;
     std::vector<ResourceNodeType> nodes;
+    std::vector<UpgradeType> upgrades;
 };
 
 class EconomySystem {
@@ -269,6 +302,13 @@ public:
     void record_loss(PlayerId victim, std::optional<PlayerId> killer = std::nullopt);
     [[nodiscard]] const EconomyParams& params() const noexcept { return params_; }
     [[nodiscard]] const EconomyCatalog& catalog() const noexcept { return catalog_; }
+    // Mejoras (C1).
+    [[nodiscard]] bool researched(PlayerId p, UpgradeId u) const noexcept;
+    // Lo que suman las mejoras investigadas por p a las unidades de la clase c.
+    [[nodiscard]] UpgradeBonus upgrade_bonus(PlayerId p, ArmorClassId c) const noexcept;
+    // ¿Se puede empezar ya a investigar u en el edificio b? (dueño, tipo, terminado,
+    // libre, sin investigar ni en curso, requisito cumplido y pagable)
+    [[nodiscard]] bool can_research(const entt::registry& registry, PlayerId p, entt::entity b, UpgradeId u) const;
     [[nodiscard]] const EconomyTickStats& last_stats() const noexcept { return stats_; }
 
     void hash_into(StateHasher& h, const entt::registry& registry) const;
@@ -308,6 +348,7 @@ private:
                                                               Resource kind, TileCoord from) const;
     void deplete(entt::registry& registry, MovementSystem& movement, entt::entity node);
     void update_production(entt::registry& registry, const MovementSystem& movement);
+    void update_research(entt::registry& registry);
     void retire_defeated(entt::registry& registry, MovementSystem& movement);
     void repair(entt::registry& registry, entt::entity building, Building& b, const BuildingType& bt);
     // Granja terminada: se convierte también en un nodo de comida de su dueño.

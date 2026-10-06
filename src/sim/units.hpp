@@ -282,6 +282,8 @@ enum class CommandType : std::uint8_t {
     Garrison,
     // units -> object (tramo de muro enemigo): escalarlo (B4).
     Climb,
+    // object (edificio propio): investigar la mejora kind (C1). CancelTrain la anula.
+    Research,
     Count,        // número de tipos (no es una orden)
 };
 

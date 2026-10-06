@@ -82,8 +82,16 @@ struct BuildingInfo {
     std::array<std::uint8_t, 3> color{};
 };
 
+// Mejora de la herrería (C1).
+struct UpgradeInfo {
+    std::string name;
+    std::string label;  // nombre que se muestra
+    sim::UpgradeType type;
+};
+
 struct BuildingCatalog {
     std::vector<BuildingInfo> types;  // el índice es el BuildingTypeId
+    std::vector<UpgradeInfo> upgrades;  // el índice es el UpgradeId (opcional en el fichero)
 
     [[nodiscard]] std::optional<sim::BuildingTypeId> find(std::string_view name) const;
 };

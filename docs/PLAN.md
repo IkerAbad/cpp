@@ -45,6 +45,7 @@ esconden, y un asedio sin suministro fracasa.
 | Sanidad | Puesto de socorro, hospital de campaña, hospital, enfermeros, cirujanos, heridas leves, reorganización |
 | Niebla | Tres estados, árboles, altura, día y noche, memoria de edificios |
 | Terreno | Altura para tiradores y cuerpo a cuerpo, bosque que cubre, marcha por terreno, carga en llano |
+| Herrería | Mejoras de armas y armaduras por niveles, con hierro; valen para las unidades nuevas y las existentes |
 | Formaciones | Línea (tiro), columna (marcha), cuadro (contra caballería y carga) |
 | Fortificaciones | Empalizada, muralla, puertas del dueño, torres con guarnición, escalas; la IA rodea o abre brecha |
 | Fatiga | Marcha y combate cansan, descanso, paso forzado, aguante por tipo |
@@ -127,7 +128,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
 ### Fase C — Economía y sociedad
 
-- [ ] **C1. Herrería y mejoras.** Mejoras de armas y armaduras que cuestan hierro y
+- [x] **C1. Herrería y mejoras.** Mejoras de armas y armaduras que cuestan hierro y
   tiempo, por niveles. *Terminado:* pruebas de que se aplican a las unidades nuevas
   y a las existentes.
 - [ ] **C2. Forrajeo y saqueo.** Un ejército puede vivir del terreno: forrajea en las

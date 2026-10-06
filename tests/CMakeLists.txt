@@ -15,6 +15,7 @@ add_executable(rts_tests
     test_fatigue.cpp
     test_fortifications.cpp
     test_formation.cpp
+    test_upgrades.cpp
     test_vision.cpp
     test_orders.cpp
     test_minimap.cpp

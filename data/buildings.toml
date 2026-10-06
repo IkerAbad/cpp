@@ -578,3 +578,134 @@ garrison_levels = 2
 climbable = false
 material = "piedra"
 color = [130, 130, 140]
+
+# Herrería (C1): investiga las mejoras de armas y armaduras.
+[[building]]
+name = "herreria"
+size_tiles = 2
+cost = { madera = 120, piedra = 40 }
+build_ticks = 900
+hp = 1000
+accepts = []
+population = 0
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
+trains = []
+requires = ["cuartel"]
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 3
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
+material = "madera"
+color = [90, 70, 60]
+
+# Mejoras de la herrería (C1). Se investigan de una en una en la herrería (at), pagando
+# cost al empezar, en research_ticks; requires: la mejora anterior de su línea ("" =
+# ninguna). Suman a todas las unidades del jugador de las clases (classes), las que ya
+# tiene y las nuevas; el ataque, solo al que ya lo tenía.
+# La armadura fue a más a lo largo de la Edad Media: «Single plates of metal armour
+# were again used from the late 13th century on, to protect joints and shins, and these
+# were worn over a mail hauberk», y «By about 1420, complete suits of plate armour had
+# been developed in Europe»; pero «The cost of a full suit of high quality fitted
+# armour ... was enormous, and inevitably restricted to the wealthy» (Wikipedia,
+# «Plate armour»): por eso el arnés de placas es caro y solo para la caballería.
+[[upgrade]]
+name = "armas_templadas"
+label = "Armas templadas"
+at = "herreria"
+cost = { hierro = 60, madera = 40 }
+research_ticks = 600
+requires = ""
+classes = ["infanteria", "caballeria"]
+attack_melee = 1
+attack_pierce = 0
+armor_melee = 0
+armor_pierce = 0
+
+[[upgrade]]
+name = "acero"
+label = "Hojas de acero"
+at = "herreria"
+cost = { hierro = 120, oro = 60 }
+research_ticks = 900
+requires = "armas_templadas"
+classes = ["infanteria", "caballeria"]
+attack_melee = 1
+attack_pierce = 0
+armor_melee = 0
+armor_pierce = 0
+
+[[upgrade]]
+name = "puntas_hierro"
+label = "Puntas de hierro"
+at = "herreria"
+cost = { hierro = 50, madera = 60 }
+research_ticks = 600
+requires = ""
+classes = ["tirador"]
+attack_melee = 0
+attack_pierce = 1
+armor_melee = 0
+armor_pierce = 0
+
+[[upgrade]]
+name = "puntas_punzon"
+label = "Puntas de punzón"
+at = "herreria"
+cost = { hierro = 100, oro = 50 }
+research_ticks = 900
+requires = "puntas_hierro"
+classes = ["tirador"]
+attack_melee = 0
+attack_pierce = 1
+armor_melee = 0
+armor_pierce = 0
+
+[[upgrade]]
+name = "cota_reforzada"
+label = "Cota de malla con placas"
+at = "herreria"
+cost = { hierro = 80, oro = 40 }
+research_ticks = 800
+requires = ""
+classes = ["infanteria", "caballeria"]
+attack_melee = 0
+attack_pierce = 0
+armor_melee = 1
+armor_pierce = 1
+
+[[upgrade]]
+name = "arnes_placas"
+label = "Arnés de placas"
+at = "herreria"
+cost = { hierro = 200, oro = 150 }
+research_ticks = 1200
+requires = "cota_reforzada"
+classes = ["caballeria"]
+attack_melee = 0
+attack_pierce = 0
+armor_melee = 2
+armor_pierce = 2
+
+[[upgrade]]
+name = "gambeson"
+label = "Gambesón acolchado"
+at = "herreria"
+cost = { comida = 60, oro = 30 }
+research_ticks = 500
+requires = ""
+classes = ["tirador"]
+attack_melee = 0
+attack_pierce = 0
+armor_melee = 0
+armor_pierce = 1

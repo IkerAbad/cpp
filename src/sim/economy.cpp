@@ -462,7 +462,22 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             return;
         }
 
+        case CommandType::Research: {
+            if (!has_object || !can_research(registry, player, object, command.kind)) {
+                return;
+            }
+            add_stock(players_[player].stock, catalog_.upgrades[command.kind].cost, -1);
+            registry.emplace<Research>(object, Research{command.kind, 0});
+            return;
+        }
+
         case CommandType::CancelTrain: {
+            if (has_object && registry.all_of<Owner, Research>(object) && registry.get<Owner>(object).player == player) {
+                // Anular la investigación en curso: reembolso íntegro.
+                add_stock(players_[player].stock, catalog_.upgrades[registry.get<Research>(object).upgrade].cost, 1);
+                registry.remove<Research>(object);
+                return;
+            }
             if (!has_object || !registry.all_of<Owner, ProductionQueue>(object) ||
                 registry.get<Owner>(object).player != player) {
                 return;
@@ -480,6 +495,68 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
             }
             return;
         }
+    }
+}
+
+bool EconomySystem::researched(PlayerId p, UpgradeId u) const noexcept {
+    return p < players_.size() && u < players_[p].researched.size() && players_[p].researched[u] != 0;
+}
+
+UpgradeBonus EconomySystem::upgrade_bonus(PlayerId p, ArmorClassId c) const noexcept {
+    UpgradeBonus b;
+    if (p >= players_.size()) {
+        return b;
+    }
+    const auto& done = players_[p].researched;
+    for (std::size_t u = 0; u < done.size(); ++u) {
+        const UpgradeType& up = catalog_.upgrades[u];
+        if (done[u] == 0 || (up.classes & (1U << c)) == 0) {
+            continue;
+        }
+        b.attack_melee += up.attack_melee;
+        b.attack_pierce += up.attack_pierce;
+        b.armor_melee += up.armor_melee;
+        b.armor_pierce += up.armor_pierce;
+    }
+    return b;
+}
+
+bool EconomySystem::can_research(const entt::registry& registry, PlayerId p, entt::entity b, UpgradeId u) const {
+    if (u >= catalog_.upgrades.size() || p >= players_.size() || !registry.valid(b) ||
+        !registry.all_of<Building, Owner>(b) || registry.get<Owner>(b).player != p || registry.all_of<Research>(b)) {
+        return false;
+    }
+    const UpgradeType& up = catalog_.upgrades[u];
+    const Building& bl = registry.get<Building>(b);
+    if (bl.type != up.at || !bl.complete || bl.burned || researched(p, u) ||
+        (up.requires_upgrade && !researched(p, *up.requires_upgrade))) {
+        return false;
+    }
+    for (const auto [e, r, o] : registry.view<const Research, const Owner>().each()) {
+        if (o.player == p && r.upgrade == u) {
+            return false;  // ya se investiga en otro edificio
+        }
+    }
+    return affordable(players_[p].stock, up.cost);
+}
+
+void EconomySystem::update_research(entt::registry& registry) {
+    std::vector<entt::entity> done;
+    for (const auto [e, r, b, o] : registry.view<Research, const Building, const Owner>().each()) {
+        if (!b.complete || b.burned) {
+            continue;  // quemada, la herrería no trabaja
+        }
+        if (++r.progress >= catalog_.upgrades[r.upgrade].research_ticks) {
+            done.push_back(e);
+        }
+    }
+    std::ranges::sort(done, {}, [](entt::entity e) { return entt::to_integral(e); });
+    for (const entt::entity e : done) {
+        const PlayerId p = registry.get<Owner>(e).player;
+        auto& list = players_[p].researched;
+        list.resize(catalog_.upgrades.size(), 0);
+        list[registry.get<Research>(e).upgrade] = 1;
+        registry.remove<Research>(e);
     }
 }
 
@@ -551,6 +628,7 @@ void EconomySystem::update(entt::registry& registry, MovementSystem& movement, s
         update_worker(registry, movement, e, next_order_id, tick);
     }
     update_production(registry, movement);
+    update_research(registry);
 }
 
 void EconomySystem::update_worker(entt::registry& registry, MovementSystem& movement, entt::entity e,
@@ -1063,6 +1141,14 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
         h.add_u32(p.started ? 1U : 0U);
         h.add_u32(p.had_vital ? 1U : 0U);
         h.add_u32(p.defeated ? 1U : 0U);
+        if (!p.researched.empty()) {
+            h.add_bytes(p.researched);
+        }
+    }
+    for (const auto [e, r] : registry.view<const Research>().each()) {
+        h.add_u32(entt::to_integral(e));
+        h.add_u32(r.upgrade);
+        h.add_i32(r.progress);
     }
     // La ocupación de la rejilla se deriva de las huellas: basta con hashear estas.
     for (const auto [e, o] : registry.view<const Owner>().each()) {
