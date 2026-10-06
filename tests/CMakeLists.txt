@@ -16,6 +16,7 @@ add_executable(rts_tests
     test_fortifications.cpp
     test_formation.cpp
     test_upgrades.cpp
+    test_market.cpp
     test_vision.cpp
     test_orders.cpp
     test_minimap.cpp

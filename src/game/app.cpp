@@ -775,7 +775,28 @@ private:
                     return;
                 }
             }
-            // El bagaje, a un edificio que abastece: ruta de convoy (campamento) o cargar
+            // El bagaje, a un mercado propio: ruta de caravana.
+            if (binfo.type.market && o->complete) {
+                sim::Command route = local_command(sim::CommandType::TradeRoute);
+                route.object = o->id;
+                route.units.clear();
+                std::erase_if(c.units, [&](std::uint32_t uid) {
+                    const auto it = std::ranges::find(curr_.entities, uid, &sim::SnapshotEntity::id);
+                    const bool carrier =
+                        it != curr_.entities.end() && data_.units.types[it->type].type.convoy_capacity > 0;
+                    if (carrier) {
+                        route.units.push_back(uid);
+                    }
+                    return carrier;
+                });
+                if (!route.units.empty()) {
+                    issue(std::move(route));
+                }
+                if (c.units.empty()) {
+                    return;
+                }
+            }
+                        // El bagaje, a un edificio que abastece: ruta de convoy (campamento) o cargar
             // y quedarse; el resto de la selección, la orden de siempre.
             if (data_.buildings.types[o->type].type.supplies) {
                 sim::Command convoy = local_command(sim::CommandType::Convoy);
@@ -1133,6 +1154,41 @@ private:
         }
     }
 
+    // Mercado (C3): comprar y vender lotes por oro a los precios de ahora.
+    void draw_market(const sim::SnapshotObject& o, std::uint32_t id) {
+        if (!data_.buildings.types[o.type].type.market || !world_.market().enabled()) {
+            return;
+        }
+        const sim::MarketParams& mp = world_.market().params();
+        ImGui::SeparatorText(std::format("Mercado (lotes de {})", mp.lot).c_str());
+        ImGui::TextDisabled("Clic derecho con bagaje: caravana desde el mercado propio más cercano");
+        static constexpr std::array<const char*, sim::kResourceCount> kNames{"comida", "madera", "piedra", "oro", "hierro"};
+        for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
+            if (mp.base_price[r] <= 0) {
+                continue;
+            }
+            ImGui::Text("%s: compra %d, venta %d", kNames[r], curr_.market_prices[r], world_.market().sell_price(r));
+            ImGui::SameLine();
+            ImGui::PushID(static_cast<int>(r));
+            if (ImGui::SmallButton("Comprar")) {
+                sim::Command c = local_command(sim::CommandType::Trade);
+                c.units.clear();
+                c.object = id;
+                c.kind = static_cast<std::uint8_t>(r);
+                issue(std::move(c));
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Vender")) {
+                sim::Command c = local_command(sim::CommandType::Trade);
+                c.units.clear();
+                c.object = id;
+                c.kind = static_cast<std::uint8_t>(r | sim::kSellBit);
+                issue(std::move(c));
+            }
+            ImGui::PopID();
+        }
+    }
+
     // Herrería (C1): mejoras que se investigan aquí, en curso, hechas o por hacer.
     void draw_research(const sim::SnapshotObject& o, std::uint32_t id) {
         const auto& ups = data_.buildings.upgrades;
@@ -1192,6 +1248,9 @@ private:
         }
         if (e.routing) {
             ImGui::TextColored(kWarnColor, "en desbandada: huye y no obedece hasta rehacerse");
+        }
+        if (e.caravan) {
+            ImGui::TextDisabled("caravana entre mercados: cada llegada da oro");
         }
         if (e.climbing) {
             ImGui::TextColored(kWarnColor, "subiendo por una escala: no pelea y está expuesto");
@@ -1843,6 +1902,7 @@ private:
             return;
         }
         draw_research(*o, id);
+        draw_market(*o, id);
         if (info.type.garrison > 0) {
             ImGui::Text("Guarnición: %d de %d", o->garrison, info.type.garrison);
             ImGui::TextDisabled("Clic derecho con tropas: guarnecerla (dentro no se las puede atacar)");

@@ -30,6 +30,7 @@
 #   a nadie; los tiradores disparan con garrison_levels niveles de altura a favor (se
 #   suman a los del terreno: más alcance y más daño).
 # climbable: tramo de muro que el enemigo puede tomar con escalas (B4).
+# market: mercado (C3): se compra y vende por oro y es destino de caravanas.
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -63,6 +64,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "piedra"
 color = [196, 176, 140]
 
@@ -92,6 +94,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [176, 132, 96]
 
@@ -121,6 +124,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [120, 92, 60]
 
@@ -150,6 +154,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [132, 132, 140]
 
@@ -179,6 +184,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [206, 184, 110]
 
@@ -208,6 +214,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [150, 70, 60]
 
@@ -237,6 +244,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [214, 190, 92]
 
@@ -268,6 +276,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [120, 96, 64]
 
@@ -301,6 +310,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [168, 140, 84]
 
@@ -337,6 +347,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [220, 220, 210]
 
@@ -366,6 +377,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [235, 235, 225]
 
@@ -395,6 +407,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "piedra"
 color = [240, 240, 240]
 
@@ -428,6 +441,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = true
+market = false
 material = "madera"
 color = [150, 110, 70]
 
@@ -457,6 +471,7 @@ gate = true
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [170, 125, 80]
 
@@ -486,6 +501,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = true
+market = false
 material = "piedra"
 color = [150, 150, 150]
 
@@ -515,6 +531,7 @@ gate = true
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "piedra"
 color = [170, 165, 150]
 
@@ -547,6 +564,7 @@ gate = false
 garrison = 3
 garrison_levels = 1
 climbable = false
+market = false
 material = "madera"
 color = [140, 100, 60]
 
@@ -576,6 +594,7 @@ gate = false
 garrison = 5
 garrison_levels = 2
 climbable = false
+market = false
 material = "piedra"
 color = [130, 130, 140]
 
@@ -606,8 +625,40 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [90, 70, 60]
+
+# Mercado (C3): cambio de recursos por oro y caravanas entre mercados propios.
+[[building]]
+name = "mercado"
+size_tiles = 3
+cost = { madera = 175 }
+build_ticks = 1000
+hp = 1200
+accepts = []
+population = 0
+armor = { cuerpo = 3, proyectil = 8 }
+class = "edificio"
+trains = []
+requires = ["molino"]
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 4
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
+market = true
+material = "madera"
+color = [200, 160, 60]
 
 # Mejoras de la herrería (C1). Se investigan de una en una en la herrería (at), pagando
 # cost al empezar, en research_ticks; requires: la mejora anterior de su línea ("" =

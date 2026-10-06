@@ -68,6 +68,7 @@ World::World(const WorldParams& params)
       garrison_(params.garrison, params.unit_types, params.building_types),
       climb_(params.climb, params.unit_types, params.building_types),
       formation_(map_->width(), map_->height(), params.formation, params.unit_types),
+      market_(params.market, params.unit_types, params.building_types),
       vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
@@ -265,6 +266,7 @@ void World::apply_command(const Command& command) {
     }
     garrison_.apply(registry_, movement_, economy_, command, units, next_order_id_, tick_);
     climb_.apply(registry_, movement_, economy_, command, units, next_order_id_, tick_);
+    market_.apply(registry_, movement_, economy_, command, units, next_order_id_, tick_);
     economy_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     combat_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     fire_.apply(registry_, movement_, command, units, next_order_id_, tick_);
@@ -311,6 +313,7 @@ void World::step() {
     garrison_.update(registry_, movement_, economy_, next_order_id_, tick_);
     climb_.update(registry_, movement_, economy_, next_order_id_, tick_);
     formation_.update(registry_);
+    market_.update(registry_, movement_, economy_, next_order_id_, tick_);
     combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_, &vision_);
     morale_.update(registry_, movement_, combat_.morale_hits(), combat_.morale_deaths(),
                    vision_.daylight_percent(tick_), next_order_id_, tick_);
@@ -452,6 +455,7 @@ std::uint64_t World::state_hash() const {
     garrison_.hash_into(h, registry_);
     climb_.hash_into(h, registry_);
     formation_.hash_into(h, registry_);
+    market_.hash_into(h, registry_);
     vision_.hash_into(h);
     ai_.hash_into(h);
     return h.value();
@@ -516,6 +520,7 @@ void World::write_snapshot(Snapshot& out) const {
         if (const Climbing* cl = registry_.try_get<Climbing>(e); cl != nullptr && cl->timer >= 0) {
             s.climbing = true;
         }
+        s.caravan = registry_.all_of<Caravan>(e);
         if (const Formation* fm = registry_.try_get<Formation>(e)) {
             s.formation = fm->kind;
             s.formation_active = fm->active;
@@ -595,6 +600,7 @@ void World::write_snapshot(Snapshot& out) const {
         }
     }
     out.players.assign(economy_.players().begin(), economy_.players().end());
+    out.market_prices = market_.prices();
     out.daylight_percent = vision_.enabled() ? vision_.daylight_percent(tick_) : kPercent;
     out.fog.clear();
     out.memory.clear();

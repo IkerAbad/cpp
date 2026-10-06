@@ -84,6 +84,8 @@ struct BuildingType {
     std::int32_t garrison_levels = 0;
     // Tramo de muro que se puede escalar (B4).
     bool climbable = false;
+    // Mercado (C3): se comercia en él y es destino de caravanas.
+    bool market = false;
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {

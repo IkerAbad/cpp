@@ -387,6 +387,16 @@ Fuentes:
 - **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Mercado y comercio
+
+El mercado (requiere molino) cambia lotes de 100 de comida, madera, piedra o hierro por oro (`[market]` en `engine.toml`).
+
+- **Precios:** son los mismos para todos los jugadores. Cada compra encarece 3 y cada venta abarata 3, entre 10 y 400, y cada 5 s vuelven 1 hacia su base (comida 50, madera 50, piedra 70, hierro 90). Al vender, el mercader se queda un 30 %.
+- **Caravanas** (clic derecho con bagaje en un mercado propio): van y vienen entre ese mercado y el mercado propio más cercano a donde estaban, y en cada llegada dan 0,4 de oro por casilla de distancia. Si cae un mercado, la ruta se acaba.
+- **Fuente:** las ferias de Champaña, que «linked the cloth-producing cities of the Low Countries with the Italian dyeing and exporting centers» ([Champagne fairs](https://en.wikipedia.org/wiki/Champagne_fairs)).
+- **IA:** aún no comercia (fase D).
+- **Hash:** sin comercio, los precios no entran en el hash y nada cambia.
+
 ### Forrajeo y saqueo
 
 Un ejército puede vivir del terreno: es la *chevauchée*, «a raiding method of medieval warfare for weakening the enemy, primarily by burning and pillaging enemy territory in order to reduce the productivity of a region» ([Chevauchée](https://en.wikipedia.org/wiki/Chevauch%C3%A9e)). Se configura en `[supply]` de `engine.toml`.

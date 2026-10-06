@@ -165,9 +165,11 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
         case CommandType::Count:
         case CommandType::SetRally:
         case CommandType::Research:
+        case CommandType::Trade:
             return;
         case CommandType::Garrison:
         case CommandType::Climb:
+        case CommandType::TradeRoute:
         case CommandType::Extinguish:
         case CommandType::Demolish:
         case CommandType::Convoy:

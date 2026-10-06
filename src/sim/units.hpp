@@ -284,6 +284,10 @@ enum class CommandType : std::uint8_t {
     Climb,
     // object (edificio propio): investigar la mejora kind (C1). CancelTrain la anula.
     Research,
+    // object (mercado propio): comprar o vender un lote del recurso kind (C3).
+    Trade,
+    // units (bagaje) -> object (mercado propio): ruta de caravana (C3).
+    TradeRoute,
     Count,        // número de tipos (no es una orden)
 };
 

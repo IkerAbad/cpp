@@ -297,6 +297,8 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
         case CommandType::SetStance:
         case CommandType::Garrison:  // los aldeanos no guarnecen ni escalan: siguen con lo suyo
         case CommandType::Climb:
+        case CommandType::Trade:
+        case CommandType::TradeRoute:
         case CommandType::Count:
             return;
         case CommandType::Move:

@@ -261,6 +261,24 @@ cavalry_taken_percent = 50
 ranged_taken_percent = 125
 stops_charge = true
 
+[market]
+# Mercado (C3). Lotes de 100; precios en oro por lote, los mismos para todos. Cada
+# compra encarece 3 y cada venta abarata 3, entre 10 y 400; cada 5 s vuelven 1 hacia su
+# base. Al vender, el mercader se queda un 30 %. Las caravanas ganan 0,4 de oro por
+# casilla entre los dos mercados en cada llegada (el comercio de las ferias de
+# Champaña, «linked the cloth-producing cities of the Low Countries with the Italian
+# dyeing and exporting centers»: Wikipedia, «Champagne fairs»).
+enabled = true
+lot = 100
+base_price = { comida = 50, madera = 50, piedra = 70, hierro = 90 }
+price_step = 3
+min_price = 10
+max_price = 400
+sell_fee_percent = 30
+recover_interval_ticks = 100
+caravan_gold_milli_per_tile = 400
+caravan_reach_milli_tiles = 800
+
 [fatigue]
 # Fatiga (B3). Cansancio de 0 a 100000 (agotada). Vegetius: «They should march with the
 # common military step twenty miles in five summer-hours, and with the full step,

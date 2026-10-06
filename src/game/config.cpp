@@ -563,6 +563,7 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.garrison = br.get_i32("garrison", 0, 64);
         info.type.garrison_levels = br.get_i32("garrison_levels", 0, 8);
         info.type.climbable = br.get_bool("climbable");
+        info.type.market = br.get_bool("market");
         if (!error && info.type.beds > 0 && (info.type.care_percent <= 0 || info.type.heal_to_percent <= 0)) {
             br.fail("un puesto médico ('beds' > 0) necesita 'care_percent' y 'heal_to_percent' mayores que 0");
         }
@@ -980,6 +981,26 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     fo.line = effect("line");
     fo.column = effect("column");
     fo.square = effect("square");
+
+    sim::MarketParams& mk = cfg.world.market;
+    mk.enabled = r.get_bool("market.enabled");
+    mk.lot = r.get_i32("market.lot", 1, kMaxAmount);
+    {
+        const sim::Stock base = r.get_stock("market.base_price");
+        for (std::size_t i = 0; i < sim::kResourceCount; ++i) {
+            mk.base_price[i] = base[i];
+        }
+    }
+    mk.price_step = r.get_i32("market.price_step", 0, kMaxAmount);
+    mk.min_price = r.get_i32("market.min_price", 1, kMaxAmount);
+    mk.max_price = r.get_i32("market.max_price", 1, kMaxAmount);
+    mk.sell_fee_percent = r.get_i32("market.sell_fee_percent", 0, 99);
+    mk.recover_interval_ticks = r.get_i32("market.recover_interval_ticks", 1, kMaxTicks);
+    mk.caravan_gold_milli_per_tile = r.get_i32("market.caravan_gold_milli_per_tile", 0, kMaxAmount);
+    mk.caravan_reach = sim::Fixed::from_ratio(r.get_i32("market.caravan_reach_milli_tiles", 0, 4 * kMilli), kMilli);
+    if (!error && mk.min_price > mk.max_price) {
+        r.fail("'market.min_price' no puede pasar de 'market.max_price'");
+    }
 
     sim::FatigueParams& fa = cfg.world.fatigue;
     fa.enabled = r.get_bool("fatigue.enabled");

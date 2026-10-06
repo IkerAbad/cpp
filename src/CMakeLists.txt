@@ -24,6 +24,7 @@ add_library(rts_sim STATIC
     sim/garrison.cpp
     sim/climb.cpp
     sim/formation.cpp
+    sim/market.cpp
     sim/vision.cpp
     sim/map_gen.cpp
     sim/movement.cpp

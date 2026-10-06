@@ -181,6 +181,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [9, 9, 9]
 
@@ -210,6 +211,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [8, 8, 8]
 )";
@@ -366,6 +368,18 @@ cavalry_taken_percent = 50
 ranged_taken_percent = 125
 stops_charge = true
 
+
+[market]
+enabled = false
+lot = 100
+base_price = { comida = 50, madera = 50, piedra = 70, hierro = 90 }
+price_step = 3
+min_price = 10
+max_price = 400
+sell_fee_percent = 30
+recover_interval_ticks = 100
+caravan_gold_milli_per_tile = 400
+caravan_reach_milli_tiles = 800
 
 [fatigue]
 enabled = false
@@ -751,6 +765,7 @@ gate = false
 garrison = 0
 garrison_levels = 0
 climbable = false
+market = false
 material = "madera"
 color = [0, 0, 0]
 

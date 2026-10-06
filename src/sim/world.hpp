@@ -20,6 +20,7 @@
 #include "sim/fatigue.hpp"
 #include "sim/formation.hpp"
 #include "sim/garrison.hpp"
+#include "sim/market.hpp"
 #include "sim/medicine.hpp"
 #include "sim/morale.hpp"
 #include "sim/movement.hpp"
@@ -90,6 +91,7 @@ struct WorldParams {
     GarrisonParams garrison;
     ClimbParams climb;
     FormationParams formation;
+    MarketParams market;
     VisionParams vision;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
@@ -129,6 +131,7 @@ struct SnapshotEntity {
     bool climbing = false;                // subiendo por una escala
     FormationKind formation = FormationKind::None;
     bool formation_active = false;        // hay bastantes en formación alrededor
+    bool caravan = false;                 // en ruta de caravana entre mercados
     std::uint8_t seen_by = 0xFF;          // bit p: la ve el jugador p (niebla de guerra)
 };
 
@@ -174,6 +177,7 @@ struct Snapshot {
     std::int32_t daylight_percent = 100;
     std::vector<std::shared_ptr<const std::vector<std::uint8_t>>> fog;
     std::vector<std::vector<RememberedBuilding>> memory;
+    std::array<std::int32_t, kResourceCount> market_prices{};  // oro por lote (C3)
 };
 
 class World {
@@ -199,6 +203,7 @@ public:
     [[nodiscard]] const GarrisonSystem& garrison() const noexcept { return garrison_; }
     [[nodiscard]] const ClimbSystem& climb() const noexcept { return climb_; }
     [[nodiscard]] const FormationSystem& formation() const noexcept { return formation_; }
+    [[nodiscard]] const MarketSystem& market() const noexcept { return market_; }
     [[nodiscard]] const VisionSystem& vision() const noexcept { return vision_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
@@ -243,6 +248,7 @@ private:
     GarrisonSystem garrison_;
     ClimbSystem climb_;
     FormationSystem formation_;
+    MarketSystem market_;
     VisionSystem vision_;
     AiSystem ai_;
     entt::registry registry_;

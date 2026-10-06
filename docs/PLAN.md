@@ -45,6 +45,7 @@ esconden, y un asedio sin suministro fracasa.
 | Sanidad | Puesto de socorro, hospital de campaña, hospital, enfermeros, cirujanos, heridas leves, reorganización |
 | Niebla | Tres estados, árboles, altura, día y noche, memoria de edificios |
 | Terreno | Altura para tiradores y cuerpo a cuerpo, bosque que cubre, marcha por terreno, carga en llano |
+| Mercado | Cambio por oro con precios comunes que se mueven; caravanas entre mercados propios |
 | Forrajeo | Saqueo de granjas y aldeas enemigas, caza en el bosque; la IA saquea lo que no está defendido |
 | Herrería | Mejoras de armas y armaduras por niveles, con hierro; valen para las unidades nuevas y las existentes |
 | Formaciones | Línea (tiro), columna (marcha), cuadro (contra caballería y carga) |
@@ -135,7 +136,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 - [x] **C2. Forrajeo y saqueo.** Un ejército puede vivir del terreno: forrajea en las
   granjas y aldeas enemigas, quemándolas o vaciándolas, y en el bosque, más
   despacio. Es la *chevauchée* histórica. *Terminado:* pruebas y uso por la IA.
-- [ ] **C3. Mercado y comercio.** Cambio de recursos con precios que se mueven, y
+- [x] **C3. Mercado y comercio.** Cambio de recursos con precios que se mueven, y
   caravanas entre mercados propios (reutilizan los convoyes). *Terminado:* pruebas
   de precios y de rutas.
 - [ ] **C4. Caminos.** Construibles; aceleran la marcha y, sobre todo, a las
