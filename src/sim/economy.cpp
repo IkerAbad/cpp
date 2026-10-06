@@ -131,6 +131,7 @@ void EconomySystem::release(MovementSystem& movement, const Footprint& f) {
             occupant_[tile_index({x, y})] = entt::null;
             movement.set_blocked({x, y}, false);
             movement.set_gate({x, y}, MovementSystem::kNoGate);
+            movement.set_road({x, y}, 0);
         }
     }
 }
@@ -208,6 +209,14 @@ std::optional<entt::entity> EconomySystem::place_building(entt::registry& regist
         registry.emplace<ProductionQueue>(e);
     }
     occupy(movement, f, e);
+    if (bt.road_speed_percent > 0) {
+        for (std::int32_t y = f.origin.y; y < f.origin.y + f.size; ++y) {
+            for (std::int32_t x = f.origin.x; x < f.origin.x + f.size; ++x) {
+                movement.set_blocked({x, y}, false);  // se anda por encima
+                movement.set_road({x, y}, complete ? bt.road_speed_percent : 0);
+            }
+        }
+    }
     if (bt.gate) {
         const std::int32_t gate_owner = registry.get<Owner>(e).player;
         for (std::int32_t y = f.origin.y; y < f.origin.y + f.size; ++y) {
@@ -883,6 +892,14 @@ void EconomySystem::step_build(entt::registry& registry, MovementSystem& movemen
     if (b.progress >= bt.build_ticks) {
         b.complete = true;
         start_farm(registry, w.building, bt);
+        if (bt.road_speed_percent > 0) {
+            const Footprint& road = registry.get<Footprint>(w.building);
+            for (std::int32_t y = road.origin.y; y < road.origin.y + road.size; ++y) {
+                for (std::int32_t x = road.origin.x; x < road.origin.x + road.size; ++x) {
+                    movement.set_road({x, y}, bt.road_speed_percent);  // terminado: ya se corre
+                }
+            }
+        }
     }
 }
 

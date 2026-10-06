@@ -387,6 +387,13 @@ Fuentes:
 - **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Caminos
+
+El camino (5 de piedra por casilla; con Mayús + clic se traza tramo a tramo) no cierra el paso a nadie, ni al enemigo, y nadie lo ataca por su cuenta. Terminado, sobre él se marcha al 125 %, sin el castigo de ir fuera de llano, y se cansa menos. La carreta es la que más gana: en el bosque pasa del 30 % al 125 %.
+
+- **Fuente:** las calzadas romanas «provided efficient means for the overland movement of armies, officials, civilians, inland carriage of official communications, and trade goods» ([Roman roads](https://en.wikipedia.org/wiki/Roman_roads)).
+- **Limitación:** la búsqueda de caminos aún no prefiere los caminos, así que una ruta larga puede ir por su lado. Para seguirlos se encadenan puntos de paso (Mayús + clic derecho).
+
 ### Mercado y comercio
 
 El mercado (requiere molino) cambia lotes de 100 de comida, madera, piedra o hierro por oro (`[market]` en `engine.toml`).

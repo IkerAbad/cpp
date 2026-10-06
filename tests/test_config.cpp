@@ -182,6 +182,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [9, 9, 9]
 
@@ -212,6 +213,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [8, 8, 8]
 )";
@@ -766,6 +768,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [0, 0, 0]
 

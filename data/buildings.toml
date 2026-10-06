@@ -31,6 +31,8 @@
 #   suman a los del terreno: más alcance y más daño).
 # climbable: tramo de muro que el enemigo puede tomar con escalas (B4).
 # market: mercado (C3): se compra y vende por oro y es destino de caravanas.
+# road_speed_percent: camino (C4): % de la velocidad sobre él, sin el castigo de ir
+#   fuera de llano (0 = no es camino). No cierra el paso y nadie lo ataca por su cuenta.
 # vital: quien tuvo alguno terminado pierde la partida cuando ya no le queda ninguno
 #   terminado (los que estén en obra no cuentan).
 # armor: armadura { cuerpo, proyectil }; class: clase de armadura (de units.toml).
@@ -65,6 +67,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "piedra"
 color = [196, 176, 140]
 
@@ -95,6 +98,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [176, 132, 96]
 
@@ -125,6 +129,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [120, 92, 60]
 
@@ -155,6 +160,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [132, 132, 140]
 
@@ -185,6 +191,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [206, 184, 110]
 
@@ -215,6 +222,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [150, 70, 60]
 
@@ -245,6 +253,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [214, 190, 92]
 
@@ -277,6 +286,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [120, 96, 64]
 
@@ -311,6 +321,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [168, 140, 84]
 
@@ -348,6 +359,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [220, 220, 210]
 
@@ -378,6 +390,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [235, 235, 225]
 
@@ -408,6 +421,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "piedra"
 color = [240, 240, 240]
 
@@ -442,6 +456,7 @@ garrison = 0
 garrison_levels = 0
 climbable = true
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [150, 110, 70]
 
@@ -472,6 +487,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [170, 125, 80]
 
@@ -502,6 +518,7 @@ garrison = 0
 garrison_levels = 0
 climbable = true
 market = false
+road_speed_percent = 0
 material = "piedra"
 color = [150, 150, 150]
 
@@ -532,6 +549,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "piedra"
 color = [170, 165, 150]
 
@@ -565,6 +583,7 @@ garrison = 3
 garrison_levels = 1
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [140, 100, 60]
 
@@ -595,6 +614,7 @@ garrison = 5
 garrison_levels = 2
 climbable = false
 market = false
+road_speed_percent = 0
 material = "piedra"
 color = [130, 130, 140]
 
@@ -626,6 +646,7 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = false
+road_speed_percent = 0
 material = "madera"
 color = [90, 70, 60]
 
@@ -657,8 +678,44 @@ garrison = 0
 garrison_levels = 0
 climbable = false
 market = true
+road_speed_percent = 0
 material = "madera"
 color = [200, 160, 60]
+
+# Camino (C4), de una casilla, trazado tramo a tramo (Mayús + clic). Grava y piedra
+# apisonadas: firme para las ruedas. Las calzadas romanas «provided efficient means for
+# the overland movement of armies, officials, civilians, inland carriage of official
+# communications, and trade goods» (Wikipedia, «Roman roads»).
+[[building]]
+name = "camino"
+size_tiles = 1
+cost = { piedra = 5 }
+build_ticks = 60
+hp = 400
+accepts = []
+population = 0
+armor = { cuerpo = 20, proyectil = 50 }
+class = "edificio"
+trains = []
+requires = []
+farm_food = 0
+vital = false
+supplies = false
+store_capacity = 0
+store_target = {}
+beds = 0
+nurses = 0
+care_percent = 0
+heal_to_percent = 0
+sight_tiles = 0
+gate = false
+garrison = 0
+garrison_levels = 0
+climbable = false
+market = false
+road_speed_percent = 125
+material = "piedra"
+color = [150, 130, 100]
 
 # Mejoras de la herrería (C1). Se investigan de una en una en la herrería (at), pagando
 # cost al empezar, en research_ticks; requires: la mejora anterior de su línea ("" =

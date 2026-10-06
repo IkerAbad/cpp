@@ -564,6 +564,7 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
         info.type.garrison_levels = br.get_i32("garrison_levels", 0, 8);
         info.type.climbable = br.get_bool("climbable");
         info.type.market = br.get_bool("market");
+        info.type.road_speed_percent = br.get_i32("road_speed_percent", 0, 300);
         if (!error && info.type.beds > 0 && (info.type.care_percent <= 0 || info.type.heal_to_percent <= 0)) {
             br.fail("un puesto médico ('beds' > 0) necesita 'care_percent' y 'heal_to_percent' mayores que 0");
         }

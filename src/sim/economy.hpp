@@ -86,6 +86,9 @@ struct BuildingType {
     bool climbable = false;
     // Mercado (C3): se comercia en él y es destino de caravanas.
     bool market = false;
+    // Camino (C4): % de velocidad sobre él (0 = no es camino). No cierra el paso a
+    // nadie y nadie lo ataca por su cuenta.
+    std::int32_t road_speed_percent = 0;
 };
 
 [[nodiscard]] constexpr std::uint8_t resource_bit(Resource r) noexcept {

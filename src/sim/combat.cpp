@@ -389,6 +389,8 @@ entt::entity CombatSystem::acquire_building(const entt::registry& registry, cons
             const entt::entity o = economy.occupant({x, y});
             if (o == entt::null || o == best || !registry.all_of<Building, Owner, Health>(o) ||
                 registry.get<Owner>(o).player == s_.owner[i] ||
+                buildings_[registry.get<Building>(o).type].road_speed_percent > 0 ||  // un camino no se ataca
+
                 !can_harm_building(registry, registry.get<Unit>(s_.entity[i]).type, o) ||
                 (vision_ != nullptr && !vision_->sees_footprint(s_.owner[i], registry.get<Footprint>(o)))) {
                 continue;

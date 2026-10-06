@@ -69,6 +69,12 @@ MovementSystem::MovementSystem(const TileMap& map, std::span<const std::uint8_t>
 }
 
 std::int32_t MovementSystem::terrain_speed_percent(FVec2 pos) const noexcept {
+    if (!road_.empty()) {
+        const TileCoord r = tile_of(pos);
+        if (grid_.contains(r) && road_[grid_.index(r)] > 0) {
+            return road_[grid_.index(r)];  // el camino manda sobre el terreno
+        }
+    }
     if (tile_speed_.empty()) {
         return kPercent;
     }
@@ -108,6 +114,19 @@ void MovementSystem::set_gate(TileCoord c, std::int32_t owner) {
         gate_owner_.assign(static_cast<std::size_t>(grid_.width()) * static_cast<std::size_t>(grid_.height()), kNoGate);
     }
     gate_owner_[grid_.index(c)] = owner;
+}
+
+void MovementSystem::set_road(TileCoord c, std::int32_t percent) {
+    if (!grid_.contains(c)) {
+        return;
+    }
+    if (road_.empty()) {
+        if (percent == 0) {
+            return;
+        }
+        road_.assign(static_cast<std::size_t>(grid_.width()) * static_cast<std::size_t>(grid_.height()), 0);
+    }
+    road_[grid_.index(c)] = percent;
 }
 
 bool MovementSystem::can_enter(TileCoord c, std::int32_t owner) const noexcept {

@@ -53,6 +53,8 @@ public:
     // demás. kNoGate la vuelve una casilla normal.
     static constexpr std::int32_t kNoGate = -1;
     void set_gate(TileCoord c, std::int32_t owner);
+    // Camino (C4): % de velocidad en la casilla c (0 lo quita: vuelve la del terreno).
+    void set_road(TileCoord c, std::int32_t percent);
     // ¿Puede la unidad de owner entrar en la casilla c? (rejilla y puertas)
     [[nodiscard]] bool can_enter(TileCoord c, std::int32_t owner) const noexcept;
     [[nodiscard]] bool grid_dirty() const noexcept { return grid_dirty_; }
@@ -123,7 +125,8 @@ private:
     MovementParams params_;
     std::int32_t width_ = 0;
     std::vector<std::int32_t> tile_speed_;
-    std::vector<std::int32_t> gate_owner_;  // por casilla: dueño de la puerta (vacío = ninguna)  // % de velocidad por casilla (vacío = 100 en todas)
+    std::vector<std::int32_t> gate_owner_;
+    std::vector<std::int32_t> road_;  // por casilla: % de velocidad del camino (vacío = ninguno)  // por casilla: dueño de la puerta (vacío = ninguna)  // % de velocidad por casilla (vacío = 100 en todas)
     PassGrid grid_;
     GridSearch search_;
     HpaGraph hpa_;

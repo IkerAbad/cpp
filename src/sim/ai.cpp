@@ -1026,7 +1026,13 @@ std::optional<TileCoord> attack_target(const Decision& d) {
     }
     auto target = nearest(vital, v.base);
     if (!target) {
-        target = nearest(v.enemy_buildings, v.base);
+        std::vector<TileCoord> worth;  // un camino no es objetivo de nada
+        for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
+            if (d.catalog().buildings[v.enemy_building_types[i]].road_speed_percent <= 0) {
+                worth.push_back(v.enemy_buildings[i]);
+            }
+        }
+        target = nearest(worth, v.base);
     }
     if (!target) {
         target = nearest(v.enemy_units, v.base);
