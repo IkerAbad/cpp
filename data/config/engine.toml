@@ -147,6 +147,16 @@ ration_cost = { comida = 1 }
 convoy_mix = { comida = 70, madera = 20, hierro = 10 }
 load_ticks = 60
 convoy_reach_milli_tiles = 800
+# Forrajeo y saqueo (C2): la tropa parada, sin pelear y sin fuente propia cerca vive del
+# terreno a 2 casillas: del grano de las granjas enemigas, que se vacían, y de la
+# comida del rival junto a sus almacenes (al ritmo del reabastecimiento, una ración
+# por cada 1 de comida); si no, del bosque, gratis pero una ración cada 2 min. Es la
+# «chevauchée»: «a raiding method of medieval warfare for weakening the enemy,
+# primarily by burning and pillaging enemy territory in order to reduce the
+# productivity of a region» (Wikipedia, «Chevauchée»).
+forage = true
+forage_reach_tiles = 2
+forest_forage_ticks = 2400
 hungry_attack_percent = 60
 hungry_work_percent = 50
 starve_after_ticks = 1200
@@ -438,6 +448,7 @@ army_min_villagers = 0
 raid_unit = ""
 raid_group = 1
 raid_safe_radius_tiles = 0
+pillage_guard_tiles = 0
 # abastecer: la tropa que no pelea vuelve a abastecerse con menos del 30 % de víveres
 # o munición (y espera junto al almacén a llenarse).
 resupply_percent = 30
@@ -497,6 +508,9 @@ army_min_villagers = 20
 raid_unit = "jinete"
 raid_group = 3
 raid_safe_radius_tiles = 10
+# Saqueo (C2): con hambre y sin fuente propia más cerca, saquea una granja enemiga si
+# no hay enemigos armados a 8 casillas de ella.
+pillage_guard_tiles = 8
 resupply_percent = 30
 upkeep_reserve_percent = 50
 # logistica: 2 acémilas siguen al ejército en campaña 4 casillas por detrás y

@@ -91,6 +91,8 @@ struct AiProfile {
     std::optional<UnitTypeId> raid_unit;
     std::int32_t raid_group = 0;
     std::int32_t raid_safe_radius_tiles = 0;
+    // Saqueo (C2): una granja enemiga con enemigos armados a esta distancia no se saquea.
+    std::int32_t pillage_guard_tiles = 0;
     // abastecer: una unidad que no pelea vuelve a abastecerse cuando sus víveres o su
     // munición bajan de este % de lo que puede llevar.
     std::int32_t resupply_percent = 0;

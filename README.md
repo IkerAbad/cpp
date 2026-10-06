@@ -387,6 +387,16 @@ Fuentes:
 - **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Forrajeo y saqueo
+
+Un ejército puede vivir del terreno: es la *chevauchée*, «a raiding method of medieval warfare for weakening the enemy, primarily by burning and pillaging enemy territory in order to reduce the productivity of a region» ([Chevauchée](https://en.wikipedia.org/wiki/Chevauch%C3%A9e)). Se configura en `[supply]` de `engine.toml`.
+
+- **Cuándo:** la tropa parada, sin pelear, con raciones por llenar y sin fuente propia al alcance se sirve sola a 2 casillas.
+- **Granjas enemigas:** saca el grano, que se vacía; vaciada, la granja desaparece.
+- **Aldeas:** junto a un almacén de comida del rival (centro urbano, molino), se lleva comida de su almacén.
+- **Bosque:** gratis, pero solo una ración cada 2 minutos: no da para mantener un ejército.
+- **IA:** la tropa con hambre lejos de casa va a saquear la granja enemiga conocida más cercana, si no hay enemigos armados a 8 casillas de ella (`pillage_guard_tiles`); si los hay, vuelve a abastecerse a casa.
+
 ### Herrería y mejoras
 
 La herrería (requiere cuartel) investiga mejoras de armas y armaduras, de una en una, pagando al empezar (`[[upgrade]]` en `buildings.toml`). Se pueden anular y se devuelve el coste. Lo investigado vale para todas las unidades del jugador de esas clases, tanto las que ya tiene como las nuevas.

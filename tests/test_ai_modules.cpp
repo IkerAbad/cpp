@@ -589,3 +589,44 @@ TEST_CASE("IA: ante un recinto cerrado abre brecha en el muro más cercano; si h
         CHECK(think_with(world, {AiBehavior::Assault}).empty());
     }
 }
+
+TEST_CASE("IA: con hambre lejos de casa, saquea la granja enemiga sin defensa; defendida, no") {
+    WorldParams p = flat_two_players();
+    p.unit_types[kSoldier].supply.rations = 10;
+    p.unit_types[kSoldier].supply.ration_ticks = 1;
+    p.building_types[kCenter].supplies = true;
+    p.supply.resupply_radius_tiles = 3;
+    p.supply.resupply_interval_ticks = 1000;
+    p.supply.ration_cost = stock(1, 0, 0, 0);
+    p.supply.forage = true;
+    p.supply.forage_reach_tiles = 2;
+    const auto orders = [&](bool guarded) {
+        World world(p);
+        ai_base(world);  // la base de la IA queda en (150, 150): lejos
+        world.spawn_building(kRival, kFarm, {60, 60}, true);
+        const auto s = world.spawn_unit(kAi, kSoldier, {70, 61});
+        if (guarded) {
+            world.spawn_unit(kRival, kSoldier, {58, 58});
+        }
+        for (std::int32_t t = 0; t < 8; ++t) {
+            world.step();
+        }
+        AiParams params = test_ai_params();
+        params.profiles[1].behaviors = {AiBehavior::Resupply};
+        params.profiles[1].resupply_percent = 30;
+        AiSystem ai(params, p.supply, {{kAi, 1}});
+        std::vector<Command> out;
+        ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+        return std::pair{out, s};
+    };
+    const auto [free_out, s] = orders(false);
+    REQUIRE(free_out.size() == 1);
+    CHECK(free_out[0].type == CommandType::Move);
+    CHECK(free_out[0].units == std::vector<std::uint32_t>{s});
+    CHECK(std::max(std::abs(free_out[0].target.x - 61), std::abs(free_out[0].target.y - 61)) <= 1);  // a la granja
+    const auto [guarded_out, s2] = orders(true);
+    // Defendida: vuelve a casa a abastecerse.
+    REQUIRE(guarded_out.size() == 1);
+    CHECK(guarded_out[0].target == rts::sim::TileCoord{151, 151});
+    (void)s2;
+}

@@ -401,3 +401,87 @@ TEST_CASE("Trabuquete: se monta en el campamento con lo traído en convoy, no se
     run(world, 600);
     CHECK((!world.registry().valid(ent(enemy)) || world.registry().get<Health>(ent(enemy)).hp < full));
 }
+
+// --- Forrajeo y saqueo (C2) --------------------------------------------------------
+
+namespace {
+
+WorldParams foraging_world() {
+    WorldParams p = supplied_world();
+    p.supply.forage = true;
+    p.supply.forage_reach_tiles = 2;
+    p.supply.forest_forage_ticks = 50;
+    p.supply.starve_after_ticks = 100000;  // que no muera mientras se mira
+    return p;
+}
+
+// Soldado del jugador 0 que ya se ha comido lo que llevaba (la fuente se pone después).
+std::uint32_t hungry_soldier(World& w, const WorldParams& p, std::int32_t x, std::int32_t y) {
+    const auto s = w.spawn_unit(0, kSoldier, {x, y});
+    const auto& st = p.unit_types[kSoldier].supply;
+    run(w, st.rations * st.ration_ticks + 2);
+    REQUIRE(supply_of(w, s).rations == 0);
+    return s;
+}
+
+}  // namespace
+
+TEST_CASE("Saqueo: la tropa sin raciones vacía la granja enemiga que tiene al lado") {
+    const WorldParams p = foraging_world();
+    World w(p);
+    const auto s = hungry_soldier(w, p, 49, 50);
+    const auto farm = *w.spawn_building(1, kFarm, {50, 50}, true);
+    const auto amount = [&] { return w.registry().get<rts::sim::ResourceNode>(ent(farm)).amount; };
+    const std::int32_t before = amount();
+    run(w, 5);
+    CHECK(supply_of(w, s).rations > 0);
+    CHECK(amount() < before);
+    CHECK(w.supply().pillaged_from(1) > 0);
+}
+
+TEST_CASE("Saqueo: junto al almacén de comida del rival, se lleva su comida") {
+    const WorldParams p = foraging_world();
+    World w(p);
+    const auto s = hungry_soldier(w, p, 49, 51);
+    w.spawn_building(1, kCenter, {50, 50}, true);
+    w.set_stock(1, stock(100, 0, 0, 0));
+    run(w, 3);
+    CHECK(supply_of(w, s).rations == kRations);
+    CHECK(w.player_state(1).stock[0] == 100 - kRations);
+}
+
+TEST_CASE("Forrajeo: en el bosque, gratis pero mucho más despacio") {
+    WorldParams p = foraging_world();
+    p.unit_types[kSoldier].supply.ration_ticks = 400;  // que no se coma enseguida lo que caza
+    World w(p);
+    const auto s = hungry_soldier(w, p, 51, 50);
+    for (std::int32_t y = 48; y <= 52; ++y) {
+        w.spawn_node(kTree, {52, y});
+    }
+    run(w, 10);
+    CHECK(supply_of(w, s).rations <= 1);
+    run(w, 100);
+    CHECK(supply_of(w, s).rations >= 2);   // una cada 50 ticks
+    CHECK(supply_of(w, s).rations <= 3);
+}
+
+TEST_CASE("Forrajeo: en marcha o desactivado, no se forrajea") {
+    SUBCASE("desactivado") {
+        WorldParams p = foraging_world();
+        p.supply.forage = false;
+        World w(p);
+        const auto s = hungry_soldier(w, p, 49, 50);
+        w.spawn_building(1, kFarm, {50, 50}, true);
+        run(w, 5);
+        CHECK(supply_of(w, s).rations == 0);
+    }
+    SUBCASE("en marcha") {
+        const WorldParams p = foraging_world();
+        World w(p);
+        const auto s = hungry_soldier(w, p, 49, 50);
+        w.spawn_building(1, kFarm, {50, 50}, true);
+        w.issue(move_order(w.tick(), {s}, {49, 120}));
+        run(w, 5);
+        CHECK(supply_of(w, s).rations == 0);
+    }
+}

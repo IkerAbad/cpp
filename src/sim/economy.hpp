@@ -309,6 +309,8 @@ public:
     // ¿Se puede empezar ya a investigar u en el edificio b? (dueño, tipo, terminado,
     // libre, sin investigar ni en curso, requisito cumplido y pagable)
     [[nodiscard]] bool can_research(const entt::registry& registry, PlayerId p, entt::entity b, UpgradeId u) const;
+    // Nodo agotado (o granja saqueada hasta vaciarla): fuera del mapa.
+    void deplete(entt::registry& registry, MovementSystem& movement, entt::entity node);
     [[nodiscard]] const EconomyTickStats& last_stats() const noexcept { return stats_; }
 
     void hash_into(StateHasher& h, const entt::registry& registry) const;
@@ -346,7 +348,6 @@ private:
                                                              std::uint32_t component, entt::entity exclude) const;
     [[nodiscard]] std::optional<entt::entity> nearest_dropoff(const entt::registry& registry, PlayerId player,
                                                               Resource kind, TileCoord from) const;
-    void deplete(entt::registry& registry, MovementSystem& movement, entt::entity node);
     void update_production(entt::registry& registry, const MovementSystem& movement);
     void update_research(entt::registry& registry);
     void retire_defeated(entt::registry& registry, MovementSystem& movement);

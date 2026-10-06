@@ -292,6 +292,9 @@ ration_cost = { comida = 1 }
 convoy_mix = { comida = 70, madera = 20, hierro = 10 }
 load_ticks = 60
 convoy_reach_milli_tiles = 800
+forage = false
+forage_reach_tiles = 2
+forest_forage_ticks = 2400
 hungry_attack_percent = 60
 hungry_work_percent = 50
 starve_after_ticks = 1200
@@ -471,6 +474,7 @@ army_min_villagers = 0
 raid_unit = ""
 raid_group = 1
 raid_safe_radius_tiles = 0
+pillage_guard_tiles = 0
 resupply_percent = 30
 upkeep_reserve_percent = 50
 camp_distance_tiles = 0

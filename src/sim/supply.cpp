@@ -283,6 +283,70 @@ void SupplySystem::resupply(entt::registry& registry, EconomySystem& economy, en
     }
 }
 
+bool SupplySystem::forage(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
+                          entt::entity e, PlayerId player, FVec2 pos, Tick tick) {
+    const std::int32_t food = std::max(params_.ration_cost[resource_index(Resource::Food)], 1);
+    const std::int32_t r = params_.forage_reach_tiles;
+    const Fixed reach = Fixed::from_int(r);
+    const std::int64_t reach_sq = mul_wide(reach, reach);
+    const TileCoord t = tile_of(pos);
+    entt::entity farm = entt::null;   // granja enemiga con grano
+    entt::entity store = entt::null;  // almacén de comida enemigo (la aldea)
+    bool forest = false;
+    // Recorrido fijo por filas: a igualdad, el primero encontrado.
+    for (std::int32_t y = t.y - r; y <= t.y + r; ++y) {
+        for (std::int32_t x = t.x - r; x <= t.x + r; ++x) {
+            const entt::entity o = economy.occupant({x, y});
+            if (o == entt::null || !registry.all_of<Footprint>(o) ||
+                distance_sq_to(registry.get<Footprint>(o), pos) > reach_sq) {
+                continue;
+            }
+            const ResourceNode* n = registry.try_get<ResourceNode>(o);
+            const Owner* own = registry.try_get<Owner>(o);
+            const bool enemy = own != nullptr && own->player != player;
+            if (farm == entt::null && enemy && n != nullptr && n->kind == Resource::Food && n->amount > 0) {
+                farm = o;
+            } else if (store == entt::null && enemy && registry.all_of<Building>(o) &&
+                       registry.get<Building>(o).working() &&
+                       (buildings_[registry.get<Building>(o).type].accepts & resource_bit(Resource::Food)) != 0) {
+                store = o;
+            } else if (n != nullptr && own == nullptr && n->kind == Resource::Wood) {
+                forest = true;  // caza y forraje entre los árboles
+            }
+        }
+    }
+    const auto taken_from = [&](PlayerId victim) {
+        if (victim >= pillaged_from_.size()) {
+            pillaged_from_.resize(victim + std::size_t{1}, 0);
+        }
+        ++pillaged_from_[victim];
+        ++stats_.pillaged;
+    };
+    if (farm != entt::null) {
+        ResourceNode& n = registry.get<ResourceNode>(farm);
+        n.amount -= std::min(n.amount, food);
+        taken_from(registry.get<Owner>(farm).player);
+        if (n.amount <= 0) {
+            economy.deplete(registry, movement, farm);  // granja vaciada
+        }
+        return true;
+    }
+    if (store != entt::null) {
+        const PlayerId victim = registry.get<Owner>(store).player;
+        std::int32_t& stock = economy.player_state(victim).stock[resource_index(Resource::Food)];
+        if (stock >= food) {
+            stock -= food;
+            taken_from(victim);
+            return true;
+        }
+    }
+    if (forest && (entt::to_integral(e) + tick) % static_cast<Tick>(params_.forest_forage_ticks) == 0) {
+        ++stats_.foraged;
+        return true;
+    }
+    return false;
+}
+
 void SupplySystem::update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
                           std::uint32_t& next_order_id, Tick tick) {
     stats_ = SupplyTickStats{};
@@ -344,7 +408,19 @@ void SupplySystem::update(entt::registry& registry, MovementSystem& movement, Ec
             continue;
         }
         const Position& p = view.get<const Position>(e);
-        resupply(registry, economy, e, view.get<const Owner>(e).player, {p.x, p.y}, s, st);
+        const PlayerId player = view.get<const Owner>(e).player;
+        const std::int32_t before = s.rations;
+        resupply(registry, economy, e, player, {p.x, p.y}, s, st);
+        // 3. Sin fuente propia, vive del terreno: parada y sin pelear.
+        if (params_.forage && s.rations == before && s.rations < st.rations && !units_[view.get<const Unit>(e).type].worker &&
+            units_[view.get<const Unit>(e).type].convoy_capacity == 0) {
+            const MoveGoal* goal = registry.try_get<MoveGoal>(e);
+            const Combatant* c = registry.try_get<Combatant>(e);
+            const bool still = goal == nullptr || goal->arrived;
+            if (still && (c == nullptr || c->target == entt::null) && forage(registry, movement, economy, e, player, {p.x, p.y}, tick)) {
+                ++s.rations;
+            }
+        }
     }
     for (const entt::entity e : dead_) {
         economy.record_loss(registry.get<Owner>(e).player);

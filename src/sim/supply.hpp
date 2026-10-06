@@ -48,6 +48,13 @@ struct SupplyParams {
     Stock convoy_mix{};
     std::int32_t load_ticks = 0;
     Fixed convoy_reach;
+    // Forrajeo y saqueo (C2): la tropa parada, sin pelear y con raciones por llenar se
+    // sirve sola a forage_reach_tiles: del grano de las granjas enemigas (que se vacían),
+    // de la comida del rival junto a sus almacenes de comida (la saquea) y, si no, del
+    // bosque, gratis pero solo una ración cada forest_forage_ticks.
+    bool forage = false;
+    std::int32_t forage_reach_tiles = 0;
+    std::int32_t forest_forage_ticks = 1;
 };
 
 // Almacén propio de un campamento de campaña.
@@ -74,6 +81,8 @@ struct SupplyTickStats {
     std::int32_t starved = 0;   // muertas de hambre este tick
     std::int32_t loaded = 0;    // cargas de bagaje completadas
     std::int32_t unloaded = 0;  // descargas en campamentos
+    std::int32_t pillaged = 0;  // raciones sacadas al enemigo (granjas y almacenes)
+    std::int32_t foraged = 0;   // raciones sacadas del bosque
 };
 
 class SupplySystem {
@@ -85,6 +94,10 @@ public:
                std::span<const entt::entity> units, std::uint32_t& next_order_id, Tick tick);
     void update(entt::registry& registry, MovementSystem& movement, EconomySystem& economy,
                 std::uint32_t& next_order_id, Tick tick);
+    // Raciones saqueadas al jugador p (estadística; no forma parte del estado).
+    [[nodiscard]] std::int32_t pillaged_from(PlayerId p) const noexcept {
+        return p < pillaged_from_.size() ? pillaged_from_[p] : 0;
+    }
 
     // Edificio propio que abastece al alcance de la unidad, o null. Los aldeanos comen
     // también donde descargan: les vale cualquier almacén propio en uso.
@@ -110,6 +123,9 @@ private:
     [[nodiscard]] bool is_home(const entt::registry& registry, entt::entity b, PlayerId player) const;
     [[nodiscard]] bool is_camp(const entt::registry& registry, entt::entity b, PlayerId player) const;
     [[nodiscard]] entt::entity nearest_home(const entt::registry& registry, PlayerId player, FVec2 pos) const;
+    // Forrajeo y saqueo (C2): una ración de lo que haya cerca. true si la consiguió.
+    bool forage(entt::registry& registry, MovementSystem& movement, EconomySystem& economy, entt::entity e,
+                PlayerId player, FVec2 pos, Tick tick);
     void resupply(entt::registry& registry, EconomySystem& economy, entt::entity e, PlayerId player, FVec2 pos,
                   Supply& s, const SupplyStats& st);
 
@@ -119,6 +135,7 @@ private:
     std::vector<entt::entity> dead_;
     std::vector<entt::entity> scratch_;
     std::vector<CarrierSeen> carriers_;  // bagaje cargado de este tick (fuentes móviles)
+    std::vector<std::int32_t> pillaged_from_;  // por jugador saqueado
     SupplyTickStats stats_;
 };
 

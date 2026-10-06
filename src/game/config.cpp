@@ -913,6 +913,9 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     }
     sp.load_ticks = r.get_i32("supply.load_ticks", 0, kMaxTicks);
     sp.convoy_reach = sim::Fixed::from_ratio(r.get_i32("supply.convoy_reach_milli_tiles", 0, 4 * kMilli), kMilli);
+    sp.forage = r.get_bool("supply.forage");
+    sp.forage_reach_tiles = r.get_i32("supply.forage_reach_tiles", 0, 8);
+    sp.forest_forage_ticks = r.get_i32("supply.forest_forage_ticks", 1, kMaxTicks);
 
     cfg.alerts.cooldown_ticks = r.get_i32("alerts.cooldown_ticks", 0, kMaxTicks);
     cfg.alerts.zone_tiles = r.get_i32("alerts.zone_tiles", 1, 256);
@@ -1152,6 +1155,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         }
         p.raid_group = pr.get_i32("raid_group", 1, 1000);
         p.raid_safe_radius_tiles = pr.get_i32("raid_safe_radius_tiles", 0, 256);
+        p.pillage_guard_tiles = pr.get_i32("pillage_guard_tiles", 0, 256);
         p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);
         p.upkeep_reserve_percent = pr.get_i32("upkeep_reserve_percent", 0, 1000);
         p.camp_distance_tiles = pr.get_i32("camp_distance_tiles", 0, 1024);

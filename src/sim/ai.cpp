@@ -929,7 +929,7 @@ void raid(Decision& d) {
 // con el morral vacío). Las que pelean siguen peleando.
 void resupply(Decision& d) {
     AiView& v = d.v;
-    if ((v.supply_sources.empty() && v.carriers.empty()) || d.profile.resupply_percent <= 0) {
+    if ((v.supply_sources.empty() && v.carriers.empty() && !d.supply.forage) || d.profile.resupply_percent <= 0) {
         return;
     }
     const std::int32_t reach = d.supply.resupply_radius_tiles;
@@ -964,10 +964,29 @@ void resupply(Decision& d) {
                 best_at = c.tile;
             }
         }
+        // Saqueo (C2): una granja enemiga sin defensa cerca también da raciones.
+        bool pillage = false;
+        if (d.supply.forage && s.needs_rations) {
+            for (std::size_t i = 0; i < v.enemy_buildings.size(); ++i) {
+                if (d.catalog().buildings[v.enemy_building_types[i]].farm_food <= 0) {
+                    continue;
+                }
+                const TileCoord at = v.enemy_buildings[i];
+                const std::int32_t dist = chebyshev(at, s.tile);
+                const auto guarded = [&](const UnitSeen& e) {
+                    return e.armed && chebyshev(e.tile, at) <= d.profile.pillage_guard_tiles;
+                };
+                if (dist < best_d && std::ranges::none_of(v.enemies, guarded)) {
+                    best_d = dist;
+                    best_at = at;
+                    pillage = true;
+                }
+            }
+        }
         if (best_d == std::numeric_limits<std::int32_t>::max()) {
             continue;  // nadie puede darle nada ahora
         }
-        if (best_d <= reach) {
+        if (best_d <= (pillage ? d.supply.forage_reach_tiles : reach)) {
             busy.push_back(s.entity);  // se está abasteciendo: que termine
             continue;
         }

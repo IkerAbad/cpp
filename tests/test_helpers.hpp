@@ -271,6 +271,7 @@ inline sim::AiProfile test_ai_profile_normal() {
     a.raid_unit = kSoldier;
     a.raid_group = 3;
     a.raid_safe_radius_tiles = 10;
+    a.pillage_guard_tiles = 8;
     return a;
 }
 
