@@ -288,6 +288,9 @@ enum class CommandType : std::uint8_t {
     Trade,
     // units (bagaje) -> object (mercado propio): ruta de caravana (C3).
     TradeRoute,
+    // El jugador pasa a la IA con el perfil kind (E2: quien se desconecta de una partida
+    // en red). Solo la genera la sesión de red, nunca un jugador.
+    AiTakeover,
     Count,        // número de tipos (no es una orden)
 };
 

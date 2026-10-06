@@ -1959,6 +1959,18 @@ AiSystem::AiSystem(const AiParams& params, const SupplyParams& supply, const std
     }
 }
 
+void AiSystem::add_seat(AiSeat seat, std::size_t player_count) {
+    if (seat.player >= player_count || seat.profile >= params_.profiles.size() ||
+        std::ranges::any_of(players_, [&](const AiPlayerState& p) { return p.player == seat.player; })) {
+        return;
+    }
+    AiPlayerState s;
+    s.player = seat.player;
+    s.wave_size = params_.profiles[seat.profile].first_wave;
+    players_.push_back(s);
+    profiles_.push_back(seat.profile);
+}
+
 void AiSystem::think(const entt::registry& registry, const EconomySystem& economy, const PassGrid& grid, Tick tick,
                      std::vector<Command>& out, const VisionSystem* vision) {
     const auto interval = static_cast<std::uint32_t>(std::max(params_.think_interval_ticks, 1));

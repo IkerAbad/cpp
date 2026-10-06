@@ -28,6 +28,7 @@ constexpr std::int64_t kMaxNetMs = 3'600'000;
 constexpr std::int64_t kMinNetFrameBytes = 1024;
 constexpr std::int64_t kMaxNetFrameBytes = 64 * 1024 * 1024;
 constexpr std::int64_t kMaxProbeUnits = 1000;
+constexpr std::int64_t kMaxChatChars = 4096;
 constexpr std::int64_t kMaxProbeRadius = 1024;
 constexpr std::int64_t kMaxFootprint = 8;
 constexpr std::int64_t kMaxPlayers = 8;
@@ -836,6 +837,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     // Jugadores: inicio (simulación) y color (presentación).
     std::vector<std::pair<std::string, std::string>> ai_profile_names;  // nombre, clave (para errores)
+    bool spare_seen = false;
     for_each_table(r.get_table_array("player"), source_name, "player", error, [&](Reader& pr, std::size_t i) {
         if (i >= static_cast<std::size_t>(kMaxPlayers)) {
             pr.fail(std::format("hay más de {} jugadores", kMaxPlayers));
@@ -845,15 +847,28 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         if (!pr.failed() && (start.x >= cfg.world.map.width || start.y >= cfg.world.map.height)) {
             pr.fail(std::format("'{}' queda fuera del mapa", pr.full("start")));
         }
-        cfg.world.setup.starts.push_back(start);
-        cfg.player_colors.push_back(pr.get_color<3>("color"));
+        const auto color = pr.get_color<3>("color");
+        cfg.seat_starts.push_back(start);
+        cfg.seat_colors.push_back(color);
         const std::string controller = pr.get_string("controller");
+        // Libre: un puesto que solo se ocupa si los ajustes de la partida lo piden (E2).
+        if (controller == "libre") {
+            spare_seen = true;
+            return;
+        }
+        if (spare_seen) {
+            pr.fail(std::format("'{}': los jugadores libres van al final", pr.full("controller")));
+            return;
+        }
+        cfg.world.setup.starts.push_back(start);
+        cfg.player_colors.push_back(color);
         if (controller == "ia") {
             // El perfil se resuelve cuando se hayan leído los de [ai].
             ai_profile_names.emplace_back(pr.get_string("ai_profile"), pr.full("ai_profile"));
             cfg.world.ai_players.push_back({static_cast<sim::PlayerId>(i), 0});
         } else if (controller != "humano" && !pr.failed()) {
-            pr.fail(std::format("'{}' = \"{}\": debe ser \"humano\" o \"ia\"", pr.full("controller"), controller));
+            pr.fail(std::format("'{}' = \"{}\": debe ser \"humano\", \"ia\" o \"libre\"", pr.full("controller"),
+                                controller));
         }
     });
 
@@ -1355,7 +1370,11 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     ls.connect_retry_ms = r.get_i32("net.connect_retry_ms", 1, kMaxNetMs);
     ls.max_frame_bytes = r.get_i32("net.max_frame_bytes", kMinNetFrameBytes, kMaxNetFrameBytes);
     ls.max_players = r.get_i32("net.max_players", 2, kMaxPlayers);
+    ls.chat_max_chars = r.get_i32("net.chat_max_chars", 1, kMaxChatChars);
+    ls.chat_history = r.get_i32("net.chat_history", 1, kMaxChatChars);
     cfg.net.poll_wait_ms = r.get_i32("net.poll_wait_ms", 0, kMaxNetMs);
+    cfg.net.default_port = r.get_i32("net.default_port", 1, std::numeric_limits<std::uint16_t>::max());
+    cfg.net.default_address = r.get_string("net.default_address");
     cfg.net.probe.every_ticks = r.get_i32("net.probe.every_ticks", 1, kMaxTicks);
     cfg.net.probe.units = r.get_i32("net.probe.units", 0, kMaxProbeUnits);
     cfg.net.probe.radius_tiles = r.get_i32("net.probe.radius_tiles", 0, kMaxProbeRadius);
@@ -1453,6 +1472,11 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         const auto seed = static_cast<std::uint64_t>(r.get_i32("seed", 0, std::numeric_limits<std::int32_t>::max()));
         const std::string rival = r.get_string("rival");
         const bool fog = r.get_bool("fog");
+        // Opcional (partidas en red, E2): quién ocupa cada puesto, del primero en adelante.
+        std::vector<std::string> seats;
+        if (root->contains("seats")) {
+            seats = r.get_string_list("seats");
+        }
         const auto& names = data.engine.ai_profile_names;
         const auto it = std::ranges::find(names, rival);
         if (!error && it == names.end()) {
@@ -1461,25 +1485,56 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         if (error) {
             return std::unexpected(*error);
         }
+        const auto profile = static_cast<std::uint8_t>(it - names.begin());
+        if (!seats.empty()) {
+            EngineConfig& e = data.engine;
+            if (seats.size() < 2 || seats.size() > e.seat_starts.size()) {
+                return std::unexpected(std::format("{}: 'seats' debe tener de 2 a {} puestos", match->path,
+                                                   e.seat_starts.size()));
+            }
+            e.world.setup.starts.assign(e.seat_starts.begin(), e.seat_starts.begin() + std::ssize(seats));
+            e.player_colors.assign(e.seat_colors.begin(), e.seat_colors.begin() + std::ssize(seats));
+            e.world.ai_players.clear();
+            for (std::size_t i = 0; i < seats.size(); ++i) {
+                if (seats[i] == "ia") {
+                    e.world.ai_players.push_back({static_cast<sim::PlayerId>(i), profile});
+                } else if (seats[i] != "humano") {
+                    return std::unexpected(std::format("{}: 'seats' = \"{}\": debe ser \"humano\" o \"ia\"",
+                                                       match->path, seats[i]));
+                }
+            }
+        }
         data.engine.world.map.seed = seed;
         data.engine.world.setup.seed = seed;
         data.engine.world.vision.enabled = fog;
         for (sim::AiSeat& seat : data.engine.world.ai_players) {
-            seat.profile = static_cast<std::uint8_t>(it - names.begin());
+            seat.profile = profile;
         }
     }
     return data;
 }
 
 std::string match_settings_toml(const MatchSettings& s) {
-    return std::format("# Ajustes de esta partida (los genera el menú).\nseed = {}\nrival = \"{}\"\nfog = {}\n", s.seed,
-                       s.rival, s.fog ? "true" : "false");
+    std::string out = std::format("# Ajustes de esta partida (los genera el menú).\nseed = {}\nrival = \"{}\"\nfog = {}\n",
+                                  s.seed, s.rival, s.fog ? "true" : "false");
+    if (!s.seats.empty()) {
+        out += "seats = [";
+        for (std::size_t i = 0; i < s.seats.size(); ++i) {
+            out += std::format("{}\"{}\"", i == 0 ? "" : ", ", s.seats[i]);
+        }
+        out += "]\n";
+    }
+    return out;
 }
 
 std::expected<GameData, std::string> with_match_settings(const GameData& base, const MatchSettings& settings) {
+    return with_match_settings_text(base, match_settings_toml(settings));
+}
+
+std::expected<GameData, std::string> with_match_settings_text(const GameData& base, std::string text) {
     std::vector<DataFile> files = base.files;
     std::erase_if(files, [](const DataFile& f) { return f.path == kMatchSettingsFile; });
-    files.push_back({std::string(kMatchSettingsFile), match_settings_toml(settings)});
+    files.push_back({std::string(kMatchSettingsFile), std::move(text)});
     return parse_game_data(std::move(files));
 }
 

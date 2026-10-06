@@ -619,7 +619,11 @@ connect_timeout_ms = 30000
 connect_retry_ms = 100
 max_frame_bytes = 1048576
 max_players = 8
+chat_max_chars = 200
+chat_history = 50
 poll_wait_ms = 5
+default_port = 47000
+default_address = "127.0.0.1"
 
 [net.probe]
 every_ticks = 40

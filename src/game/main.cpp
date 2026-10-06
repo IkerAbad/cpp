@@ -70,6 +70,9 @@ int run(int argc, char** argv, bool& windowed) {
     if (options->headless && (options->host_port || !options->join_host.empty())) {
         return rts::game::run_net_headless(*data, *options);
     }
+    if (options->host_port || !options->join_host.empty()) {
+        return rts::game::run_net_windowed(*data, *options);
+    }
     if (options->headless) {
         return rts::game::run_headless(*data, options->headless_ticks, options->record);
     }

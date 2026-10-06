@@ -167,9 +167,10 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   segundo (5 turnos de 200 ms; cada tick sería caro para nada) y, si alguien se
   desincroniza, se detecta y se dice en qué tick y con quién. Hecho: turnos con
   retraso de 2 (como AoE), estrella con reenvío, sockets propios, CI con dos procesos
-  en las cuatro plataformas. Falta pasar a la IA a quien se desconecte (E2).
-- [ ] **E2. Sala sencilla.** Anfitrión e invitado por dirección IP, chat y partida
-  de 2 a 4 jugadores, mezclando humanos e IA.
+  en las cuatro plataformas.
+- [x] **E2. Sala sencilla.** Anfitrión e invitado por dirección IP, chat y partida
+  de 2 a 4 jugadores, mezclando humanos e IA. Hecho, con relevo de la IA si un
+  invitado se va. Falta: unirse sin bloquear la ventana mientras se conecta.
 - *Terminado (E1–E2):* dos procesos en la CI juegan una partida de IA contra IA por
   red local con hashes idénticos.
 

@@ -213,6 +213,9 @@ public:
                std::vector<Command>& out, const VisionSystem* vision = nullptr);
 
     [[nodiscard]] const std::vector<AiPlayerState>& players() const noexcept { return players_; }
+    // Un jugador más pasa a la IA (relevo de quien abandona). Se ignora si ya lo es, si
+    // no existe (player_count) o si el perfil no existe.
+    void add_seat(AiSeat seat, std::size_t player_count);
     void hash_into(StateHasher& h) const;
 
 private:

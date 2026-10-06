@@ -323,13 +323,43 @@ struct FrameStats {
     render::SceneStats scene;
 };
 
+// Registro de la charla y línea para escribir (sala y partida en red).
+void draw_chat(LockstepSession& net, const GameData& data, std::string& input) {
+    const float input_h = ImGui::GetFrameHeightWithSpacing();
+    ImGui::BeginChild("lineas", {0.0f, -input_h});
+    for (const ChatLine& line : net.chat()) {
+        const auto& c = line.player < data.engine.seat_colors.size() ? data.engine.seat_colors[line.player]
+                                                                       : std::array<std::uint8_t, 3>{kOpaque, kOpaque,
+                                                                                                     kOpaque};
+        ImGui::TextColored({static_cast<float>(c[0]) / kOpaque, static_cast<float>(c[1]) / kOpaque,
+                            static_cast<float>(c[2]) / kOpaque, 1.0f},
+                           "Jugador %u%s:", static_cast<unsigned>(line.player),
+                           line.player == net.local_player() ? " (tú)" : "");
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", line.text.c_str());
+    }
+    if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
+        ImGui::SetScrollHereY(1.0f);  // pegado al final mientras no se suba a leer
+    }
+    ImGui::EndChild();
+    input.resize(static_cast<std::size_t>(data.engine.net.lockstep.chat_max_chars) + 1, '\0');
+    ImGui::SetNextItemWidth(-1.0f);
+    if (ImGui::InputText("##charla", input.data(), input.size(), ImGuiInputTextFlags_EnterReturnsTrue)) {
+        net.send_chat(input.c_str());
+        std::fill(input.begin(), input.end(), '\0');
+        ImGui::SetKeyboardFocusHere(-1);
+    }
+}
+
 class WindowedGame {
 public:
     // Con replay, reproduce esa repetición (sin órdenes); sin ella, partida nueva que
     // se graba sola.
     WindowedGame(const GameData& data, platform::Window& window, render::Renderer& renderer, const Replay* replay,
-                 const Replay* resume)
+                 const Replay* resume, LockstepSession* net = nullptr)
         : data_(data),
+          net_(net),
+          local_(net != nullptr ? net->local_player() : kLocalPlayer),
           window_(window),
           renderer_(renderer),
           world_(data.engine.world),
@@ -338,6 +368,7 @@ public:
           clock_({kTickNs, data.engine.loop.max_ticks_per_frame *
                                (replay != nullptr ? data.engine.replay.speeds.back() : 1)}),
           selection_(data.engine.selection) {
+        view_player_ = local_;
         if (replay != nullptr) {
             player_.emplace(*replay);
             replay_end_ = replay->end_tick;
@@ -361,7 +392,7 @@ public:
         const sim::TileMap& map = world_.map();
         render::Vec2 center{static_cast<float>(map.width()) * 0.5f, static_cast<float>(map.height()) * 0.5f};
         for (const sim::SnapshotObject& o : curr_.objects) {
-            if (o.kind == sim::ObjectKind::Building && o.owner == kLocalPlayer) {
+            if (o.kind == sim::ObjectKind::Building && o.owner == local_) {
                 const float half = static_cast<float>(o.size) * 0.5f;
                 center = {static_cast<float>(o.origin.x) + half, static_cast<float>(o.origin.y) + half};
                 break;
@@ -369,6 +400,8 @@ public:
         }
         camera_.center_on(proj_.tile_to_world(center), renderer_.screen_size());
     }
+
+    [[nodiscard]] sim::Tick tick() const noexcept { return world_.tick(); }
 
     // Al salir de run(): ¿se pidió volver al menú (F10 o el botón del final)?
     [[nodiscard]] bool back_to_menu() const noexcept { return back_to_menu_; }
@@ -492,7 +525,7 @@ private:
         std::vector<std::uint32_t> alive;
         for (const std::uint32_t id : groups_[index]) {
             const auto it = std::ranges::find(curr_.entities, id, &sim::SnapshotEntity::id);
-            if (it != curr_.entities.end() && it->owner == kLocalPlayer) {
+            if (it != curr_.entities.end() && it->owner == local_) {
                 alive.push_back(id);
             }
         }
@@ -517,7 +550,9 @@ private:
 
     // Toda orden del jugador pasa por aquí: se graba. En una repetición no se aceptan.
     void issue(sim::Command c) {
-        if (recorder_) {
+        if (net_ != nullptr) {
+            net_->submit(std::move(c));  // sale por la red y se graba al ejecutarse
+        } else if (recorder_) {
             recorder_->issue(world_, std::move(c));
         }
     }
@@ -643,7 +678,7 @@ private:
         }
         if (click && selection_.selected().empty()) {
             const sim::SnapshotObject* o = object_under(tile_at(at));
-            if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
+            if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == local_) {
                 selected_building_ = o->id;
             }
         }
@@ -654,7 +689,7 @@ private:
         // ticks más tarde para absorber la latencia.
         sim::Command c;
         c.tick = world_.tick();
-        c.player = kLocalPlayer;
+        c.player = local_;
         c.type = type;
         c.units = selection_.selected();
         return c;
@@ -668,7 +703,7 @@ private:
         float best_d = radius * radius;
         for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
             const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
-            if (se.owner == kLocalPlayer || !sees_entity(se)) {
+            if (se.owner == local_ || !sees_entity(se)) {
                 continue;
             }
             const render::Vec2 d = screen_entities_[i].pos - screen_pos;
@@ -709,29 +744,29 @@ private:
         } else if (const auto enemy = enemy_unit_at(screen_pos)) {
             c.type = sim::CommandType::Attack;
             c.object = *enemy;
-        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner != kLocalPlayer &&
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner != local_ &&
                    window_.ctrl_held() && data_.buildings.types[o->type].type.climbable) {
             c.type = sim::CommandType::Climb;  // Ctrl: tomar el muro con escalas
             c.object = o->id;
-        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner != kLocalPlayer) {
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner != local_) {
             c.type = sim::CommandType::Attack;
             c.object = o->id;
         } else if (o != nullptr && o->kind == sim::ObjectKind::Resource) {
             c.type = sim::CommandType::Gather;
             c.object = o->id;
-        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer &&
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == local_ &&
                    window_.shift_held()) {
             c.type = sim::CommandType::Demolish;  // Mayús: desmontarlo (deja escombros recuperables)
             c.object = o->id;
-        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer && o->fire > 0) {
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == local_ && o->fire > 0) {
             c.type = sim::CommandType::Extinguish;  // edificio propio en llamas: apagarlo
             c.object = o->id;
-        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer && o->complete &&
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == local_ && o->complete &&
                    data_.buildings.types[o->type].type.farm_food > 0 && !o->burned &&
                    o->hp >= data_.buildings.types[o->type].type.hp) {
             c.type = sim::CommandType::Gather;  // granja propia terminada e intacta: cultivarla
             c.object = o->id;
-        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == kLocalPlayer) {
+        } else if (o != nullptr && o->kind == sim::ObjectKind::Building && o->owner == local_) {
             c.type = sim::CommandType::Build;
             c.object = o->id;
             // Puesto médico terminado y en uso: los heridos ingresan; los aldeanos, si no
@@ -935,11 +970,22 @@ private:
             const bool stopped = paused_ || player_->finished(world_);
             sim_ns = stopped ? 0 : frame_ns * data_.engine.replay.speeds[speed_index_];
         }
+        if (net_ != nullptr) {
+            net_->poll(0);
+            net_waiting_ = false;
+        }
         const StepPlan plan = clock_.advance(sim_ns);
         const auto start = SteadyClock::now();
         for (std::int32_t i = 0; i < plan.ticks; ++i) {
             RTS_PROFILE_ZONE_NAMED("sim_tick");
             if (player_ && player_->finished(world_)) {
+                break;
+            }
+            // En red, un turno solo empieza con las órdenes de todos: si faltan, este
+            // fotograma no avanza más (la partida va al paso del más lento).
+            if (net_ != nullptr &&
+                !net_->begin_tick(world_, [this](sim::Command c) { recorder_->issue(world_, std::move(c)); })) {
+                net_waiting_ = net_->state() == LockstepState::Running;
                 break;
             }
             std::swap(prev_, curr_);
@@ -954,7 +1000,7 @@ private:
             }
             world_.write_snapshot(curr_);
             if (!player_) {
-                alerts_.update(prev_, curr_, kLocalPlayer);
+                alerts_.update(prev_, curr_, local_);
             }
         }
         if (plan.ticks > 0) {
@@ -1009,7 +1055,7 @@ private:
         }
         own_screen_entities_.clear();
         for (std::size_t i = 0; i < curr_.entities.size(); ++i) {
-            if (curr_.entities[i].owner == kLocalPlayer) {
+            if (curr_.entities[i].owner == local_) {
                 own_screen_entities_.push_back(screen_entities_[i]);
             }
         }
@@ -1053,6 +1099,9 @@ private:
         draw_help(display);
         draw_alerts(display);
         draw_notice(display);
+        if (net_ != nullptr) {
+            draw_net(display);
+        }
         draw_minimap();
         draw_hover_tooltip(hover);
         draw_night();
@@ -1215,7 +1264,7 @@ private:
             return;
         }
         ImGui::SeparatorText("Mejoras");
-        const sim::PlayerState* me = kLocalPlayer < curr_.players.size() ? &curr_.players[kLocalPlayer] : nullptr;
+        const sim::PlayerState* me = local_ < curr_.players.size() ? &curr_.players[local_] : nullptr;
         const auto done = [&](std::size_t u) {
             return me != nullptr && u < me->researched.size() && me->researched[u] != 0;
         };
@@ -1350,8 +1399,8 @@ private:
     }
 
     // Texto del dueño visto por el jugador local.
-    [[nodiscard]] static std::string owner_text(sim::PlayerId owner) {
-        return owner == kLocalPlayer ? std::string("tuyo") : std::format("enemigo (jugador {})", owner);
+    [[nodiscard]] std::string owner_text(sim::PlayerId owner) const {
+        return owner == local_ ? std::string("tuyo") : std::format("enemigo (jugador {})", owner);
     }
 
     // Nombre de lo que hay bajo el ratón: la unidad más cercana dentro del radio de clic
@@ -1378,7 +1427,7 @@ private:
             ImGui::BeginTooltip();
             ImGui::Text("%s · %s", u.name.c_str(), owner_text(best->owner).c_str());
             ImGui::Text("vida %d/%d · nivel %d", best->hp, best->max_hp, best->level);
-            if (best->owner == kLocalPlayer) {
+            if (best->owner == local_) {
                 draw_supply_text(*best);
             }
             draw_care_text(*best);
@@ -1551,6 +1600,34 @@ private:
         ImGui::End();
     }
 
+    // Partida en red: charla, espera y fallo de la conexión.
+    void draw_net(const ImVec2& display) {
+        ImGui::SetNextWindowPos({kPanelMarginPx, display.y * 0.5f}, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize({display.x * 0.3f, display.y * 0.25f}, ImGuiCond_FirstUseEver);
+        ImGui::Begin("Charla");
+        draw_chat(*net_, data_, chat_input_);
+        ImGui::End();
+        if (net_waiting_) {
+            ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.35f}, ImGuiCond_Always, {0.5f, 0.5f});
+            ImGui::Begin("Red", nullptr,
+                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoInputs);
+            ImGui::TextUnformatted("Esperando a los demás jugadores...");
+            ImGui::End();
+        }
+        if (net_->state() == LockstepState::Failed) {
+            ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
+            ImGui::Begin("Partida en red interrumpida", nullptr,
+                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+            ImGui::TextUnformatted(net_->error().c_str());
+            ImGui::TextUnformatted("La repetición se guarda hasta aquí.");
+            if (ImGui::Button("Volver al menú")) {
+                back_to_menu_ = true;
+            }
+            ImGui::End();
+        }
+    }
+
     // F5: guarda la partida (su repetición hasta ahora) y lo dice en pantalla.
     void save_game() {
         const auto path = save_game_path(data_);
@@ -1602,7 +1679,7 @@ private:
         for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
             const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
             const std::string& label = data_.units.types[se.type].label;
-            const bool warn = se.owner == kLocalPlayer && (se.hungry || out_of_ammo(se));
+            const bool warn = se.owner == local_ && (se.hungry || out_of_ammo(se));
             const ImVec2 size = ImGui::CalcTextSize(label.c_str());
             const render::Vec2 p = screen_entities_[i].pos;
             const ImVec2 at{std::round(p.x + radius + kPadPx * 2.0f), std::round(p.y - size.y * 0.5f)};
@@ -1664,16 +1741,16 @@ private:
     // Victoria o derrota: el jugador local sin unidades ni edificios pierde; si todos los
     // demás que llegaron a tener algo lo han perdido todo, gana.
     void draw_outcome(const ImVec2& display) {
-        if (curr_.players.size() <= kLocalPlayer) {
+        if (curr_.players.size() <= local_) {
             return;
         }
         bool won = false;
-        const bool lost = curr_.players[kLocalPlayer].defeated;
+        const bool lost = curr_.players[local_].defeated;
         if (!lost) {
             bool any_rival = false;
             bool all_defeated = true;
             for (std::size_t p = 0; p < curr_.players.size(); ++p) {
-                if (p == kLocalPlayer || !curr_.players[p].started) {
+                if (p == local_ || !curr_.players[p].started) {
                     continue;
                 }
                 any_rival = true;
@@ -1719,7 +1796,7 @@ private:
             }
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            ImGui::Text("%zu%s", p, p == kLocalPlayer ? " (tú)" : "");
+            ImGui::Text("%zu%s", p, p == local_ ? " (tú)" : "");
             for (const std::int32_t v : {gathered, s.units_trained, s.units_lost, s.enemies_killed, s.buildings_lost,
                                          s.peak_population}) {
                 ImGui::TableNextColumn();
@@ -1731,10 +1808,10 @@ private:
 
     // Barra superior: recursos y población del jugador local.
     void draw_resource_bar(const ImVec2& display) {
-        if (curr_.players.size() <= kLocalPlayer) {
+        if (curr_.players.size() <= local_) {
             return;
         }
-        const sim::PlayerState& ps = curr_.players[kLocalPlayer];
+        const sim::PlayerState& ps = curr_.players[local_];
         ImGui::SetNextWindowPos({display.x * 0.5f, kPanelMarginPx}, ImGuiCond_Always, {0.5f, 0.0f});
         ImGui::Begin("Recursos", nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
@@ -1758,7 +1835,7 @@ private:
         ImGui::SetNextWindowPos({kPanelMarginPx, display.y - kPanelMarginPx}, ImGuiCond_Always, {0.0f, 1.0f});
         ImGui::Begin("Selección", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         const sim::Stock stock =
-            curr_.players.size() > kLocalPlayer ? curr_.players[kLocalPlayer].stock : sim::Stock{};
+            curr_.players.size() > local_ ? curr_.players[local_].stock : sim::Stock{};
         if (selected_building_) {
             draw_building_panel(*selected_building_, stock);
         } else if (!selection_.selected().empty()) {
@@ -1853,7 +1930,7 @@ private:
                 for (std::size_t b = 0; b < data_.buildings.types.size(); ++b) {
                     const BuildingInfo& info = data_.buildings.types[b];
                     const auto type = static_cast<sim::BuildingTypeId>(b);
-                    const bool allowed = world_.meets_requirements(kLocalPlayer, type);
+                    const bool allowed = world_.meets_requirements(local_, type);
                     ImGui::BeginDisabled(!allowed || !affordable(stock, info.type.cost));
                     if (ImGui::Button(std::format("{} ({})", info.name, cost_text(info.type.cost)).c_str())) {
                         placing_ = type;
@@ -1894,7 +1971,7 @@ private:
             }
             // Personal asignado (enfermeros y cirujanos; cuidan los que están a su lado).
             for (const sim::SnapshotEntity& e : curr_.entities) {
-                nurses += e.owner == kLocalPlayer && e.tending && e.work_building == id ? 1 : 0;
+                nurses += e.owner == local_ && e.tending && e.work_building == id ? 1 : 0;
             }
             ImGui::Text("camas %d/%d · personal %d/%d · cura hasta el %d %%", patients, info.type.beds, nurses,
                         info.type.nurses, info.type.heal_to_percent);
@@ -2012,8 +2089,8 @@ private:
         if (placing_ && hover) {
             const BuildingInfo& info = data_.buildings.types[*placing_];
             const sim::TileCoord origin = ghost_origin(*hover, *placing_);
-            const bool can_pay = curr_.players.size() > kLocalPlayer &&
-                                 affordable(curr_.players[kLocalPlayer].stock, info.type.cost);
+            const bool can_pay = curr_.players.size() > local_ &&
+                                 affordable(curr_.players[local_].stock, info.type.cost);
             render::SceneObject ghost;
             ghost.origin = origin;
             ghost.size = info.type.size;
@@ -2121,6 +2198,10 @@ private:
     }
 
     const GameData& data_;
+    LockstepSession* net_;  // partida en red (E2); null: partida local
+    sim::PlayerId local_;   // jugador de esta máquina
+    bool net_waiting_ = false;  // este fotograma faltaron órdenes de otros
+    std::string chat_input_;
     platform::Window& window_;
     render::Renderer& renderer_;
     sim::World world_;
@@ -2149,7 +2230,7 @@ private:
     bool paused_ = false;
     std::size_t speed_index_ = 0;
     // Jugador cuya vista se muestra (niebla de guerra); sin valor, todo.
-    std::optional<sim::PlayerId> view_player_ = kLocalPlayer;
+    std::optional<sim::PlayerId> view_player_;
     std::vector<sim::SnapshotObject> remembered_objects_;  // edificios recordados, no vistos ahora
     std::array<std::vector<std::uint32_t>, 9> groups_;  // grupos de control 1…9
     AlertTracker alerts_{data_.engine.alerts};
@@ -2425,9 +2506,15 @@ std::optional<Display> open_display(const GameData& data) {
 }
 
 struct MenuChoice {
-    enum class Kind : std::uint8_t { New, Load, Replay, Quit };
+    enum class Kind : std::uint8_t { New, Load, Replay, Host, Join, Quit };
     Kind kind = Kind::Quit;
     std::filesystem::path path;
+};
+
+// Lo que se escribe en el menú para jugar en red (E2).
+struct NetMenu {
+    int port = 0;
+    std::array<char, 256> address{};  // nombre o IP del anfitrión
 };
 
 // Ficheros con esa extensión en la carpeta de repeticiones, los más recientes primero.
@@ -2448,7 +2535,7 @@ std::vector<std::filesystem::path> saved_files(const GameData& data, std::string
 }
 
 // Menú inicial: nueva partida (semilla, rival, niebla), cargar, repeticiones, salir.
-MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings) {
+MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, NetMenu& net) {
     constexpr std::size_t kListed = 8;
     const auto saves = saved_files(base, ".rtssav", kListed);
     const auto replays = saved_files(base, ".rtsrep", kListed);
@@ -2490,6 +2577,21 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings) {
             choice.kind = MenuChoice::Kind::New;
             chosen = true;
         }
+        ImGui::SeparatorText("En red (de 2 a 4 jugadores; los puestos libres, para la IA)");
+        ImGui::InputInt("Puerto", &net.port);
+        net.port = std::clamp(net.port, 1, static_cast<int>(std::numeric_limits<std::uint16_t>::max()));
+        if (ImGui::Button("Crear sala")) {
+            choice.kind = MenuChoice::Kind::Host;
+            chosen = true;
+        }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10.0f);
+        ImGui::InputText("##direccion", net.address.data(), net.address.size());
+        ImGui::SameLine();
+        if (ImGui::Button("Unirse")) {
+            choice.kind = MenuChoice::Kind::Join;
+            chosen = true;
+        }
         ImGui::SeparatorText("Cargar partida guardada (F5 durante la partida)");
         if (saves.empty()) {
             ImGui::TextDisabled("Ninguna todavía");
@@ -2523,6 +2625,91 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings) {
     }
 }
 
+// Sala de espera de una partida en red. El anfitrión ve quién hay, elige cuántos puestos
+// tiene la partida (los que no ocupa nadie, para la IA) y empieza; el invitado espera.
+// Devuelve los datos de la partida al empezar, o nada si se sale o falla.
+std::optional<GameData> run_lobby(Display& d, const GameData& base, MatchSettings settings, LockstepSession& net) {
+    const auto& profiles = base.engine.ai_profile_names;
+    const auto max_seats = static_cast<int>(
+        std::min<std::size_t>(base.engine.seat_starts.size(), static_cast<std::size_t>(base.engine.net.lockstep.max_players)));
+    int seats = 2;
+    std::string chat_input;
+    while (true) {
+        SDL_Event event;
+        while (d.window->poll_event(event)) {
+            d.renderer->process_event(event);
+            if (d.window->is_close_request(event)) {
+                return std::nullopt;
+            }
+        }
+        net.poll(0);
+        if (net.state() == LockstepState::Running && !net.is_host()) {
+            auto data = with_match_settings_text(base, net.settings());
+            if (!data) {
+                spdlog::error("Ajustes del anfitrión: {}", data.error());
+                return std::nullopt;
+            }
+            return std::move(*data);
+        }
+        d.renderer->begin_frame();
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::SetNextWindowSize({display.x * 0.5f, display.y * 0.6f}, ImGuiCond_Always);
+        ImGui::Begin("Sala", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
+        bool leave = false;
+        std::optional<GameData> started;
+        if (net.state() == LockstepState::Failed) {
+            ImGui::TextColored(kWarnColor, "%s", net.error().c_str());
+        } else if (net.is_host()) {
+            ImGui::Text("Sala abierta en el puerto %u. Los demás se unen con la IP de este equipo y ese puerto.",
+                        static_cast<unsigned>(net.port()));
+            ImGui::Text("Jugadores conectados: %u (tú incluido)", static_cast<unsigned>(net.connected()));
+            seats = std::clamp(seats, std::max<int>(2, net.connected()), max_seats);
+            ImGui::SliderInt("Puestos", &seats, std::max<int>(2, net.connected()), max_seats);
+            for (int i = 0; i < seats; ++i) {
+                ImGui::BulletText("Puesto %d: %s", i, i < net.connected() ? "humano" : ("IA " + settings.rival).c_str());
+            }
+            ImGui::Text("Semilla %llu, niebla %s", static_cast<unsigned long long>(settings.seed),
+                        settings.fog ? "sí" : "no");
+            ImGui::BeginDisabled(net.connected() < 2);
+            if (ImGui::Button("Empezar")) {
+                settings.seats.assign(static_cast<std::size_t>(seats), "ia");
+                for (std::size_t i = 0; i < net.connected(); ++i) {
+                    settings.seats[i] = "humano";
+                }
+                auto data = with_match_settings(base, settings);
+                if (!data) {
+                    spdlog::error("Ajustes de partida: {}", data.error());
+                } else {
+                    const auto it = std::ranges::find(profiles, settings.rival);
+                    net.start(match_settings_toml(settings), static_cast<std::uint8_t>(it - profiles.begin()));
+                    started = std::move(*data);
+                }
+            }
+            ImGui::EndDisabled();
+        } else {
+            ImGui::Text("Conectado. Jugadores en la sala: %u. Empieza el anfitrión.",
+                        static_cast<unsigned>(net.connected()));
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Salir de la sala")) {
+            leave = true;
+        }
+        ImGui::SeparatorText("Charla");
+        ImGui::BeginChild("charla");
+        draw_chat(net, base, chat_input);
+        ImGui::EndChild();
+        ImGui::End();
+        d.renderer->end_frame();
+        if (started) {
+            return started;
+        }
+        if (leave) {
+            return std::nullopt;
+        }
+    }
+}
+
 }  // namespace
 
 int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* replay, const Replay* resume) {
@@ -2532,6 +2719,50 @@ int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* re
     }
     WindowedGame game(data, *display->window, *display->renderer, replay, resume);
     return game.run(max_frames);
+}
+
+int run_net_windowed(const GameData& base, const LaunchOptions& options) {
+    const std::uint64_t hash = data_hash(base.files);
+    const auto& cfg = base.engine.net.lockstep;
+    auto session = options.host_port ? LockstepSession::host(*options.host_port, 0, cfg, hash, 0)
+                                     : LockstepSession::join(options.join_host, options.join_port, cfg, hash);
+    if (!session) {
+        spdlog::error("red: {}", session.error());
+        return 1;
+    }
+    // Sin sala con ventana: el anfitrión empieza en cuanto están todos, todos humanos.
+    MatchSettings settings;
+    settings.seed = base.engine.world.map.seed;
+    settings.fog = base.engine.world.vision.enabled;
+    settings.rival = base.engine.ai_profile_names.front();
+    settings.seats.assign(options.net_players, "humano");
+    const auto start = SteadyClock::now();
+    while (session->state() == LockstepState::Lobby && elapsed_ms(start) < cfg.lobby_timeout_ms) {
+        session->poll(base.engine.net.poll_wait_ms);
+        if (session->is_host() && session->connected() == options.net_players) {
+            session->start(match_settings_toml(settings), 0);
+        }
+    }
+    if (session->state() != LockstepState::Running) {
+        spdlog::error("red: {}", session->error().empty() ? "no se reunieron los jugadores" : session->error());
+        return 1;
+    }
+    auto data = with_match_settings_text(base, session->settings());
+    if (!data) {
+        spdlog::error("red: ajustes del anfitrión: {}", data.error());
+        return 1;
+    }
+    auto display = open_display(*data);
+    if (!display) {
+        return 1;
+    }
+    WindowedGame game(*data, *display->window, *display->renderer, nullptr, nullptr, &*session);
+    const int code = game.run(options.max_frames);
+    spdlog::info("red: jugador {}, tick {}, estado {}", session->local_player(), game.tick(),
+                 session->state() == LockstepState::Running ? "en partida" : session->error());
+    // Que el otro cierre antes es lo normal al acabar una prueba de humo; una
+    // desincronización, no.
+    return session->desync() ? 1 : code;
 }
 
 int run_interactive(const GameData& base) {
@@ -2545,13 +2776,37 @@ int run_interactive(const GameData& base) {
     if (!base.engine.world.ai_players.empty()) {
         settings.rival = base.engine.ai_profile_names[base.engine.world.ai_players.front().profile];
     }
+    NetMenu net_menu;
+    net_menu.port = base.engine.net.default_port;
+    std::ranges::copy(base.engine.net.default_address.substr(0, net_menu.address.size() - 1),
+                      net_menu.address.begin());
     while (true) {
-        const MenuChoice choice = run_menu(*display, base, settings);
+        const MenuChoice choice = run_menu(*display, base, settings, net_menu);
         std::optional<GameData> data;
         std::optional<Replay> recorded;
+        std::optional<LockstepSession> net;
         switch (choice.kind) {
             case MenuChoice::Kind::Quit:
                 return 0;
+            case MenuChoice::Kind::Host:
+            case MenuChoice::Kind::Join: {
+                const std::uint64_t hash = data_hash(base.files);
+                const auto port = static_cast<std::uint16_t>(net_menu.port);
+                auto session = choice.kind == MenuChoice::Kind::Host
+                                   ? LockstepSession::host(port, 0, base.engine.net.lockstep, hash, 0)
+                                   : LockstepSession::join(net_menu.address.data(), port, base.engine.net.lockstep, hash);
+                if (!session) {
+                    spdlog::error("Red: {}", session.error());
+                    continue;
+                }
+                net.emplace(std::move(*session));
+                auto d = run_lobby(*display, base, settings, *net);
+                if (!d) {
+                    continue;
+                }
+                data = std::move(*d);
+                break;
+            }
             case MenuChoice::Kind::New: {
                 auto d = with_match_settings(base, settings);
                 if (!d) {
@@ -2582,7 +2837,7 @@ int run_interactive(const GameData& base) {
         const bool is_load = choice.kind == MenuChoice::Kind::Load;
         try {
             WindowedGame game(*data, *display->window, *display->renderer, is_replay ? &*recorded : nullptr,
-                              is_load ? &*recorded : nullptr);
+                              is_load ? &*recorded : nullptr, net ? &*net : nullptr);
             game.run(0);
             if (!game.back_to_menu()) {
                 return 0;  // ventana cerrada

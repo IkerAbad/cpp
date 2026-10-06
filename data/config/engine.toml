@@ -57,7 +57,8 @@ max_elevation = 65536
 
 # Jugadores, en orden de PlayerId. start: centro deseado del edificio inicial (se
 # busca el sitio válido más cercano). color: RGB del dueño en marcadores y edificios.
-# controller: "humano" (el jugador local es el 0) o "ia".
+# controller: "humano" (el jugador local es el 0), "ia" o "libre" (un puesto que solo
+# se ocupa en las partidas en red de más de dos; los libres van al final).
 [[player]]
 start = [72, 72]
 color = [70, 130, 235]
@@ -68,6 +69,16 @@ start = [184, 184]
 color = [225, 70, 60]
 controller = "ia"
 ai_profile = "normal"
+
+[[player]]
+start = [184, 72]
+color = [235, 200, 60]
+controller = "libre"
+
+[[player]]
+start = [72, 184]
+color = [90, 190, 110]
+controller = "libre"
 
 [demo]
 # Unidades sueltas de prueba (las usan el banco y las pruebas de movimiento): count
@@ -963,9 +974,15 @@ connect_timeout_ms = 30000
 connect_retry_ms = 100
 # Trama más larga admitida (protege de un otro extremo roto o malicioso).
 max_frame_bytes = 1048576
-max_players = 8
+max_players = 4
+# Charla: un mensaje de más de 200 bytes se corta; se guardan las últimas 50 líneas.
+chat_max_chars = 200
+chat_history = 50
 # Espera máxima por vuelta del bucle mientras faltan órdenes (no gasta CPU en vano).
 poll_wait_ms = 5
+# Puerto y dirección que proponen el menú y la sala (se pueden cambiar allí).
+default_port = 47000
+default_address = "127.0.0.1"
 
 [net.probe]
 # Órdenes de prueba de las partidas en red sin ventana: cada 2 s, hasta 3 unidades

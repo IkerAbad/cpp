@@ -41,6 +41,10 @@ int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem
 // de la simulación. Escribe el hash final; 0 si todos acaban con el mismo.
 int run_net_headless(const GameData& data, const LaunchOptions& options);
 
+// Partida en red con ventana sin pasar por el menú (pruebas de humo): el anfitrión
+// empieza en cuanto se reúnen options.net_players jugadores, todos humanos.
+int run_net_windowed(const GameData& base, const LaunchOptions& options);
+
 // Bucle interactivo con ventana, render y paso fijo. Sin replay, partida nueva que se
 // graba sola en data.engine.replay.directory; con ella, reproductor sin órdenes.
 // Con resume, sigue la partida guardada que es (se rehace a toda velocidad al empezar).

@@ -10,7 +10,7 @@ namespace rts::game {
 
 namespace {
 
-enum class Msg : std::uint8_t { Hello = 1, Welcome, Reject, Start, Turn, Done };
+enum class Msg : std::uint8_t { Hello = 1, Welcome, Reject, Roster, Start, Turn, Done, Chat, Drop };
 
 constexpr std::uint32_t kNoHashTick = ~std::uint32_t{0};
 
@@ -57,12 +57,13 @@ std::vector<sim::Command> probe_orders(const sim::Snapshot& snap, sim::PlayerId 
 LockstepSession::LockstepSession(const LockstepConfig& config, std::uint64_t data_hash)
     : config_(config), data_hash_(data_hash), created_(Clock::now()) {}
 
-std::expected<LockstepSession, std::string> LockstepSession::host(std::uint16_t port, std::uint8_t players,
+std::expected<LockstepSession, std::string> LockstepSession::host(std::uint16_t port,
+                                                                  std::uint8_t auto_start_players,
                                                                   const LockstepConfig& config,
                                                                   std::uint64_t data_hash, sim::Tick end_tick) {
-    if (players < 2 || players > config.max_players) {
+    if (auto_start_players != 0 && (auto_start_players < 2 || auto_start_players > config.max_players)) {
         return std::unexpected(std::format("una partida en red es de 2 a {} jugadores, no de {}", config.max_players,
-                                           players));
+                                           auto_start_players));
     }
     auto listener = net::Listener::listen(port);
     if (!listener) {
@@ -72,13 +73,13 @@ std::expected<LockstepSession, std::string> LockstepSession::host(std::uint16_t 
     s.is_host_ = true;
     s.listener_ = std::move(*listener);
     s.local_ = 0;
-    s.players_ = players;
+    s.auto_start_ = auto_start_players;
+    s.connected_ = 1;
     s.turn_ticks_ = config.turn_ticks;
     s.delay_turns_ = config.input_delay_turns;
     s.hash_every_ = config.hash_every_turns;
     s.end_tick_ = end_tick;
     s.next_send_turn_ = static_cast<std::uint32_t>(s.delay_turns_);
-    s.finals_.resize(players);
     return s;
 }
 
@@ -114,6 +115,26 @@ bool LockstepSession::flushed() const {
     return std::ranges::none_of(peers_, [](const Peer& p) { return p.conn.sending(); });
 }
 
+std::vector<sim::PlayerId> LockstepSession::dropped_players() const {
+    std::vector<sim::PlayerId> out;
+    for (std::size_t p = 0; p < dropped_.size(); ++p) {
+        if (dropped_[p]) {
+            out.push_back(static_cast<sim::PlayerId>(p));
+        }
+    }
+    return out;
+}
+
+std::size_t LockstepSession::active_remotes() const {
+    std::size_t n = 0;
+    for (std::size_t p = 0; p < players_; ++p) {
+        if (p != local_ && !(p < dropped_.size() && dropped_[p])) {
+            ++n;
+        }
+    }
+    return n;
+}
+
 void LockstepSession::poll(std::int32_t wait_ms) {
     std::vector<net::Socket::Handle> reads;
     std::vector<net::Socket::Handle> writes;
@@ -138,7 +159,9 @@ void LockstepSession::poll(std::int32_t wait_ms) {
         if (state_ == LockstepState::Lobby) {
             accept_peers();
         }
+        std::vector<sim::PlayerId> lost;
         for (Peer& p : peers_) {
+            const bool was_open = p.conn.open();
             const bool alive = p.conn.pump();
             // Lo que llegó antes del cierre se procesa igual (p. ej. su mensaje de fin).
             while (auto frame = p.conn.receive()) {
@@ -147,12 +170,29 @@ void LockstepSession::poll(std::int32_t wait_ms) {
                 }
                 handle_host_frame(p, std::move(*frame));
             }
-            if (!alive && p.welcomed && (state_ == LockstepState::Running || state_ == LockstepState::Lobby)) {
-                fail(std::format("el jugador {} se ha desconectado: {}", p.player, p.conn.error()));
+            if (was_open && !alive && p.welcomed && state_ == LockstepState::Running && !finals_[p.player]) {
+                lost.push_back(p.player);
             }
         }
-        // En la sala, quien se va sin haber entrado (o rechazado) deja su sitio.
-        std::erase_if(peers_, [](const Peer& p) { return !p.conn.open() && !p.welcomed; });
+        for (const sim::PlayerId player : lost) {
+            // Primer turno del que no llegó nada suyo: nadie lo ha podido ejecutar.
+            const auto it = std::ranges::find(peers_, player, &Peer::player);
+            const std::uint32_t from = it->last_turn ? *it->last_turn + 1 : static_cast<std::uint32_t>(delay_turns_);
+            ByteWriter w;
+            w.u8(static_cast<std::uint8_t>(Msg::Drop));
+            w.u8(player);
+            w.u32(from);
+            relay(nullptr, w.out());
+            drop(player, from);
+        }
+        if (state_ == LockstepState::Lobby) {
+            // En la sala, quien se va deja su sitio.
+            const std::size_t before = peers_.size();
+            std::erase_if(peers_, [](const Peer& p) { return !p.conn.open(); });
+            if (peers_.size() != before) {
+                send_roster();
+            }
+        }
     } else if (host_) {
         const bool alive = host_->pump();
         while (auto frame = host_->receive()) {
@@ -165,16 +205,24 @@ void LockstepSession::poll(std::int32_t wait_ms) {
             fail("se perdió la conexión con el anfitrión: " + host_->error());
         }
     }
-    if (state_ == LockstepState::Lobby && ms_since(created_) > config_.lobby_timeout_ms) {
+    if (state_ == LockstepState::Lobby && auto_start_ != 0 && ms_since(created_) > config_.lobby_timeout_ms) {
         fail(std::format("los jugadores no llegaron a reunirse en {} ms", config_.lobby_timeout_ms));
     }
 }
 
 void LockstepSession::accept_peers() {
     while (auto sock = listener_->accept()) {
-        peers_.push_back({net::Connection(std::move(*sock), static_cast<std::uint32_t>(config_.max_frame_bytes)), 0,
-                          false});
+        peers_.push_back(
+            {net::Connection(std::move(*sock), static_cast<std::uint32_t>(config_.max_frame_bytes)), 0, false, {}});
     }
+}
+
+void LockstepSession::send_roster() {
+    connected_ = static_cast<std::uint8_t>(1 + std::ranges::count_if(peers_, [](const Peer& p) { return p.welcomed; }));
+    ByteWriter w;
+    w.u8(static_cast<std::uint8_t>(Msg::Roster));
+    w.u8(connected_);
+    relay(nullptr, w.out());
 }
 
 void LockstepSession::handle_host_frame(Peer& from, std::vector<std::uint8_t> frame) {
@@ -189,14 +237,15 @@ void LockstepSession::handle_host_frame(Peer& from, std::vector<std::uint8_t> fr
         const std::uint64_t hash = r.u64();
         std::string reason;
         const auto welcomed = std::ranges::count_if(peers_, [](const Peer& p) { return p.welcomed; });
+        const std::int64_t capacity = auto_start_ != 0 ? auto_start_ : config_.max_players;
         if (type != Msg::Hello || !r.ok()) {
             reason = "se esperaba el saludo";
         } else if (version != kLockstepProtocolVersion) {
             reason = std::format("protocolo {} (el anfitrión usa el {})", version, kLockstepProtocolVersion);
         } else if (hash != data_hash_) {
             reason = "los ficheros de datos no son los mismos que los del anfitrión";
-        } else if (state_ != LockstepState::Lobby || welcomed + 1 >= players_) {
-            reason = "la partida está completa";
+        } else if (state_ != LockstepState::Lobby || welcomed + 1 >= capacity) {
+            reason = "la partida está completa o ya ha empezado";
         }
         if (!reason.empty()) {
             from.conn.send(reject_frame(reason));
@@ -209,14 +258,14 @@ void LockstepSession::handle_host_frame(Peer& from, std::vector<std::uint8_t> fr
         ByteWriter w;
         w.u8(static_cast<std::uint8_t>(Msg::Welcome));
         w.u8(from.player);
-        w.u8(players_);
         w.u32(static_cast<std::uint32_t>(turn_ticks_));
         w.u32(static_cast<std::uint32_t>(delay_turns_));
         w.u32(static_cast<std::uint32_t>(hash_every_));
         w.u32(end_tick_);
         from.conn.send(w.out());
-        if (welcomed + 2 == players_) {
-            start();
+        send_roster();
+        if (auto_start_ != 0 && connected_ == auto_start_) {
+            start({}, 0);
         }
         return;
     }
@@ -224,8 +273,16 @@ void LockstepSession::handle_host_frame(Peer& from, std::vector<std::uint8_t> fr
     if (type == Msg::Turn && frame.size() > 1 + sizeof(std::uint32_t)) {
         // El jugador va tras el número de turno: solo puede hablar por sí mismo.
         ok = frame[1 + sizeof(std::uint32_t)] == from.player && handle_turn(frame);
+        if (ok) {
+            ByteReader r(std::span<const std::uint8_t>(frame).subspan(1));
+            from.last_turn = r.u32();
+        }
     } else if (type == Msg::Done && frame.size() > 1) {
         ok = frame[1] == from.player && handle_done(frame);
+    } else if (type == Msg::Chat && frame.size() > 1) {
+        // En la sala los puestos se renumeran al empezar: el remitente lo pone el anfitrión.
+        frame[1] = from.player;
+        ok = handle_chat(frame);
     }
     if (!ok) {
         fail(std::format("mensaje no válido del jugador {}", from.player));
@@ -240,6 +297,7 @@ void LockstepSession::handle_client_frame(std::vector<std::uint8_t> frame) {
         return;
     }
     const auto body = std::span<const std::uint8_t>(frame).subspan(1);
+    bool ok = true;
     switch (static_cast<Msg>(frame[0])) {
         case Msg::Welcome:
             apply_welcome(body);
@@ -249,50 +307,93 @@ void LockstepSession::handle_client_frame(std::vector<std::uint8_t> frame) {
             fail("el anfitrión no admite la conexión: " + r.str());
             return;
         }
+        case Msg::Roster: {
+            ByteReader r(body);
+            connected_ = r.u8();
+            ok = r.ok();
+            break;
+        }
         case Msg::Start:
-            if (players_ == 0) {
-                fail("el anfitrión empezó sin dar la bienvenida");
-            } else {
-                state_ = LockstepState::Running;
-            }
+            apply_start(body);
             return;
         case Msg::Turn:
-            if (!handle_turn(frame)) {
-                fail("mensaje de turno no válido");
-            }
-            return;
+            ok = handle_turn(frame);
+            break;
         case Msg::Done:
-            if (!handle_done(frame)) {
-                fail("mensaje de fin no válido");
-            }
-            return;
+            ok = handle_done(frame);
+            break;
+        case Msg::Chat:
+            ok = handle_chat(frame);
+            break;
+        case Msg::Drop:
+            ok = handle_drop(frame);
+            break;
         case Msg::Hello:
+            ok = false;
             break;
     }
-    fail("mensaje desconocido del anfitrión");
+    if (!ok) {
+        fail(std::format("mensaje no válido del anfitrión (tipo {})", frame[0]));
+    }
 }
 
 void LockstepSession::apply_welcome(std::span<const std::uint8_t> body) {
     ByteReader r(body);
     local_ = r.u8();
-    players_ = r.u8();
     turn_ticks_ = static_cast<std::int32_t>(r.u32());
     delay_turns_ = static_cast<std::int32_t>(r.u32());
     hash_every_ = static_cast<std::int32_t>(r.u32());
     end_tick_ = r.u32();
-    if (!r.ok() || players_ < 2 || local_ == 0 || local_ >= players_ || turn_ticks_ <= 0 || delay_turns_ <= 0 ||
-        hash_every_ <= 0) {
+    if (!r.ok() || local_ == 0 || turn_ticks_ <= 0 || delay_turns_ <= 0 || hash_every_ <= 0) {
         fail("bienvenida no válida");
         return;
     }
     next_send_turn_ = static_cast<std::uint32_t>(delay_turns_);
-    finals_.assign(players_, std::nullopt);
 }
 
-void LockstepSession::start() {
-    ByteWriter w;
-    w.u8(static_cast<std::uint8_t>(Msg::Start));
-    send_to_all(w.out());
+void LockstepSession::apply_start(std::span<const std::uint8_t> body) {
+    ByteReader r(body);
+    const sim::PlayerId me = r.u8();
+    const std::uint8_t players = r.u8();
+    const std::uint8_t profile = r.u8();
+    std::string settings = r.str();
+    if (!r.ok() || turn_ticks_ == 0 || players < 2 || me == 0 || me >= players || state_ != LockstepState::Lobby) {
+        fail("el anfitrión empezó sin una bienvenida válida");
+        return;
+    }
+    local_ = me;
+    players_ = players;
+    connected_ = players;
+    takeover_profile_ = profile;
+    settings_ = std::move(settings);
+    finals_.assign(players_, std::nullopt);
+    dropped_.assign(players_, std::nullopt);
+    state_ = LockstepState::Running;
+}
+
+void LockstepSession::start(std::string settings, std::uint8_t takeover_profile) {
+    if (!is_host_ || state_ != LockstepState::Lobby) {
+        return;
+    }
+    // Los que siguen conectados, numerados de nuevo sin huecos.
+    std::erase_if(peers_, [](const Peer& p) { return !p.conn.open() || !p.welcomed; });
+    players_ = static_cast<std::uint8_t>(peers_.size() + 1);
+    connected_ = players_;
+    settings_ = std::move(settings);
+    takeover_profile_ = takeover_profile;
+    for (std::size_t i = 0; i < peers_.size(); ++i) {
+        Peer& p = peers_[i];
+        p.player = static_cast<sim::PlayerId>(i + 1);
+        ByteWriter w;
+        w.u8(static_cast<std::uint8_t>(Msg::Start));
+        w.u8(p.player);
+        w.u8(players_);
+        w.u8(takeover_profile_);
+        w.str(settings_);
+        p.conn.send(w.out());
+    }
+    finals_.assign(players_, std::nullopt);
+    dropped_.assign(players_, std::nullopt);
     state_ = LockstepState::Running;
 }
 
@@ -318,6 +419,13 @@ LockstepSession::TurnInputs& LockstepSession::inputs(std::uint32_t turn) {
     return in;
 }
 
+bool LockstepSession::has_input(const TurnInputs* in, sim::PlayerId player, std::uint32_t turn) const {
+    if (dropped_[player] && turn >= *dropped_[player]) {
+        return true;  // abandonó: sus turnos desde entonces van vacíos
+    }
+    return in != nullptr && in->by_player[player].has_value();
+}
+
 bool LockstepSession::handle_turn(std::span<const std::uint8_t> frame) {
     if (state_ != LockstepState::Running) {
         return false;
@@ -329,7 +437,8 @@ bool LockstepSession::handle_turn(std::span<const std::uint8_t> frame) {
     const std::uint64_t hash = r.u64();
     std::vector<sim::Command> commands(r.count(1));
     for (sim::Command& c : commands) {
-        if (!read_command(r, c)) {
+        // El relevo de la IA solo lo decide la sesión.
+        if (!read_command(r, c) || c.type == sim::CommandType::AiTakeover) {
             return false;
         }
         // Nadie da órdenes por otro ni para otro momento.
@@ -339,7 +448,8 @@ bool LockstepSession::handle_turn(std::span<const std::uint8_t> frame) {
     // Un jugador va como mucho input_delay_turns turnos por delante: más es un error.
     const auto delay = static_cast<std::uint32_t>(delay_turns_);
     if (!r.ok() || r.remaining() != 0 || player >= players_ || player == local_ || turn < delay ||
-        turn < next_run_turn_ || turn > next_run_turn_ + 2 * delay + 1) {
+        turn < next_run_turn_ || turn > next_run_turn_ + 2 * delay + 1 ||
+        (dropped_[player] && turn >= *dropped_[player])) {
         return false;
     }
     auto& slot = inputs(turn).by_player[player];
@@ -366,7 +476,70 @@ bool LockstepSession::handle_done(std::span<const std::uint8_t> frame) {
     return true;
 }
 
+bool LockstepSession::handle_chat(std::span<const std::uint8_t> frame) {
+    ByteReader r(frame.subspan(1));
+    const sim::PlayerId player = r.u8();
+    std::string text = r.str();
+    if (!r.ok() || r.remaining() != 0 || text.size() > static_cast<std::size_t>(config_.chat_max_chars)) {
+        return false;
+    }
+    chat_.push_back({player, std::move(text)});
+    if (chat_.size() > static_cast<std::size_t>(config_.chat_history)) {
+        chat_.erase(chat_.begin());
+    }
+    return true;
+}
+
+void LockstepSession::send_chat(std::string_view text) {
+    if (text.empty() || state_ == LockstepState::Failed) {
+        return;
+    }
+    // Se corta sin partir un carácter UTF-8 (los bytes de continuación son 10xxxxxx).
+    constexpr unsigned kContinuationMask = 0xC0U;
+    constexpr unsigned kContinuation = 0x80U;
+    std::size_t n = std::min(text.size(), static_cast<std::size_t>(config_.chat_max_chars));
+    while (n > 0 && n < text.size() &&
+           (static_cast<unsigned char>(text[n]) & kContinuationMask) == kContinuation) {
+        --n;
+    }
+    ByteWriter w;
+    w.u8(static_cast<std::uint8_t>(Msg::Chat));
+    w.u8(local_);
+    w.str(text.substr(0, n));
+    handle_chat(w.out());  // también en el registro propio
+    send_to_all(w.out());
+}
+
+bool LockstepSession::handle_drop(std::span<const std::uint8_t> frame) {
+    ByteReader r(frame.subspan(1));
+    const sim::PlayerId player = r.u8();
+    const std::uint32_t from = r.u32();
+    if (!r.ok() || r.remaining() != 0 || state_ != LockstepState::Running || player == 0 || player >= players_ ||
+        player == local_ || dropped_[player] || from < next_run_turn_) {
+        return false;
+    }
+    drop(player, from);
+    return true;
+}
+
+void LockstepSession::drop(sim::PlayerId player, std::uint32_t from_turn) {
+    dropped_[player] = from_turn;
+    for (auto& [turn, in] : turns_) {
+        if (turn >= from_turn) {
+            in.by_player[player].reset();
+        }
+    }
+    finals_[player].reset();
+    chat_.push_back({player, "(ha abandonado; la IA toma su bando)"});
+    // Sus hashes ya no llegarán: lo que solo esperaba los suyos queda confirmado.
+    check_hashes();
+    check_done();
+}
+
 void LockstepSession::submit(sim::Command command) {
+    if (command.type == sim::CommandType::AiTakeover) {
+        return;
+    }
     command.player = local_;
     local_commands_.push_back(std::move(command));
 }
@@ -417,19 +590,31 @@ bool LockstepSession::begin_tick(const sim::World& world, const Issue& issue) {
     if (turn < next_run_turn_) {
         return true;
     }
+    const auto it = turns_.find(turn);
+    TurnInputs* in = it != turns_.end() ? &it->second : nullptr;
     if (turn >= delay) {
-        const auto it = turns_.find(turn);
-        const bool complete = it != turns_.end() &&
-                              std::ranges::all_of(it->second.by_player, [](const auto& p) { return p.has_value(); });
-        if (!complete) {
-            stall_check();
-            return false;
+        for (std::uint8_t p = 0; p < players_; ++p) {
+            if (!has_input(in, p, turn)) {
+                stall_check();
+                return false;
+            }
         }
-        for (auto& by_player : it->second.by_player) {
-            for (sim::Command& c : *by_player) {
+    }
+    for (std::uint8_t p = 0; p < players_; ++p) {
+        if (dropped_[p] && *dropped_[p] == turn) {
+            sim::Command c;
+            c.tick = tick;
+            c.player = p;
+            c.type = sim::CommandType::AiTakeover;
+            c.kind = takeover_profile_;
+            issue(std::move(c));
+        } else if (in != nullptr && in->by_player[p]) {
+            for (sim::Command& c : *in->by_player[p]) {
                 issue(std::move(c));
             }
         }
+    }
+    if (in != nullptr) {
         turns_.erase(it);
     }
     next_run_turn_ = turn + 1;
@@ -447,8 +632,9 @@ void LockstepSession::stall_check() {
     }
     std::string missing;
     const auto it = turns_.find(next_run_turn_);
+    const TurnInputs* in = it != turns_.end() ? &it->second : nullptr;
     for (std::uint8_t p = 0; p < players_; ++p) {
-        if (it == turns_.end() || !it->second.by_player[p]) {
+        if (!has_input(in, p, next_run_turn_)) {
             missing += std::format("{}{}", missing.empty() ? "" : ", ", p);
         }
     }
@@ -477,15 +663,16 @@ void LockstepSession::check_hashes() {
             return true;
         }
         ++hashes_compared_;
-        if (++it->second.confirmations + 1 >= players_) {
-            own_hashes_.erase(it);
-        }
+        ++it->second.confirmations;
         return true;
     });
     if (desync_) {
         fail(std::format("desincronización en el tick {}: el hash del jugador {} es {:016x} y el propio {:016x}",
                          desync_->tick, desync_->player, desync_->remote, desync_->local));
+        return;
     }
+    const std::size_t needed = active_remotes();
+    std::erase_if(own_hashes_, [needed](const auto& kv) { return kv.second.confirmations >= needed; });
 }
 
 void LockstepSession::finish(const sim::World& world) {
@@ -504,10 +691,18 @@ void LockstepSession::finish(const sim::World& world) {
 }
 
 void LockstepSession::check_done() {
-    if (!own_final_ || !std::ranges::all_of(finals_, [](const auto& f) { return f.has_value(); })) {
+    if (!own_final_ || state_ != LockstepState::Running) {
         return;
     }
     for (std::uint8_t p = 0; p < players_; ++p) {
+        if (!finals_[p] && !dropped_[p]) {
+            return;
+        }
+    }
+    for (std::uint8_t p = 0; p < players_; ++p) {
+        if (!finals_[p]) {
+            continue;
+        }
         const auto& [tick, hash] = *finals_[p];
         if (tick != own_final_->first) {
             fail(std::format("el jugador {} terminó en el tick {} y este en el {}", p, tick, own_final_->first));

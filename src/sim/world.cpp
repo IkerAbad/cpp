@@ -233,6 +233,10 @@ void World::issue(Command command) {
 }
 
 void World::apply_command(const Command& command) {
+    if (command.type == CommandType::AiTakeover) {
+        ai_.add_seat({command.player, command.kind}, economy_.players().size());
+        return;
+    }
     // Solo las unidades del jugador que da la orden.
     std::vector<entt::entity> units;
     for (const std::uint32_t id : command.units) {

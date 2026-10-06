@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <memory>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -47,6 +48,8 @@ struct Side {
 
     Side(LockstepSession s, const GameData& data)
         : session(std::move(s)), world(data.engine.world), rng(data.engine.world.setup.seed + 1) {}
+    Side(const Side&) = delete;
+    Side& operator=(const Side&) = delete;
 
     // Un paso del bucle de juego: órdenes de prueba, red y, si se puede, un tick.
     void advance(const GameData& data, std::optional<Command>& extra) {
@@ -321,4 +324,162 @@ TEST_CASE("Red: sin noticias del otro jugador, la partida falla al cumplirse el 
     // Se paró justo donde faltaban las órdenes: los primeros turnos van vacíos.
     CHECK(host.world.tick() == static_cast<rts::sim::Tick>(cfg.turn_ticks * cfg.input_delay_turns));
     CHECK(g.state() == LockstepState::Running);
+}
+
+TEST_CASE("Red: en la sala, el anfitrión empieza cuando quiere y los ajustes llegan a todos") {
+    const GameData& data = game_data();
+    const auto& cfg = data.engine.net.lockstep;
+    const std::uint64_t hash = rts::game::data_hash(data.files);
+    auto host = LockstepSession::host(kAnyPort, 0, cfg, hash, 0);
+    REQUIRE(host.has_value());
+    auto guest = LockstepSession::join("127.0.0.1", host->port(), cfg, hash);
+    REQUIRE(guest.has_value());
+    for (int i = 0; i < 10'000 && guest->connected() < 2; ++i) {
+        host->poll(1);
+        guest->poll(1);
+    }
+    CHECK(host->connected() == 2);
+    CHECK(guest->connected() == 2);
+    // Sin start() no empieza, por mucho que se espere.
+    for (int i = 0; i < 50; ++i) {
+        host->poll(1);
+        guest->poll(1);
+    }
+    CHECK(host->state() == LockstepState::Lobby);
+    CHECK(guest->state() == LockstepState::Lobby);
+    // Charla en la sala, en los dos sentidos.
+    guest->send_chat("hola");
+    host->send_chat("buenas");
+    host->start("seed = 7\n", 2);
+    for (int i = 0; i < 10'000 && guest->state() == LockstepState::Lobby; ++i) {
+        host->poll(1);
+        guest->poll(1);
+    }
+    REQUIRE(guest->state() == LockstepState::Running);
+    for (int i = 0; i < 100; ++i) {
+        host->poll(1);
+        guest->poll(1);
+    }
+    CHECK(host->players() == 2);
+    CHECK(guest->local_player() == 1);
+    CHECK(guest->settings() == "seed = 7\n");
+    CHECK(guest->takeover_profile() == 2);
+    for (const LockstepSession* s : {&*host, &*guest}) {
+        REQUIRE(s->chat().size() == 2);
+        CHECK(s->chat()[0].text != s->chat()[1].text);
+    }
+    CHECK(host->chat()[0].text == "buenas");  // el propio, al momento
+    CHECK(host->chat()[1].player == 1);
+    CHECK(host->chat()[1].text == "hola");
+}
+
+TEST_CASE("Red: la charla se corta al máximo sin partir un carácter") {
+    const GameData& data = game_data();
+    auto cfg = data.engine.net.lockstep;
+    cfg.chat_max_chars = 5;
+    const std::uint64_t hash = rts::game::data_hash(data.files);
+    auto host = LockstepSession::host(kAnyPort, 0, cfg, hash, 0);
+    REQUIRE(host.has_value());
+    host->send_chat("abcdñe");  // la ñ ocupa los bytes 4 y 5
+    REQUIRE(host->chat().size() == 1);
+    CHECK(host->chat()[0].text == "abcd");
+}
+
+TEST_CASE("Red: si un invitado se va, la IA toma su bando en el mismo tick en todas partes") {
+    rts::game::MatchSettings ms;
+    ms.rival = game_data().engine.ai_profile_names.front();
+    ms.seats = {"humano", "humano", "humano"};
+    const auto three = rts::game::with_match_settings(game_data(), ms);
+    REQUIRE(three.has_value());
+    const GameData& data = *three;
+    const auto& cfg = data.engine.net.lockstep;
+    const std::uint64_t hash = rts::game::data_hash(data.files);
+    constexpr rts::sim::Tick kEnd = 300;
+    auto h = LockstepSession::host(kAnyPort, 3, cfg, hash, kEnd);
+    REQUIRE(h.has_value());
+    auto g1 = LockstepSession::join("127.0.0.1", h->port(), cfg, hash);
+    REQUIRE(g1.has_value());
+    for (int i = 0; i < 1000; ++i) {
+        h->poll(1);
+        g1->poll(1);
+    }
+    auto g2 = LockstepSession::join("127.0.0.1", h->port(), cfg, hash);
+    REQUIRE(g2.has_value());
+    for (int i = 0; i < 10'000 && g2->state() == LockstepState::Lobby; ++i) {
+        h->poll(1);
+        g1->poll(1);
+        g2->poll(1);
+    }
+    REQUIRE(g2->state() == LockstepState::Running);
+    Side host(std::move(*h), data);
+    Side a(std::move(*g1), data);
+    auto b = std::make_unique<Side>(std::move(*g2), data);
+    const rts::sim::PlayerId gone = b->session.local_player();
+    std::optional<Command> none;
+    // Juegan un rato los tres y el jugador 2 se va (se destruye su sesión: cierra).
+    for (int guard = 0; guard < 100'000 && b->world.tick() < 100; ++guard) {
+        host.advance(data, none);
+        a.advance(data, none);
+        b->advance(data, none);
+    }
+    const rts::sim::Tick left_at = b->world.tick();
+    b.reset();
+    play(data, {&host, &a});
+    REQUIRE_MESSAGE(host.session.state() == LockstepState::Finished, host.session.error());
+    REQUIRE_MESSAGE(a.session.state() == LockstepState::Finished, a.session.error());
+    CHECK(host.world.state_hash() == a.world.state_hash());
+    CHECK(host.world.tick() == kEnd);
+    for (const Side* s : {&host, &a}) {
+        CHECK(s->session.dropped_players() == std::vector<rts::sim::PlayerId>{gone});
+        const auto& seats = s->world.ai().players();
+        CHECK(std::ranges::any_of(seats, [&](const auto& p) { return p.player == gone; }));
+        REQUIRE_FALSE(s->session.chat().empty());
+        CHECK(s->session.chat().back().player == gone);
+    }
+    CHECK(left_at >= 100);
+}
+
+TEST_CASE("Red: los ajustes con puestos crean una partida de cuatro, con IA donde se pide") {
+    const GameData& base = game_data();
+    CHECK(base.engine.world.setup.starts.size() == 2);  // sin ajustes, la de siempre
+    CHECK(base.engine.seat_starts.size() == 4);
+    rts::game::MatchSettings s;
+    s.seed = 5;
+    s.rival = base.engine.ai_profile_names.front();
+    s.seats = {"humano", "humano", "ia", "ia"};
+    const auto data = rts::game::with_match_settings(base, s);
+    REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
+    CHECK(data->engine.world.setup.starts.size() == 4);
+    CHECK(data->engine.player_colors.size() == 4);
+    REQUIRE(data->engine.world.ai_players.size() == 2);
+    CHECK(data->engine.world.ai_players[0].player == 2);
+    CHECK(data->engine.world.ai_players[1].player == 3);
+    const World w(data->engine.world);
+    rts::sim::Snapshot snap;
+    w.write_snapshot(snap);
+    CHECK(snap.players.size() == 4);
+    for (rts::sim::PlayerId p = 0; p < 4; ++p) {
+        CHECK_FALSE(units_of(w, p).empty());
+    }
+    s.seats = {"humano"};
+    CHECK_FALSE(rts::game::with_match_settings(base, s).has_value());
+    s.seats = {"humano", "nadie"};
+    CHECK_FALSE(rts::game::with_match_settings(base, s).has_value());
+}
+
+TEST_CASE("Red: la orden de relevo pasa un jugador a la IA una sola vez") {
+    const GameData& data = game_data();
+    World w(data.engine.world);
+    const auto before = w.ai().players().size();
+    Command c;
+    c.player = 0;
+    c.type = CommandType::AiTakeover;
+    c.kind = 0;
+    w.issue(c);
+    w.issue(c);
+    Command bad = c;
+    bad.player = 9;  // no existe
+    w.issue(bad);
+    w.step();
+    CHECK(w.ai().players().size() == before + 1);
 }

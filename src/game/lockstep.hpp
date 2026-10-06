@@ -17,13 +17,22 @@
 //
 // Mensajes (tramas de net::Connection, primer byte = tipo):
 //   Hola       invitado -> anfitrión  u32 versión del protocolo, u64 hash de los datos
-//   Bienvenida anfitrión -> invitado  u8 jugador, u8 jugadores, u32 turn_ticks,
+//   Bienvenida anfitrión -> invitado  u8 puesto en la sala, u32 turn_ticks,
 //                                     u32 input_delay_turns, u32 hash_every_turns, u32 tick final
 //   Rechazo    anfitrión -> invitado  str motivo
-//   Empezar    anfitrión -> todos     (vacío) cuando están todos
+//   Sala       anfitrión -> todos     u8 jugadores conectados (anfitrión incluido)
+//   Empezar    anfitrión -> cada uno  u8 su jugador, u8 jugadores, u8 perfil de relevo,
+//                                     str ajustes de la partida (TOML de config/partida.toml)
 //   Turno      todos                  u32 turno, u8 jugador, u32 tick del hash (o ~0), u64 hash,
 //                                     u32 n + n órdenes (game/wire)
 //   Fin        todos                  u8 jugador, u32 tick, u64 hash
+//   Charla     todos                  u8 jugador, str texto
+//   Abandono   anfitrión -> todos     u8 jugador, u32 primer turno sin él
+//
+// Abandono (E2): si un invitado se desconecta en partida, el anfitrión fija el primer
+// turno del que no recibió nada suyo (nadie puede haberlo ejecutado aún, porque le
+// faltaba). Desde ese turno sus órdenes son vacías y, al empezarlo, todos emiten la
+// misma orden AiTakeover: la IA toma su bando. Si cae el anfitrión, la partida acaba.
 
 #include <chrono>
 #include <cstdint>
@@ -43,7 +52,7 @@
 
 namespace rts::game {
 
-inline constexpr std::uint32_t kLockstepProtocolVersion = 1;
+inline constexpr std::uint32_t kLockstepProtocolVersion = 2;
 
 // data/config/engine.toml, sección [net].
 struct LockstepConfig {
@@ -56,6 +65,13 @@ struct LockstepConfig {
     std::int32_t connect_retry_ms = 0;
     std::int32_t max_frame_bytes = 0;
     std::int32_t max_players = 0;
+    std::int32_t chat_max_chars = 0;  // un mensaje más largo se corta
+    std::int32_t chat_history = 0;    // líneas que se guardan
+};
+
+struct ChatLine {
+    sim::PlayerId player = 0;
+    std::string text;
 };
 
 // Órdenes de prueba para las partidas en red sin ventana (CI): cada every_ticks, hasta
@@ -91,7 +107,10 @@ public:
     using Issue = std::function<void(sim::Command)>;
 
     // El anfitrión es el jugador 0; los invitados reciben 1, 2... por orden de llegada.
-    static std::expected<LockstepSession, std::string> host(std::uint16_t port, std::uint8_t players,
+    // Con auto_start_players > 0, la partida empieza sola al reunirse esos jugadores
+    // (sin ajustes); con 0, es una sala y empieza cuando el anfitrión llama a start().
+    // end_tick 0: sin final fijado.
+    static std::expected<LockstepSession, std::string> host(std::uint16_t port, std::uint8_t auto_start_players,
                                                             const LockstepConfig& config, std::uint64_t data_hash,
                                                             sim::Tick end_tick);
     static std::expected<LockstepSession, std::string> join(std::string_view address, std::uint16_t port,
@@ -100,8 +119,13 @@ public:
     // Red: acepta, envía, recibe y procesa. Espera como mucho wait_ms a que llegue algo.
     void poll(std::int32_t wait_ms);
 
+    // Anfitrión en la sala: empieza con los que haya. settings viaja a todos tal cual;
+    // takeover_profile es el perfil de IA que releva a quien abandone.
+    void start(std::string settings, std::uint8_t takeover_profile);
+
     // Una orden del jugador local: sale en su próximo mensaje de turno.
     void submit(sim::Command command);
+    void send_chat(std::string_view text);
 
     // Antes de cada world.step(). Al empezar un turno envía el mensaje propio y, si ya
     // están las órdenes de todos para él, las emite por issue (por jugador, en orden) y
@@ -121,6 +145,14 @@ public:
     [[nodiscard]] sim::Tick end_tick() const noexcept { return end_tick_; }
     [[nodiscard]] std::int32_t turn_ticks() const noexcept { return turn_ticks_; }
     [[nodiscard]] std::size_t hashes_compared() const noexcept { return hashes_compared_; }
+    [[nodiscard]] bool is_host() const noexcept { return is_host_; }
+    // En la sala: jugadores conectados, anfitrión incluido.
+    [[nodiscard]] std::uint8_t connected() const noexcept { return connected_; }
+    [[nodiscard]] const std::string& settings() const noexcept { return settings_; }
+    [[nodiscard]] std::uint8_t takeover_profile() const noexcept { return takeover_profile_; }
+    [[nodiscard]] const std::vector<ChatLine>& chat() const noexcept { return chat_; }
+    // Jugadores que abandonaron (y relevó la IA), por orden.
+    [[nodiscard]] std::vector<sim::PlayerId> dropped_players() const;
     // Ya no queda nada por enviar (para salir sin cortar los últimos mensajes).
     [[nodiscard]] bool flushed() const;
 
@@ -129,6 +161,7 @@ private:
         net::Connection conn;
         sim::PlayerId player = 0;
         bool welcomed = false;
+        std::optional<std::uint32_t> last_turn;  // último turno recibido de él
     };
     struct TurnInputs {
         std::vector<std::optional<std::vector<sim::Command>>> by_player;
@@ -154,7 +187,13 @@ private:
     void relay(const Peer* except, std::span<const std::uint8_t> frame);
     void send_to_all(std::span<const std::uint8_t> frame);
     void apply_welcome(std::span<const std::uint8_t> frame);
-    void start();
+    void apply_start(std::span<const std::uint8_t> frame);
+    bool handle_chat(std::span<const std::uint8_t> frame);
+    bool handle_drop(std::span<const std::uint8_t> frame);
+    void drop(sim::PlayerId player, std::uint32_t from_turn);
+    void send_roster();
+    [[nodiscard]] bool has_input(const TurnInputs* in, sim::PlayerId player, std::uint32_t turn) const;
+    [[nodiscard]] std::size_t active_remotes() const;
     void record_own_hash(sim::Tick tick, std::uint64_t hash);
     void record_remote_hash(RemoteHash remote);
     void check_hashes();
@@ -175,6 +214,12 @@ private:
 
     sim::PlayerId local_ = 0;
     std::uint8_t players_ = 0;
+    std::uint8_t auto_start_ = 0;
+    std::uint8_t connected_ = 0;
+    std::string settings_;
+    std::uint8_t takeover_profile_ = 0;
+    std::vector<ChatLine> chat_;
+    std::vector<std::optional<std::uint32_t>> dropped_;  // por jugador: primer turno sin él
     std::int32_t turn_ticks_ = 0;
     std::int32_t delay_turns_ = 0;
     std::int32_t hash_every_ = 0;

@@ -308,6 +308,7 @@ void EconomySystem::apply(entt::registry& registry, MovementSystem& movement, co
         case CommandType::Climb:
         case CommandType::Trade:
         case CommandType::TradeRoute:
+        case CommandType::AiTakeover:
         case CommandType::Count:
             return;
         case CommandType::Move:

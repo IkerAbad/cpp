@@ -118,6 +118,22 @@ jobs:
           SDL_VIDEO_DRIVER: x11
         run: xvfb-run -a -s "-screen 0 1600x900x24" "build/${{ matrix.preset }}/src/rts" --frames 120
 
+      # E2: la partida en red con ventana (sin pasar por el menú), anfitrión e invitado.
+      - name: Humo en red con ventana (Vulkan por software)
+        if: runner.os == 'Linux'
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+          SDL_VIDEO_DRIVER: x11
+        run: |
+          exe="build/${{ matrix.preset }}/src/rts"
+          xvfb-run -a -s "-screen 0 1280x720x24" "$exe" --host 47100 --frames 300 > net-win-host.log 2>&1 &
+          host_pid=$!
+          xvfb-run -a -s "-screen 0 1280x720x24" "$exe" --join 127.0.0.1:47100 --frames 300 | tee net-win-guest.log
+          wait "$host_pid" || { cat net-win-host.log; exit 1; }
+          cat net-win-host.log
+          grep -q "red: jugador 0, tick" net-win-host.log
+          grep -q "red: jugador 1, tick" net-win-guest.log
+
       # 2 minutos de juego: cubre todas las órdenes de data/scenarios/headless.toml
       # (la última, en el tick 1500): recogida, construcción, colas de producción y
       # los cambios de ocupación que rehacen el pathfinding.

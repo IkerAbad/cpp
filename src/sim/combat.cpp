@@ -163,6 +163,7 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
             return;
         }
         case CommandType::Count:
+        case CommandType::AiTakeover:
         case CommandType::SetRally:
         case CommandType::Research:
         case CommandType::Trade:

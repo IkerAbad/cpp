@@ -268,9 +268,19 @@ Lockstep, el esquema de Age of Empires: las máquinas no se mandan el estado, si
   - La duración la fija el anfitrión.
   - Cada proceso da a su jugador órdenes de prueba al azar (`[net.probe]`) que el otro solo conoce por la red, y la IA juega dentro de la simulación.
   - Con `--record`, cada uno graba su repetición, y las dos salen idénticas byte a byte.
+- **Sala (E2).**
+  - En el menú, «Crear sala» abre la partida en un puerto y «Unirse» entra con la dirección del anfitrión.
+  - En la sala se ve cuántos hay y se puede charlar.
+  - El anfitrión elige cuántos puestos tiene la partida, de 2 a 4. Los que no ocupa nadie los juega la IA, con el rival elegido en el menú.
+  - La semilla, la niebla y los puestos viajan a todos como el fichero de ajustes de la partida, igual que en las repeticiones. Así todos simulan el mismo mapa con los mismos jugadores.
+  - Los puestos 3 y 4 están en `engine.toml` como `controller = "libre"`: una partida normal sigue siendo de dos.
+- **Charla.** En la sala y en la partida. El texto viaja por la red (máximo 200 bytes, cortado sin partir un carácter) y no entra en la simulación.
+- **Abandono.**
+  - Si un invitado se desconecta, el anfitrión fija el primer turno del que no recibió nada suyo. Nadie ha podido ejecutar ese turno, porque le faltaban sus órdenes.
+  - Desde ese turno, todos emiten la misma orden `AiTakeover` y la IA toma su bando en el mismo tick en todas las máquinas.
+  - Si se cae el anfitrión, la partida acaba con un aviso (estrella sin anfitrión de recambio).
 - **Límite conocido.**
-  - Aún no hay sala con ventana ni chat (E2).
-  - Si un jugador se va, la partida termina; todavía no pasa a la IA.
+  - Unirse a una dirección que no responde bloquea la ventana hasta 30 s (`connect_timeout_ms`).
   - Por ahora, la CI solo prueba la red dentro de una misma plataforma: Windows contra Windows y Linux contra Linux.
 
 [1] Paul Bettner y Mark Terrano, «1500 Archers on a 28.8: Network Programming in Age of Empires and Beyond», Gamasutra, 2001. https://www.gamedeveloper.com/programming/1500-archers-on-a-28-8-network-programming-in-age-of-empires-and-beyond
@@ -592,13 +602,14 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `unit`: IA | Contra un rival quieto crece, construye cuartel y granjas, ataca y lo derrota en 11 minutos sin gastar lo que no tiene; dos IA juegan la misma partida tick a tick; derrota al quedarse sin nada |
 | `unit`: regresión | Hashes tras 1200 ticks de movimiento con 500 unidades, 1500 ticks de una partida económica de dos jugadores, 600 ticks de una batalla de 30 contra 30, y 3000 ticks de IA contra IA con cada perfil |
 | `unit`: repeticiones | Codificar y decodificar sin pérdida; rechazo de ficheros ajenos, truncados, con cualquier byte cambiado o de otra versión; partida grabada (humano contra IA, órdenes programadas a futuro) reproducida con los mismos hashes; una orden alterada en el tick 800 se detecta en el checkpoint 1000, y quitar una orden también se detecta; grabación con los datos reales reproducida desde su copia |
-| `unit`: red | Códec de órdenes; órdenes de prueba solo para unidades propias; 2 y 3 jugadores por bucle local acaban con el mismo hash habiendo ejecutado órdenes que solo conocía el otro; una orden que solo ve un mundo en el tick 10 se detecta en el hash del tick 20; rechazo por datos distintos; plazo agotado sin noticias de otro jugador |
+| `unit`: red | Sala con arranque manual, ajustes y charla que llegan a todos; charla cortada sin partir un carácter; un invitado que se va y la IA que toma su bando en el mismo tick en los que quedan, con el mismo hash final; partida de cuatro con IA en los puestos pedidos; orden de relevo idempotente; códec de órdenes; órdenes de prueba solo para unidades propias; 2 y 3 jugadores por bucle local acaban con el mismo hash habiendo ejecutado órdenes que solo conocía el otro; una orden que solo ve un mundo en el tick 10 se detecta en el hash del tick 20; rechazo por datos distintos; plazo agotado sin noticias de otro jugador |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
 | CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
 | CI torneo de IA | `normal` y `experto` ganan a `facil` al menos en el 70 % de 20 partidas de 30 minutos |
+| CI humo en red con ventana | En Linux, con Xvfb y lavapipe, anfitrión e invitado con ventana juegan 300 fotogramas por red |
 | CI partida en red | En las cuatro plataformas, anfitrión e invitado (dos procesos) juegan 2400 ticks por bucle local: mismo hash, repeticiones idénticas byte a byte y verificadas |
 | CI `replay-cross` | La repetición grabada en Linux con GCC se verifica con MSVC, clang-cl, Clang y GCC |
 

@@ -161,6 +161,8 @@ struct ReplayConfig {
 struct NetConfig {
     LockstepConfig lockstep;
     std::int32_t poll_wait_ms = 0;  // espera máxima por vuelta mientras faltan órdenes
+    std::int32_t default_port = 0;  // puerto que proponen el menú y la sala
+    std::string default_address;    // dirección que propone el menú al unirse
     ProbeConfig probe;
 };
 
@@ -170,6 +172,9 @@ struct MatchSettings {
     std::uint64_t seed = 0;     // mapa y preparación
     std::string rival;          // perfil de IA de los jugadores que controla la IA
     bool fog = true;            // niebla de guerra
+    // Partidas en red (E2): "humano" o "ia" por puesto, del 0 en adelante. Vacío: los
+    // jugadores de engine.toml tal cual.
+    std::vector<std::string> seats;
 };
 
 inline constexpr std::string_view kMatchSettingsFile = "config/partida.toml";
@@ -196,6 +201,9 @@ struct EngineConfig {
     NetConfig net;
     AlertParams alerts;
     std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
+    // Todos los puestos de [[player]], también los libres (E2): inicio y color.
+    std::vector<sim::TileCoord> seat_starts;
+    std::vector<std::array<std::uint8_t, 3>> seat_colors;
     std::vector<std::string> hero_names;                     // por índice de CombatParams
     std::vector<std::string> ai_profile_names;               // por índice de AiParams::profiles
 };
@@ -258,6 +266,8 @@ std::expected<std::vector<DataFile>, std::string> read_data_files(const std::fil
 // Analiza los textos (de disco o de una repetición). Deben estar todos.
 // Los datos de base con estos ajustes de partida (sustituyen a los que hubiera).
 std::expected<GameData, std::string> with_match_settings(const GameData& base, const MatchSettings& settings);
+// Lo mismo con el texto TOML ya escrito (el que llega del anfitrión de una partida en red).
+std::expected<GameData, std::string> with_match_settings_text(const GameData& base, std::string text);
 std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files);
 
 // read_data_files + parse_game_data.
