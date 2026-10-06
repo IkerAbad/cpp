@@ -2688,8 +2688,12 @@ std::optional<GameData> run_lobby(Display& d, const GameData& base, MatchSetting
             }
             ImGui::EndDisabled();
         } else {
-            ImGui::Text("Conectado. Jugadores en la sala: %u. Empieza el anfitrión.",
-                        static_cast<unsigned>(net.connected()));
+            if (net.joining()) {
+                ImGui::TextUnformatted("Conectando con el anfitrión...");
+            } else {
+                ImGui::Text("Conectado. Jugadores en la sala: %u. Empieza el anfitrión.",
+                            static_cast<unsigned>(net.connected()));
+            }
         }
         ImGui::SameLine();
         if (ImGui::Button("Salir de la sala")) {

@@ -280,8 +280,9 @@ Lockstep, el esquema de Age of Empires: las máquinas no se mandan el estado, si
   - Desde ese turno, todos emiten la misma orden `AiTakeover` y la IA toma su bando en el mismo tick en todas las máquinas.
   - Si se cae el anfitrión, la partida acaba con un aviso (estrella sin anfitrión de recambio).
 - **Límite conocido.**
-  - Unirse a una dirección que no responde bloquea la ventana hasta 30 s (`connect_timeout_ms`).
+  - Unirse no bloquea la ventana: se conecta en segundo plano y, si el anfitrión aún no escucha, reintenta cada 100 ms durante 30 s (`connect_retry_ms`, `connect_timeout_ms`).
   - Por ahora, la CI solo prueba la red dentro de una misma plataforma: Windows contra Windows y Linux contra Linux.
+  - Solo IPv4.
 
 [1] Paul Bettner y Mark Terrano, «1500 Archers on a 28.8: Network Programming in Age of Empires and Beyond», Gamasutra, 2001. https://www.gamedeveloper.com/programming/1500-archers-on-a-28-8-network-programming-in-age-of-empires-and-beyond
 

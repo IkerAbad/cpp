@@ -86,19 +86,29 @@ std::expected<LockstepSession, std::string> LockstepSession::host(std::uint16_t 
 std::expected<LockstepSession, std::string> LockstepSession::join(std::string_view address, std::uint16_t port,
                                                                   const LockstepConfig& config,
                                                                   std::uint64_t data_hash) {
-    auto conn = net::Connection::connect(address, port, config.connect_timeout_ms, config.connect_retry_ms,
-                                         static_cast<std::uint32_t>(config.max_frame_bytes));
-    if (!conn) {
-        return std::unexpected(conn.error());
-    }
     LockstepSession s(config, data_hash);
-    s.host_ = std::move(*conn);
+    s.join_address_ = address;
+    s.join_port_ = port;
+    if (auto error = s.connect_to_host()) {
+        return std::unexpected(*error);
+    }
+    return s;
+}
+
+std::optional<std::string> LockstepSession::connect_to_host() {
+    auto conn = net::Connection::start_connect(join_address_, join_port_,
+                                               static_cast<std::uint32_t>(config_.max_frame_bytes));
+    if (!conn) {
+        return conn.error();
+    }
+    host_ = std::move(*conn);
     ByteWriter w;
     w.u8(static_cast<std::uint8_t>(Msg::Hello));
     w.u32(kLockstepProtocolVersion);
-    w.u64(data_hash);
-    s.host_->send(w.out());
-    return s;
+    w.u64(data_hash_);
+    host_->send(w.out());  // sale en cuanto se conecte
+    retry_at_.reset();
+    return std::nullopt;
 }
 
 void LockstepSession::fail(std::string reason) {
@@ -201,7 +211,21 @@ void LockstepSession::poll(std::int32_t wait_ms) {
             }
             handle_client_frame(std::move(*frame));
         }
-        if (!alive && (state_ == LockstepState::Running || state_ == LockstepState::Lobby)) {
+        // Sin bienvenida aún, el anfitrión puede no estar escuchando: se reintenta
+        // cada connect_retry_ms durante connect_timeout_ms (sin bloquear).
+        const bool joining = state_ == LockstepState::Lobby && turn_ticks_ == 0;
+        if (!alive && joining && ms_since(created_) < config_.connect_timeout_ms) {
+            if (!retry_at_) {
+                retry_at_ = Clock::now() + std::chrono::milliseconds(config_.connect_retry_ms);
+            } else if (Clock::now() >= *retry_at_) {
+                if (auto error = connect_to_host()) {
+                    fail(*error);
+                }
+            }
+        } else if (joining && ms_since(created_) >= config_.connect_timeout_ms) {
+            fail(std::format("no se pudo conectar con {}:{} en {} ms: {}", join_address_, join_port_,
+                             config_.connect_timeout_ms, host_->error().empty() ? "sin respuesta" : host_->error()));
+        } else if (!alive && (state_ == LockstepState::Running || state_ == LockstepState::Lobby)) {
             fail("se perdió la conexión con el anfitrión: " + host_->error());
         }
     }

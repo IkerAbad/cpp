@@ -112,46 +112,6 @@ void set_no_delay(RawSocket s) {
     setsockopt(s, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&one), static_cast<socklen_t>(sizeof(one)));
 }
 
-// Un intento de conexión a una dirección, esperando hasta deadline. nullopt si falla.
-std::optional<Socket> try_connect(const addrinfo& ai, std::chrono::steady_clock::time_point deadline,
-                                  std::string& error) {
-    Socket sock(wrap(socket(ai.ai_family, ai.ai_socktype, ai.ai_protocol)));
-    if (!sock.valid() || !set_nonblocking(raw(sock.handle()))) {
-        error = error_text(last_error());
-        return std::nullopt;
-    }
-#ifdef _WIN32
-    const int addr_len = static_cast<int>(ai.ai_addrlen);
-#else
-    const socklen_t addr_len = ai.ai_addrlen;
-#endif
-    if (connect(raw(sock.handle()), ai.ai_addr, addr_len) != 0) {
-        const int err = last_error();
-        if (!in_progress(err)) {
-            error = error_text(err);
-            return std::nullopt;
-        }
-        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline -
-                                                                                std::chrono::steady_clock::now());
-        PollFd fd{};
-        fd.fd = raw(sock.handle());
-        fd.events = POLLOUT;
-        if (sys_poll(&fd, 1, static_cast<int>(std::max<std::int64_t>(0, left.count()))) <= 0) {
-            error = "sin respuesta";
-            return std::nullopt;
-        }
-        int so_error = 0;
-        auto len = static_cast<socklen_t>(sizeof(so_error));
-        getsockopt(raw(sock.handle()), SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&so_error), &len);
-        if (so_error != 0) {
-            error = error_text(so_error);
-            return std::nullopt;
-        }
-    }
-    set_no_delay(raw(sock.handle()));
-    return sock;
-}
-
 }  // namespace
 
 Socket& Socket::operator=(Socket&& o) noexcept {
@@ -173,14 +133,13 @@ void Socket::close() noexcept {
 Connection::Connection(Socket socket, std::uint32_t max_frame_bytes)
     : socket_(std::move(socket)), max_frame_(max_frame_bytes) {}
 
-std::expected<Connection, std::string> Connection::connect(std::string_view host, std::uint16_t port,
-                                                           std::int32_t timeout_ms, std::int32_t retry_ms,
-                                                           std::uint32_t max_frame_bytes) {
+std::expected<Connection, std::string> Connection::start_connect(std::string_view host, std::uint16_t port,
+                                                                 std::uint32_t max_frame_bytes) {
     if (!ensure_init()) {
         return std::unexpected("no se pudo iniciar la red del sistema");
     }
     addrinfo hints{};
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;  // el anfitrión escucha en IPv4
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
     addrinfo* list = nullptr;
@@ -189,24 +148,51 @@ std::expected<Connection, std::string> Connection::connect(std::string_view host
     if (getaddrinfo(host_str.c_str(), port_str.c_str(), &hints, &list) != 0 || list == nullptr) {
         return std::unexpected(std::format("no se encuentra el anfitrión '{}'", host));
     }
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
-    std::string error = "sin respuesta";
-    std::optional<Socket> sock;
-    // El anfitrión puede no estar escuchando aún: se reintenta hasta el plazo.
-    while (!sock) {
-        for (const addrinfo* ai = list; ai != nullptr && !sock; ai = ai->ai_next) {
-            sock = try_connect(*ai, deadline, error);
+    Socket sock(wrap(socket(list->ai_family, list->ai_socktype, list->ai_protocol)));
+    std::string error;
+    if (!sock.valid() || !set_nonblocking(raw(sock.handle()))) {
+        error = error_text(last_error());
+    } else {
+#ifdef _WIN32
+        const int addr_len = static_cast<int>(list->ai_addrlen);
+#else
+        const socklen_t addr_len = list->ai_addrlen;
+#endif
+        if (connect(raw(sock.handle()), list->ai_addr, addr_len) != 0 && !in_progress(last_error())) {
+            error = error_text(last_error());
         }
-        if (sock || std::chrono::steady_clock::now() >= deadline) {
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(retry_ms));
     }
     freeaddrinfo(list);
-    if (!sock) {
+    if (!error.empty()) {
         return std::unexpected(std::format("no se pudo conectar con {}:{}: {}", host, port, error));
     }
-    return Connection(std::move(*sock), max_frame_bytes);
+    Connection c(std::move(sock), max_frame_bytes);
+    c.connecting_ = true;
+    return c;
+}
+
+bool Connection::finish_connect() {
+    PollFd fd{};
+    fd.fd = raw(socket_.handle());
+    fd.events = POLLOUT;
+    if (sys_poll(&fd, 1, 0) <= 0) {
+        return false;  // aún no
+    }
+    int so_error = 0;
+    auto len = static_cast<socklen_t>(sizeof(so_error));
+    getsockopt(raw(socket_.handle()), SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&so_error), &len);
+    if (so_error != 0) {
+        close(error_text(so_error));
+        return false;
+    }
+    // Windows señala el fallo de connect con POLLERR/POLLHUP y SO_ERROR a 0 en algunos casos.
+    if ((fd.revents & (POLLERR | POLLHUP)) != 0) {
+        close("conexión rechazada");
+        return false;
+    }
+    set_no_delay(raw(socket_.handle()));
+    connecting_ = false;
+    return true;
 }
 
 void Connection::send(std::span<const std::uint8_t> frame) {
@@ -228,6 +214,9 @@ void Connection::send(std::span<const std::uint8_t> frame) {
 bool Connection::pump() {
     if (!open()) {
         return false;
+    }
+    if (connecting_ && !finish_connect()) {
+        return open();
     }
     while (sent_ < out_.size()) {
         const std::int64_t n = sys_send(raw(socket_.handle()), out_.data() + sent_, out_.size() - sent_);

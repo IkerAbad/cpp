@@ -113,6 +113,7 @@ public:
     static std::expected<LockstepSession, std::string> host(std::uint16_t port, std::uint8_t auto_start_players,
                                                             const LockstepConfig& config, std::uint64_t data_hash,
                                                             sim::Tick end_tick);
+    // No espera: conecta (y reintenta, si el anfitrión aún no escucha) dentro de poll().
     static std::expected<LockstepSession, std::string> join(std::string_view address, std::uint16_t port,
                                                             const LockstepConfig& config, std::uint64_t data_hash);
 
@@ -146,6 +147,8 @@ public:
     [[nodiscard]] std::int32_t turn_ticks() const noexcept { return turn_ticks_; }
     [[nodiscard]] std::size_t hashes_compared() const noexcept { return hashes_compared_; }
     [[nodiscard]] bool is_host() const noexcept { return is_host_; }
+    // Invitado: aún sin respuesta del anfitrión (conectando o reintentando).
+    [[nodiscard]] bool joining() const noexcept { return !is_host_ && turn_ticks_ == 0; }
     // En la sala: jugadores conectados, anfitrión incluido.
     [[nodiscard]] std::uint8_t connected() const noexcept { return connected_; }
     [[nodiscard]] const std::string& settings() const noexcept { return settings_; }
@@ -179,6 +182,7 @@ private:
     LockstepSession(const LockstepConfig& config, std::uint64_t data_hash);
 
     void fail(std::string reason);
+    std::optional<std::string> connect_to_host();
     void accept_peers();
     void handle_host_frame(Peer& from, std::vector<std::uint8_t> frame);
     void handle_client_frame(std::vector<std::uint8_t> frame);
@@ -211,6 +215,9 @@ private:
     std::optional<net::Listener> listener_;
     std::vector<Peer> peers_;               // anfitrión: un invitado por conexión
     std::optional<net::Connection> host_;  // invitado: la conexión con el anfitrión
+    std::string join_address_;
+    std::uint16_t join_port_ = 0;
+    std::optional<std::chrono::steady_clock::time_point> retry_at_;
 
     sim::PlayerId local_ = 0;
     std::uint8_t players_ = 0;

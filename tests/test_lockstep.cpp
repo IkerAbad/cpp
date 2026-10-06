@@ -17,6 +17,7 @@
 #include "game/lockstep.hpp"
 #include "game/replay.hpp"
 #include "game/wire.hpp"
+#include "net/socket.hpp"
 #include "sim/world.hpp"
 
 using rts::game::GameData;
@@ -482,4 +483,50 @@ TEST_CASE("Red: la orden de relevo pasa un jugador a la IA una sola vez") {
     w.issue(bad);
     w.step();
     CHECK(w.ai().players().size() == before + 1);
+}
+
+TEST_CASE("Red: unirse no espera; si el anfitrión aún no escucha se reintenta, y si no aparece se avisa") {
+    const GameData& data = game_data();
+    auto cfg = data.engine.net.lockstep;
+    const std::uint64_t hash = rts::game::data_hash(data.files);
+    // Un puerto libre: se abre y se cierra.
+    std::uint16_t port = 0;
+    {
+        auto probe = rts::net::Listener::listen(0);
+        REQUIRE(probe.has_value());
+        port = probe->port();
+    }
+    const auto t0 = std::chrono::steady_clock::now();
+    auto guest = LockstepSession::join("127.0.0.1", port, cfg, hash);
+    REQUIRE(guest.has_value());
+    CHECK(std::chrono::steady_clock::now() - t0 < std::chrono::seconds(1));  // no bloquea
+    CHECK(guest->joining());
+    // Varios intentos fallidos (nadie escucha) sin dar la partida por perdida.
+    for (int i = 0; i < 20; ++i) {
+        guest->poll(cfg.connect_retry_ms / 4 + 1);
+    }
+    CHECK(guest->state() == LockstepState::Lobby);
+    auto host = LockstepSession::host(port, 2, cfg, hash, 100);
+    REQUIRE(host.has_value());
+    for (int i = 0; i < 10'000 && guest->state() == LockstepState::Lobby; ++i) {
+        host->poll(1);
+        guest->poll(1);
+    }
+    CHECK(guest->state() == LockstepState::Running);
+    CHECK_FALSE(guest->joining());
+
+    // Otro puerto en el que nadie escucha nunca: se agota el plazo.
+    std::uint16_t empty_port = 0;
+    {
+        auto probe = rts::net::Listener::listen(0);
+        REQUIRE(probe.has_value());
+        empty_port = probe->port();
+    }
+    cfg.connect_timeout_ms = 200;
+    auto lost = LockstepSession::join("127.0.0.1", empty_port, cfg, hash);
+    REQUIRE(lost.has_value());
+    for (int i = 0; i < 1000 && lost->state() == LockstepState::Lobby; ++i) {
+        lost->poll(5);
+    }
+    CHECK(lost->state() == LockstepState::Failed);
 }

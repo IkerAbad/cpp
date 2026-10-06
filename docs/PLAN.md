@@ -170,7 +170,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   en las cuatro plataformas.
 - [x] **E2. Sala sencilla.** Anfitrión e invitado por dirección IP, chat y partida
   de 2 a 4 jugadores, mezclando humanos e IA. Hecho, con relevo de la IA si un
-  invitado se va. Falta: unirse sin bloquear la ventana mientras se conecta.
+  invitado se va; unirse no bloquea la ventana (reintenta hasta el plazo).
 - *Terminado (E1–E2):* dos procesos en la CI juegan una partida de IA contra IA por
   red local con hashes idénticos.
 

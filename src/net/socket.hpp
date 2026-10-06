@@ -43,10 +43,11 @@ class Connection {
 public:
     Connection(Socket socket, std::uint32_t max_frame_bytes);
 
-    // Intenta conectar durante timeout_ms; si el otro aún no escucha, reintenta cada retry_ms.
-    static std::expected<Connection, std::string> connect(std::string_view host, std::uint16_t port,
-                                                          std::int32_t timeout_ms, std::int32_t retry_ms,
-                                                          std::uint32_t max_frame_bytes);
+    // Empieza a conectar sin esperar: pump() termina la conexión cuando el otro acepta
+    // (connecting() deja de ser cierto) o la cierra con el motivo si la rechaza. Lo
+    // que se envíe antes sale al conectar.
+    static std::expected<Connection, std::string> start_connect(std::string_view host, std::uint16_t port,
+                                                                std::uint32_t max_frame_bytes);
 
     void send(std::span<const std::uint8_t> frame);
     // Falso si la conexión está cerrada (por error, por el otro lado o por close()).
@@ -57,12 +58,16 @@ public:
 
     [[nodiscard]] bool open() const noexcept { return socket_.valid(); }
     [[nodiscard]] bool sending() const noexcept { return sent_ < out_.size(); }
+    [[nodiscard]] bool connecting() const noexcept { return connecting_; }
     [[nodiscard]] const std::string& error() const noexcept { return error_; }
     [[nodiscard]] Socket::Handle handle() const noexcept { return socket_.handle(); }
 
 private:
+    bool finish_connect();
+
     Socket socket_;
     std::uint32_t max_frame_;
+    bool connecting_ = false;
     std::vector<std::uint8_t> in_;
     std::vector<std::uint8_t> out_;
     std::size_t sent_ = 0;
