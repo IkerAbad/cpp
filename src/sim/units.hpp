@@ -102,6 +102,9 @@ struct UnitType {
     // Carga: % de ataque del primer golpe tras una carrera, solo en terreno que la
     // permite (llano firme). 100 = no carga.
     std::int32_t charge_percent = 100;
+    // Fatiga (B3): aguante; el cansancio se acumula a 100 / stamina del ritmo base.
+    // 0 = no se cansa (aldeanos, bagaje, ingenios).
+    std::int32_t stamina = 0;
 };
 
 // Personal sanitario que no es aldeano (cirujano) atendiendo un puesto médico (los
@@ -186,6 +189,20 @@ struct Health {
 };
 
 enum class Stance : std::uint8_t { Aggressive, HoldGround };
+
+// SetStance con estos kind cambia el paso de marcha (B3), no la postura.
+inline constexpr std::uint8_t kPaceNormal = 16;
+inline constexpr std::uint8_t kPaceForced = 17;
+
+// Cansancio de una unidad (B3), de 0 (fresca) a kFullFatigue (agotada).
+inline constexpr std::int32_t kFullFatigue = 100'000;
+struct Fatigue {
+    std::int32_t value = 0;
+    bool forced = false;  // marcha a paso forzado
+    // Derivados de value y forced (los pone FatigueSystem; no forman parte del hash):
+    std::int32_t speed_percent = 100;   // de su velocidad
+    std::int32_t attack_percent = 100;  // de su ataque
+};
 
 // Estado de combate de una unidad (M4).
 struct Combatant {

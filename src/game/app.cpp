@@ -1117,6 +1117,10 @@ private:
         if (e.routing) {
             ImGui::TextColored(kWarnColor, "en desbandada: huye y no obedece hasta rehacerse");
         }
+        if (e.fatigue >= 0) {
+            ImGui::Text("cansancio %d %%%s", e.fatigue * kPercent / sim::kFullFatigue,
+                        e.forced_march ? " · a paso forzado" : "");
+        }
     }
 
     // Ayuda (F2): controles y leyenda de los marcadores.
@@ -1648,6 +1652,19 @@ private:
                 sim::Command c = local_command(sim::CommandType::SetStance);
                 c.kind = static_cast<std::uint8_t>(sim::Stance::HoldGround);
                 issue(std::move(c));
+            }
+            if (world_.fatigue().enabled()) {
+                if (ImGui::Button("Paso normal")) {
+                    sim::Command c = local_command(sim::CommandType::SetStance);
+                    c.kind = sim::kPaceNormal;
+                    issue(std::move(c));
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Paso forzado")) {
+                    sim::Command c = local_command(sim::CommandType::SetStance);
+                    c.kind = sim::kPaceForced;
+                    issue(std::move(c));
+                }
             }
             if (workers > 0) {
                 ImGui::SeparatorText("Construir");

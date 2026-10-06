@@ -387,6 +387,19 @@ Fuentes:
 - **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Fatiga
+
+Marchar cansa y descansar repone (`[fatigue]` en `engine.toml`; `stamina` por tipo en `units.toml`).
+
+Fuente: Vegetius, *De re militari*, libro I (citado en [Military step](https://en.wikipedia.org/wiki/Military_step)): «They should march with the common military step twenty miles in five summer-hours, and with the full step, which is quicker, twenty-four miles in the same number of hours», y «If they exceed this pace, they no longer march but run».
+
+- **Se cansa** al marchar (unos 5,5 min seguidos en llano hasta agotarse), más en terreno difícil (en proporción a lo que frena) y con cada golpe.
+- **Descansa** parada: de agotada a fresca en 1,4 min.
+- **Efecto:** el cansancio resta velocidad y ataque en proporción, hasta el 70 % con la unidad agotada.
+- **Paso forzado** (botones «Paso normal» y «Paso forzado» del panel): el «full step» de Vegetius, un 20 % más rápido, que cansa el triple.
+- **Aguante** (`stamina`): el arnés pesa. El caballero (80) y el hombre de armas (90) se cansan antes que la leva (100), el arquero (110) y el jinete ligero (120). Aldeanos, bagaje e ingenios no se cansan.
+- **Desactivada** (`enabled = false`) nada cambia y el hash es el de antes.
+
 ### Niebla de guerra
 
 Solo se sabe lo que alguien ha visto, y lo mismo para la IA, que no tiene ventaja ni desventaja: su capa de percepción solo ve lo visible y lo recordado. Lo calcula la simulación cada 10 ticks, de forma determinista y dentro del hash (`[vision]` en `engine.toml`).

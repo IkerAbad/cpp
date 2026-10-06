@@ -45,7 +45,10 @@ std::int32_t CombatSystem::attack_percent(const Combatant& c, bool aura) const n
 
 std::int32_t CombatSystem::attack_percent(const entt::registry& registry, entt::entity e, const Combatant& c,
                                           bool aura) const noexcept {
-    const std::int32_t percent = attack_percent(c, aura);
+    std::int32_t percent = attack_percent(c, aura);
+    if (const Fatigue* f = registry.try_get<Fatigue>(e)) {
+        percent = static_cast<std::int32_t>(std::int64_t{percent} * f->attack_percent / kPercent);  // cansancio
+    }
     const Supply* s = registry.try_get<Supply>(e);
     if (s == nullptr || units_[registry.get<Unit>(e).type].supply.rations <= 0 || !s->hungry()) {
         return percent;

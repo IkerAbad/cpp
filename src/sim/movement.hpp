@@ -60,8 +60,11 @@ public:
 
     void hash_into(StateHasher& h) const;
 
-    // Velocidad de una unidad en pos según el terreno (B2).
-    [[nodiscard]] Fixed effective_speed(const Unit& unit, FVec2 pos) const noexcept;
+    // % de velocidad del terreno en pos (B2; 100 sin terreno en combate).
+    [[nodiscard]] std::int32_t terrain_speed_percent(FVec2 pos) const noexcept;
+    // Velocidad de la unidad e en pos según el terreno (B2) y su cansancio y paso (B3).
+    [[nodiscard]] Fixed effective_speed(const entt::registry& registry, entt::entity e, const Unit& unit,
+                                        FVec2 pos) const noexcept;
 
 private:
     struct CachedField {

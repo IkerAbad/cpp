@@ -75,6 +75,12 @@
 # charge_percent: ataque del primer golpe tras una carrera de 1 s, solo sobre llano
 #   firme (100 = no carga). El caballero, con lanza y caballo de guerra, dobla (200); el
 #   jinete ligero, la mitad más (150).
+# stamina: aguante (B3): el cansancio se acumula a 100 / stamina del ritmo base (0 = no
+#   se cansa: aldeanos, bagaje e ingenios). El arnés pesa: el hombre de armas (90) y el
+#   caballero, con su caballo cargado (80), se cansan antes que la leva (100) y que el
+#   arquero, ligero (110); el jinete ligero, montado y sin armadura, aguanta más (120).
+#   En Azincourt, «Men in full plate sank to their shins with every step. They were
+#   exhausted before they reached the English line».
 # convoy_capacity: bagaje que lleva suministros (0 = no es bagaje). La acémila carga
 #   como un hombre y medio y va a su paso; la carreta de bueyes carga cinco veces más
 #   pero va a la mitad de velocidad. Sus animales comen de la carga.
@@ -119,6 +125,7 @@ care_skill = 100
 morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 0
 
 [[unit]]
 name = "leva"
@@ -158,6 +165,7 @@ care_skill = 0
 morale_resolve = 70
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 100
 
 [[unit]]
 name = "hombre_armas"
@@ -197,6 +205,7 @@ care_skill = 0
 morale_resolve = 120
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 90
 
 [[unit]]
 name = "arquero"
@@ -236,6 +245,7 @@ care_skill = 0
 morale_resolve = 90
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 110
 
 [[unit]]
 name = "ballestero"
@@ -275,6 +285,7 @@ care_skill = 0
 morale_resolve = 100
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 100
 
 [[unit]]
 name = "jinete"
@@ -314,6 +325,7 @@ care_skill = 0
 morale_resolve = 110
 rough_speed_percent = 100
 charge_percent = 150
+stamina = 120
 
 [[unit]]
 name = "caballero"
@@ -353,6 +365,7 @@ care_skill = 0
 morale_resolve = 150
 rough_speed_percent = 100
 charge_percent = 200
+stamina = 80
 
 [[unit]]
 name = "ariete"
@@ -392,6 +405,7 @@ care_skill = 0
 morale_resolve = 0
 rough_speed_percent = 60
 charge_percent = 100
+stamina = 0
 
 [[unit]]
 name = "zapador"
@@ -431,6 +445,7 @@ care_skill = 0
 morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 0
 
 # Bagaje. Sin armas (no busca pelea); vulnerable: cortar convoyes es la forma de
 # rendir a un ejército sin combatir.
@@ -472,6 +487,7 @@ care_skill = 0
 morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 0
 
 [[unit]]
 name = "carreta"
@@ -511,6 +527,7 @@ care_skill = 0
 morale_resolve = 0
 rough_speed_percent = 50
 charge_percent = 100
+stamina = 0
 
 [[unit]]
 name = "trabuquete"
@@ -550,6 +567,7 @@ care_skill = 0
 morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 0
 
 # Barbero cirujano: oficio de pago (oro), sin armas. Hubo barberos cirujanos en
 # Valencia en el siglo XV y, más tarde, uno por compañía en algunos ejércitos. Atiende
@@ -592,3 +610,4 @@ care_skill = 250
 morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 100

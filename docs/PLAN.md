@@ -45,6 +45,7 @@ esconden, y un asedio sin suministro fracasa.
 | Sanidad | Puesto de socorro, hospital de campaña, hospital, enfermeros, cirujanos, heridas leves, reorganización |
 | Niebla | Tres estados, árboles, altura, día y noche, memoria de edificios |
 | Terreno | Altura para tiradores y cuerpo a cuerpo, bosque que cubre, marcha por terreno, carga en llano |
+| Fatiga | Marcha y combate cansan, descanso, paso forzado, aguante por tipo |
 | Moral | Bajas cercanas, flanco y retaguardia, contagio, hambre, noche, héroes; desbandada, persecución y rehacerse |
 | IA | Percepción con niebla, 18 módulos, perfiles «básica» y «normal», torneo en la CI |
 | Repeticiones | Grabación automática, reproductor, verificación por hashes, vista por jugador |
@@ -106,7 +107,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
     llano.
   - La carga de caballería pide llano.
   - *Terminado:* pruebas por regla.
-- [ ] **B3. Fatiga.** Marchar cansa y descansar repone. Las tropas cansadas pegan y
+- [x] **B3. Fatiga.** Marchar cansa y descansar repone. Las tropas cansadas pegan y
   andan peor; se puede marchar a paso forzado.
   - *Terminado:* pruebas de fatiga y recuperación.
 - [ ] **B4. Fortificaciones.**

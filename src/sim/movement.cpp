@@ -66,18 +66,28 @@ MovementSystem::MovementSystem(const TileMap& map, std::span<const std::uint8_t>
     dirty_sectors_.assign(hpa_.sector_count(), 0);
 }
 
-Fixed MovementSystem::effective_speed(const Unit& unit, FVec2 pos) const noexcept {
+std::int32_t MovementSystem::terrain_speed_percent(FVec2 pos) const noexcept {
     if (tile_speed_.empty()) {
-        return unit.speed;
+        return kPercent;
     }
     const TileCoord t = tile_of(pos);
     const std::int32_t height = static_cast<std::int32_t>(tile_speed_.size() / static_cast<std::size_t>(width_));
     const std::int32_t x = std::clamp(t.x, 0, width_ - 1);
     const std::int32_t y = std::clamp(t.y, 0, height - 1);
-    std::int64_t percent = tile_speed_[static_cast<std::size_t>(y) * static_cast<std::size_t>(width_) +
-                                       static_cast<std::size_t>(x)];
+    return tile_speed_[static_cast<std::size_t>(y) * static_cast<std::size_t>(width_) + static_cast<std::size_t>(x)];
+}
+
+Fixed MovementSystem::effective_speed(const entt::registry& registry, entt::entity e, const Unit& unit,
+                                      FVec2 pos) const noexcept {
+    std::int64_t percent = terrain_speed_percent(pos);
     if (percent < kPercent) {
         percent = percent * unit.rough_speed_percent / kPercent;  // fuera de llano
+    }
+    if (const Fatigue* f = registry.try_get<Fatigue>(e)) {
+        percent = percent * f->speed_percent / kPercent;  // cansancio y paso
+    }
+    if (percent == kPercent) {
+        return unit.speed;
     }
     return Fixed::from_raw(static_cast<std::int32_t>(std::int64_t{unit.speed.raw()} * percent / kPercent));
 }
@@ -430,7 +440,7 @@ FVec2 MovementSystem::preferred_velocity(entt::registry& registry, entt::entity 
     }
 
     const FVec2 d = target - pos;
-    Fixed speed = effective_speed(unit, pos);
+    Fixed speed = effective_speed(registry, e, unit, pos);
     if (final_leg) {
         const Fixed dist = length(d);
         speed = dist < speed ? dist : speed;
@@ -679,7 +689,7 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         s_.vel.push_back(v.v);
         s_.pref.push_back(pref);
         s_.radius.push_back(unit.radius);
-        s_.speed.push_back(effective_speed(unit, pos));
+        s_.speed.push_back(effective_speed(registry, e, unit, pos));
         s_.order.push_back(order);
         s_.arrived.push_back(arrived ? 1 : 0);
         s_.stuck.push_back(stuck);

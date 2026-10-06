@@ -469,6 +469,7 @@ std::expected<UnitCatalog, std::string> parse_unit_catalog(std::string_view toml
             info.type.morale_resolve = ur.get_i32("morale_resolve", 0, 1000);
             info.type.rough_speed_percent = ur.get_i32("rough_speed_percent", 1, 100);
             info.type.charge_percent = ur.get_i32("charge_percent", 100, 1000);
+            info.type.stamina = ur.get_i32("stamina", 0, 1000);
             if (!error && info.type.convoy_capacity > 0 && info.type.worker) {
                 ur.fail("un aldeano no puede ser bagaje ('convoy_capacity' debe ser 0)");
             }
@@ -890,6 +891,16 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     md.light_wound_percent = r.get_i32("medicine.light_wound_percent", 0, 100);
     md.natural_heal_interval_ticks = r.get_i32("medicine.natural_heal_interval_ticks", 0, kMaxTicks);
     md.calm_ticks = r.get_i32("medicine.calm_ticks", 0, kMaxTicks);
+
+    sim::FatigueParams& fa = cfg.world.fatigue;
+    fa.enabled = r.get_bool("fatigue.enabled");
+    fa.march_per_tick = r.get_i32("fatigue.march_per_tick", 0, sim::kFullFatigue);
+    fa.strike = r.get_i32("fatigue.strike", 0, sim::kFullFatigue);
+    fa.rest_per_tick = r.get_i32("fatigue.rest_per_tick", 0, sim::kFullFatigue);
+    fa.forced_speed_percent = r.get_i32("fatigue.forced_speed_percent", 100, 200);
+    fa.forced_fatigue_percent = r.get_i32("fatigue.forced_fatigue_percent", 100, 1000);
+    fa.exhausted_speed_percent = r.get_i32("fatigue.exhausted_speed_percent", 1, 100);
+    fa.exhausted_attack_percent = r.get_i32("fatigue.exhausted_attack_percent", 1, 100);
 
     sim::MoraleParams& mo = cfg.world.morale;
     const auto tiles = [&](const char* key) {

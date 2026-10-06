@@ -64,6 +64,7 @@ World::World(const WorldParams& params)
       supply_(params.supply, params.unit_types, params.building_types),
       medicine_(params.medicine, params.supply.ration_cost, params.unit_types, params.building_types),
       morale_(map_->width(), map_->height(), params.morale, params.unit_types, params.combat.hero_aura_radius),
+      fatigue_(params.fatigue, params.unit_types),
       vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
@@ -264,6 +265,7 @@ void World::apply_command(const Command& command) {
     fire_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     supply_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     medicine_.apply(registry_, movement_, command, units, next_order_id_, tick_);
+    fatigue_.apply(registry_, command, units);
     if (command.type == CommandType::Move) {
         movement_.order_move(registry_, units, command.target, next_order_id_++, tick_);
     } else if (command.type == CommandType::Stop) {
@@ -302,6 +304,7 @@ void World::step() {
     // Edificios colocados o destruidos y nodos agotados en este tick: rejilla, HPA* y caminos.
     movement_.commit_grid_changes(registry_);
     movement_.update(registry_, tick_);
+    fatigue_.update(registry_, movement_, combat_.morale_hits());
     ++tick_;
 }
 
@@ -431,6 +434,7 @@ std::uint64_t World::state_hash() const {
     supply_.hash_into(h, registry_);
     medicine_.hash_into(h, registry_);
     morale_.hash_into(h, registry_);
+    fatigue_.hash_into(h, registry_);
     vision_.hash_into(h);
     ai_.hash_into(h);
     return h.value();
@@ -485,6 +489,10 @@ void World::write_snapshot(Snapshot& out) const {
             s.morale = m->value;
         }
         s.routing = registry_.all_of<Routing>(e);
+        if (const Fatigue* f = registry_.try_get<Fatigue>(e)) {
+            s.fatigue = f->value;
+            s.forced_march = f->forced;
+        }
         if (const Carer* c = registry_.try_get<Carer>(e)) {
             s.tending = true;
             s.work_building = entt::to_integral(c->post);

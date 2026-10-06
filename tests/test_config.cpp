@@ -83,6 +83,7 @@ care_skill = 0
 morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 0
 
 [[unit]]
 name = "peon"
@@ -122,6 +123,7 @@ care_skill = 0
 morale_resolve = 0
 rough_speed_percent = 100
 charge_percent = 100
+stamina = 0
 )";
 
 constexpr const char* kNodes = R"(
@@ -310,6 +312,16 @@ max_levels = 3
 ranged_percent_per_level = 10
 melee_percent_per_level = 10
 charge_run_ticks = 20
+
+[fatigue]
+enabled = false
+march_per_tick = 15
+strike = 400
+rest_per_tick = 60
+forced_speed_percent = 120
+forced_fatigue_percent = 300
+exhausted_speed_percent = 70
+exhausted_attack_percent = 70
 
 [morale]
 enabled = true
