@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "game/lockstep.hpp"
+#include "render/art.hpp"
 #include "render/view_params.hpp"
 #include "sim/world.hpp"
 
@@ -255,7 +256,12 @@ struct GameData {
     BuildingCatalog buildings;
     EngineConfig engine;
     Scenario headless_scenario;
+    render::ArtSpec art;  // F1; vacío si los datos no traen art.toml (repeticiones antiguas)
 };
+
+// data/art.toml: cómo se pinta cada tipo (F1). Todo tipo de los catálogos debe tener su arte.
+std::expected<render::ArtSpec, std::string> parse_art_spec(std::string_view toml_text, const Catalogs& catalogs,
+                                                          std::string_view source_name = "<memoria>");
 
 // Rutas de los ficheros de datos, en el orden en que se analizan.
 [[nodiscard]] std::span<const std::string_view> data_file_paths() noexcept;

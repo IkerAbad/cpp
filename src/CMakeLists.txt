@@ -48,6 +48,7 @@ rts_set_warnings(rts_net)
 
 # --- Presentación sin GPU (se prueba sin ventana) -------------------------------
 add_library(rts_render_core STATIC
+    render/art.cpp
     render/atlas.cpp
     render/scene.cpp)
 target_link_libraries(rts_render_core PUBLIC rts_sim)

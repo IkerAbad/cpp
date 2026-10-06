@@ -101,7 +101,7 @@ std::expected<std::unique_ptr<Renderer>, std::string> Renderer::create(const Ren
         }
         const std::string name = SDL_GetGPUDeviceDriver(device);
         // Desde aquí el destructor libera lo que se haya creado.
-        std::unique_ptr<Renderer> renderer(new Renderer(desc.window, device, desc, build_atlas(desc.view)));
+        std::unique_ptr<Renderer> renderer(new Renderer(desc.window, device, desc, build_atlas(desc.view, desc.art != nullptr ? *desc.art : ArtSpec{})));
         if (auto ok = renderer->init_gpu_resources(desc.vsync); !ok) {
             const std::string error = std::format("{} ({})", ok.error(), name);
             first_error = first_error.empty() ? error : first_error;

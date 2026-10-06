@@ -58,6 +58,19 @@ struct ViewParams {
     // por lado en que se resume el terreno.
     std::int32_t minimap_width_px = 0;
     std::int32_t minimap_cells = 1;
+
+    // Arte y animación (F1). Las figuras se eligen y se pulsan por encima de los pies.
+    std::int32_t unit_pick_lift_px = 0;
+    std::int32_t walk_frame_ms = 1;        // cada paso del ciclo de andar
+    std::int32_t work_frame_ms = 1;        // golpe de herramienta al trabajar
+    std::int32_t attack_strike_ticks = 0;  // tras golpear, ticks con el arma extendida
+    std::int32_t attack_windup_ticks = 0;  // antes de golpear, ticks con el arma alzada
+    std::int32_t flame_fps = 1;
+    std::int32_t flames_per_tile = 0;      // a plena intensidad, por casilla de lado
+    std::int32_t smoke_rise_px = 0;        // lo que sube una bocanada antes de deshacerse
+    std::int32_t smoke_period_ms = 1;
+    std::int32_t smoke_alpha_percent = 0;
+    std::int32_t construction_min_percent = 0;  // alto visible de un edificio recién empezado
 };
 
 }  // namespace rts::render

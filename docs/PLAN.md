@@ -176,8 +176,12 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
 ### Fase F — Presentación y contenido propio
 
-- [ ] **F1. Arte propio.** Sprites generados por código o dibujados por nosotros,
-  animaciones, edificios reconocibles y efectos de fuego y humo.
+- [x] **F1. Arte propio.** Sprites generados por código o dibujados por nosotros,
+  animaciones, edificios reconocibles y efectos de fuego y humo. Hecho, todo por código
+  desde `data/art.toml`: figuras con 5 poses y capa del jugador, edificios isométricos
+  con materiales, árboles, rocas, terreno con textura, llamas y humo, y escena ordenada
+  en profundidad. Falta: 8 sentidos (hoy 2, con espejo), animación de muerte y flechas
+  dibujadas.
 - [ ] **F2. Sonido propio.** Sonidos sintetizados y música de dominio público o con
   licencia CC0.
 - [ ] **F3. Mapas.** Ríos con vados, mapas para 2–4 jugadores y editor de

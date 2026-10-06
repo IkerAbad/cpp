@@ -18,13 +18,18 @@
 namespace rts::render {
 
 struct Marker {
-    Vec2 screen_pos;  // centro, píxeles de pantalla
+    Vec2 screen_pos;  // centro (sin arte) o pies (con arte), píxeles de pantalla
     bool selected = false;
     Rgba color{};     // color propio (tipo de unidad); seleccionado usa marker_selected_color
-    Rgba owner{};     // anillo fino del color del jugador; alfa 0 = sin anillo
+    Rgba owner{};     // anillo fino del color del jugador (con arte: su tela); alfa 0 = nada
     Rgba badge{};     // punto pequeño encima (p. ej. lo que lleva un aldeano); alfa 0 = nada
     std::int32_t health_permille = -1;  // barra de vida encima; -1 = sin barra
     bool hero = false;                  // anillo de héroe
+    // Arte (F1): tipo de unidad cuya figura se dibuja (-1: disco plano), pose y sentido.
+    std::int32_t unit_type = -1;
+    Pose pose = Pose::Idle;
+    bool mirror = false;               // mira a la izquierda
+    Rgba tint{255, 255, 255, 255};     // multiplica la figura (penumbra, recuerdo)
 };
 
 // Objeto estático en el suelo (edificio o nodo de recurso): un rombo del tamaño de su
@@ -37,6 +42,16 @@ struct SceneObject {
     std::int32_t body_percent = 100;  // lado del rombo interior respecto a la huella
     bool highlighted = false;         // seleccionado: se cubre con hover_tile_color
     std::int32_t health_permille = -1;  // barra de vida sobre el centro; -1 = sin barra
+    // Arte (F1). Con art_type >= 0 se dibuja el sprite del edificio o del recurso en vez
+    // de los rombos; base y body se ignoran.
+    enum class Art : std::uint8_t { None, Building, Node };
+    Art art = Art::None;
+    std::int32_t art_type = -1;
+    std::int32_t variant = 0;               // recursos: variante del dibujo
+    Rgba team{};                            // color del dueño para estandartes y lonas
+    Rgba tint{255, 255, 255, 255};          // penumbra, recuerdo, ruina
+    std::int32_t build_permille = 1000;     // en obra: se ve la parte de abajo
+    std::int32_t fire_permille = 0;         // llamas y humo
 };
 
 // Casilla teñida para superposiciones de depuración (sectores, campo de flujo).
@@ -63,6 +78,8 @@ struct Scene {
     std::span<const Vec2> projectiles;     // proyectiles en vuelo, en pantalla
     // Niebla de guerra del jugador que mira (sim::Fog por casilla); vacía = sin niebla.
     std::span<const std::uint8_t> fog;
+    // Reloj de la presentación (segundos) para llamas y humo: no viene de la simulación.
+    float time_s = 0.0f;
 };
 
 struct SceneStats {
@@ -82,10 +99,30 @@ public:
     [[nodiscard]] Rgba tile_color(const sim::TileMap& map, sim::TileCoord c);
 
 private:
+    struct Bar {
+        Vec2 center_top;
+        std::int32_t permille = 0;
+    };
+
     void refresh_tile_colors(const sim::TileMap& map);
     void add_health_bar(Vec2 center_top, std::int32_t permille, SpriteBatch& out) const;
+    void add_sprite(const Sprite& sprite, Vec2 at, Rgba color, bool mirror, SpriteBatch& out,
+                    float visible_fraction = 1.0f) const;
+    void draw_flat_object(const Scene& scene, const SceneObject& o, SpriteBatch& out);
+    void draw_art_object(const Scene& scene, const SceneObject& o, SpriteBatch& out);
+    void draw_fire(const Scene& scene, const SceneObject& o, Vec2 center, SpriteBatch& out) const;
+    void draw_marker(const Marker& m, SpriteBatch& out);
+    [[nodiscard]] bool is_flat(const SceneObject& o) const;
 
     ViewParams view_;
+    const Atlas* atlas_;
+    std::vector<Bar> bars_;
+    struct Drawable {
+        float depth = 0.0f;
+        bool marker = false;
+        std::size_t index = 0;
+    };
+    std::vector<Drawable> drawables_;
     IsoProjection proj_;
     AtlasRegion diamond_;
     AtlasRegion disc_;

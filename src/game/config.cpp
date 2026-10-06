@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <format>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <limits>
 #include <utility>
@@ -700,6 +701,202 @@ std::expected<BuildingCatalog, std::string> parse_building_catalog(std::string_v
     return catalog;
 }
 
+namespace {
+
+// Clave de texto a valor de un enum del arte; error si no es ninguna de las válidas.
+template <typename E, std::size_t N>
+E pick(Reader& r, std::string_view path, const std::array<std::pair<std::string_view, E>, N>& options) {
+    const std::string key = r.get_string(path);
+    for (const auto& [name, value] : options) {
+        if (name == key) {
+            return value;
+        }
+    }
+    if (!r.failed()) {
+        std::string valid;
+        for (const auto& [name, value] : options) {
+            valid += std::format("{}\"{}\"", valid.empty() ? "" : ", ", name);
+        }
+        r.fail(std::format("'{}' = \"{}\": debe ser uno de {}", r.full(path), key, valid));
+    }
+    return options.front().second;
+}
+
+constexpr std::int64_t kMaxArtPx = 512;
+constexpr std::int64_t kMaxArtVariants = 16;
+constexpr std::int64_t kMaxArtCount = 64;
+
+// Cada nombre de la lista del arte debe ser un tipo del catálogo, y estar todos.
+template <typename T, typename FindIndex>
+void read_named_art(Reader& root, std::string_view array, std::string_view source, std::size_t count,
+                    std::vector<T>& out, std::optional<std::string>& error, FindIndex&& find_index,
+                    const std::function<void(Reader&, T&, std::size_t)>& read_one,
+                    const std::function<std::string(std::size_t)>& name_of) {
+    out.assign(count, T{});
+    std::vector<bool> seen(count, false);
+    for_each_table(root.get_table_array(array), source, array, error, [&](Reader& r, std::size_t) {
+        const std::string name = r.get_string("name");
+        const std::optional<std::size_t> idx = find_index(name);
+        if (!idx) {
+            if (!r.failed()) {
+                r.fail(std::format("'{}' = \"{}\": no existe ese tipo", r.full("name"), name));
+            }
+            return;
+        }
+        if (seen[*idx]) {
+            r.fail(std::format("'{}' = \"{}\": repetido", r.full("name"), name));
+            return;
+        }
+        seen[*idx] = true;
+        read_one(r, out[*idx], *idx);
+    });
+    for (std::size_t i = 0; i < count && !error; ++i) {
+        if (!seen[i]) {
+            error = std::format("{}: falta el arte de \"{}\" en [[{}]]", source, name_of(i), array);
+        }
+    }
+}
+
+}  // namespace
+
+std::expected<render::ArtSpec, std::string> parse_art_spec(std::string_view toml_text, const Catalogs& catalogs,
+                                                          std::string_view source_name) {
+    const TerrainCatalog& terrain = catalogs.terrain;
+    auto root = parse_toml(toml_text, source_name);
+    if (!root) {
+        return std::unexpected(root.error());
+    }
+    std::optional<std::string> error;
+    Reader r(*root, source_name, "", error);
+    render::ArtSpec spec;
+    render::ArtStyle& st = spec.style;
+    st.light_left_percent = r.get_i32("style.light_left_percent", 0, 200);
+    st.light_right_percent = r.get_i32("style.light_right_percent", 0, 200);
+    st.outline = r.get_color<3>("style.outline");
+    st.outline_alpha_percent = r.get_i32("style.outline_alpha_percent", 0, 100);
+    st.shadow_alpha_percent = r.get_i32("style.shadow_alpha_percent", 0, 100);
+    st.grain_percent = r.get_i32("style.grain_percent", 0, 100);
+    spec.terrain_variants = r.get_i32("style.terrain_variants", 1, kMaxArtVariants);
+    spec.effects.flame_outer = r.get_color<3>("effects.flame_outer");
+    spec.effects.flame_inner = r.get_color<3>("effects.flame_inner");
+    spec.effects.smoke = r.get_color<3>("effects.smoke");
+    spec.effects.flame_px = r.get_i32("effects.flame_px", 4, kMaxArtPx);
+    spec.effects.smoke_px = r.get_i32("effects.smoke_px", 4, kMaxArtPx);
+    spec.flame_frames = r.get_i32("effects.flame_frames", 1, kMaxArtCount);
+
+    using render::Figure;
+    using render::Weapon;
+    using render::Helmet;
+    using render::Armor;
+    using render::BuildingShape;
+    using render::Roof;
+    using render::Surface;
+    using render::NodeShape;
+    using render::TerrainTexture;
+    using SP = std::string_view;
+    static constexpr std::array<std::pair<SP, Figure>, 6> kFigures{
+        {{"persona", Figure::Person}, {"jinete", Figure::Rider}, {"acemila", Figure::PackAnimal},
+         {"carreta", Figure::Cart}, {"ariete", Figure::Ram}, {"trabuquete", Figure::Trebuchet}}};
+    static constexpr std::array<std::pair<SP, Weapon>, 10> kWeapons{
+        {{"ninguna", Weapon::None}, {"lanza", Weapon::Spear}, {"lanza_larga", Weapon::Lance}, {"espada", Weapon::Sword},
+         {"hacha", Weapon::Axe}, {"arco", Weapon::Bow}, {"ballesta", Weapon::Crossbow}, {"martillo", Weapon::Hammer},
+         {"pico", Weapon::Pick}, {"zurron", Weapon::Satchel}}};
+    static constexpr std::array<std::pair<SP, Helmet>, 4> kHelmets{
+        {{"ninguno", Helmet::None}, {"capucha", Helmet::Hood}, {"capiello", Helmet::Kettle}, {"yelmo", Helmet::Great}}};
+    static constexpr std::array<std::pair<SP, Armor>, 3> kArmors{
+        {{"ninguna", Armor::None}, {"malla", Armor::Mail}, {"placas", Armor::Plate}}};
+    static constexpr std::array<std::pair<SP, BuildingShape>, 8> kShapes{
+        {{"bloque", BuildingShape::Block}, {"campo", BuildingShape::Field}, {"camino", BuildingShape::Road},
+         {"muro", BuildingShape::Wall}, {"torre", BuildingShape::Tower}, {"tiendas", BuildingShape::Tents},
+         {"puestos", BuildingShape::Stalls}, {"molino", BuildingShape::Mill}}};
+    static constexpr std::array<std::pair<SP, Roof>, 7> kRoofs{
+        {{"ninguno", Roof::None}, {"dos_aguas", Roof::Gable}, {"cuatro_aguas", Roof::Hip}, {"plano", Roof::Flat},
+         {"almenas", Roof::Battlements}, {"estacas", Roof::Stakes}, {"conico", Roof::Cone}}};
+    static constexpr std::array<std::pair<SP, Surface>, 7> kSurfaces{
+        {{"piedra", Surface::Stone}, {"madera", Surface::Wood}, {"enlucido", Surface::Plaster}, {"paja", Surface::Thatch},
+         {"teja", Surface::Tile}, {"lona", Surface::Canvas}, {"tierra", Surface::Soil}}};
+    static constexpr std::array<std::pair<SP, NodeShape>, 6> kNodeShapes{
+        {{"arbol", NodeShape::Tree}, {"pino", NodeShape::Pine}, {"arbusto", NodeShape::Bush},
+         {"rocas", NodeShape::Rocks}, {"veta", NodeShape::Ore}, {"escombros", NodeShape::Rubble}}};
+    static constexpr std::array<std::pair<SP, TerrainTexture>, 5> kTextures{
+        {{"hierba", TerrainTexture::Grass}, {"agua", TerrainTexture::Water}, {"arena", TerrainTexture::Sand},
+         {"roca", TerrainTexture::Rock}, {"tierra", TerrainTexture::Soil}}};
+
+    const auto index_in = [](const auto& types) {
+        return [&types](const std::string& name) -> std::optional<std::size_t> {
+            for (std::size_t i = 0; i < types.size(); ++i) {
+                if (types[i].name == name) {
+                    return i;
+                }
+            }
+            return std::nullopt;
+        };
+    };
+    read_named_art<render::UnitArt>(
+        r, "unit", source_name, catalogs.units.types.size(), spec.units, error, index_in(catalogs.units.types),
+        [&](Reader& u, render::UnitArt& a, std::size_t) {
+            a.figure = pick(u, "figure", kFigures);
+            a.weapon = pick(u, "weapon", kWeapons);
+            a.helmet = pick(u, "helmet", kHelmets);
+            a.armor = pick(u, "armor", kArmors);
+            a.shield = u.get_bool("shield");
+            a.robe = u.get_bool("robe");
+            a.height_px = u.get_i32("height_px", 4, kMaxArtPx);
+            a.skin = u.get_color<3>("skin");
+            a.cloth = u.get_color<3>("cloth");
+            a.garment = u.get_color<3>("garment");
+            a.metal = u.get_color<3>("metal");
+            a.wood = u.get_color<3>("wood");
+            a.beast = u.get_color<3>("beast");
+        },
+        [&](std::size_t i) { return catalogs.units.types[i].name; });
+    read_named_art<render::BuildingArt>(
+        r, "building", source_name, catalogs.buildings.types.size(), spec.buildings, error,
+        index_in(catalogs.buildings.types),
+        [&](Reader& b, render::BuildingArt& a, std::size_t i) {
+            a.size_tiles = catalogs.buildings.types[i].type.size;
+            a.shape = pick(b, "shape", kShapes);
+            a.roof = pick(b, "roof", kRoofs);
+            a.wall_surface = pick(b, "wall_surface", kSurfaces);
+            a.roof_surface = pick(b, "roof_surface", kSurfaces);
+            a.wall = b.get_color<3>("wall");
+            a.roof_color = b.get_color<3>("roof_color");
+            a.trim = b.get_color<3>("trim");
+            a.wall_px = b.get_i32("wall_px", 0, kMaxArtPx);
+            a.roof_px = b.get_i32("roof_px", 0, kMaxArtPx);
+            a.inset_percent = b.get_i32("inset_percent", 10, 100);
+            a.windows = b.get_i32("windows", 0, kMaxArtVariants);
+            a.door = b.get_bool("door");
+            a.gate = b.get_bool("gate");
+            a.timber = b.get_bool("timber");
+            a.chimney = b.get_bool("chimney");
+            a.banner = b.get_bool("banner");
+        },
+        [&](std::size_t i) { return catalogs.buildings.types[i].name; });
+    read_named_art<render::NodeArt>(
+        r, "node", source_name, catalogs.nodes.types.size(), spec.nodes, error, index_in(catalogs.nodes.types),
+        [&](Reader& n, render::NodeArt& a, std::size_t i) {
+            a.size_tiles = catalogs.nodes.types[i].type.size;
+            a.shape = pick(n, "shape", kNodeShapes);
+            a.main = n.get_color<3>("main");
+            a.accent = n.get_color<3>("accent");
+            a.height_px = n.get_i32("height_px", 1, kMaxArtPx);
+            a.variants = n.get_i32("variants", 1, kMaxArtVariants);
+        },
+        [&](std::size_t i) { return catalogs.nodes.types[i].name; });
+    read_named_art<render::TerrainArt>(
+        r, "terrain", source_name, terrain.types.size(), spec.terrain, error, index_in(terrain.types),
+        [&](Reader& t, render::TerrainArt& a, std::size_t) {
+            a.texture = pick(t, "texture", kTextures);
+            a.grain_percent = t.get_i32("grain_percent", 0, 100);
+        },
+        [&](std::size_t i) { return terrain.types[i].name; });
+    if (error) {
+        return std::unexpected(*error);
+    }
+    return spec;
+}
+
 std::expected<Scenario, std::string> parse_scenario(std::string_view toml_text, const Catalogs& catalogs,
                                                     std::string_view source_name) {
     auto root = parse_toml(toml_text, source_name);
@@ -1345,6 +1542,17 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.view.night_color = r.get_color<4>("view.night_color");
     cfg.view.minimap_width_px = r.get_i32("view.minimap_width_px", 32, 1024);
     cfg.view.minimap_cells = r.get_i32("view.minimap_cells", 8, 256);
+    cfg.view.unit_pick_lift_px = r.get_i32("view.unit_pick_lift_px", 0, 256);
+    cfg.view.walk_frame_ms = r.get_i32("view.walk_frame_ms", 1, 10'000);
+    cfg.view.work_frame_ms = r.get_i32("view.work_frame_ms", 1, 10'000);
+    cfg.view.attack_strike_ticks = r.get_i32("view.attack_strike_ticks", 0, kMaxTicks);
+    cfg.view.attack_windup_ticks = r.get_i32("view.attack_windup_ticks", 0, kMaxTicks);
+    cfg.view.flame_fps = r.get_i32("view.flame_fps", 1, 120);
+    cfg.view.flames_per_tile = r.get_i32("view.flames_per_tile", 0, 64);
+    cfg.view.smoke_rise_px = r.get_i32("view.smoke_rise_px", 0, 1024);
+    cfg.view.smoke_period_ms = r.get_i32("view.smoke_period_ms", 1, 60'000);
+    cfg.view.smoke_alpha_percent = r.get_i32("view.smoke_alpha_percent", 0, 100);
+    cfg.view.construction_min_percent = r.get_i32("view.construction_min_percent", 0, 100);
 
     cfg.camera.scroll_keys_px_per_s = r.get_i32("camera.scroll_keys_px_per_s", 0, 100'000);
     cfg.camera.scroll_edge_px_per_s = r.get_i32("camera.scroll_edge_px_per_s", 0, 100'000);
@@ -1392,9 +1600,10 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
 namespace {
 
-constexpr std::array<std::string_view, 6> kDataFilePaths{
+constexpr std::array<std::string_view, 7> kDataFilePaths{
     "terrain.toml",       "units.toml",         "resources.toml",
     "buildings.toml",     "config/engine.toml", "scenarios/headless.toml",
+    "art.toml",
 };
 
 }  // namespace
@@ -1459,6 +1668,15 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
                       [&](std::string_view t, std::string_view n) { return parse_scenario(t, catalogs, n); },
                       data.headless_scenario)) {
         return std::unexpected(*e);
+    }
+    // Arte (F1). Opcional: las repeticiones grabadas antes de que existiera no lo llevan
+    // (la simulación no lo usa; quien las abre con ventana añade el de data/).
+    if (const auto art = std::ranges::find(data.files, kDataFilePaths[6], &DataFile::path); art != data.files.end()) {
+        auto spec = parse_art_spec(art->text, catalogs, art->path);
+        if (!spec) {
+            return std::unexpected(spec.error());
+        }
+        data.art = std::move(*spec);
     }
     // Ajustes de la partida elegidos en el menú (opcional).
     const auto match = std::ranges::find(data.files, kMatchSettingsFile, &DataFile::path);

@@ -132,6 +132,10 @@ struct SnapshotEntity {
     FormationKind formation = FormationKind::None;
     bool formation_active = false;        // hay bastantes en formación alrededor
     bool caravan = false;                 // en ruta de caravana entre mercados
+    // Combate en curso, para la presentación (F1): hacia dónde mira y en qué punto del golpe va.
+    bool has_target = false;
+    Position target_pos;
+    std::int32_t cooldown = 0;            // ticks hasta el siguiente golpe
     std::uint8_t seen_by = 0xFF;          // bit p: la ve el jugador p (niebla de guerra)
 };
 

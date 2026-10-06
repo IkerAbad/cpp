@@ -35,6 +35,7 @@ struct RendererDesc {
     bool vsync = true;
     ViewParams view;
     std::vector<std::array<std::uint8_t, 3>> terrain_colors;
+    const ArtSpec* art = nullptr;  // arte propio (F1); null: formas planas
 };
 
 class Renderer {

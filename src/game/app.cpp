@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -417,6 +418,7 @@ public:
             const std::uint64_t now = platform::now_ns();
             const auto frame_ns = static_cast<std::int64_t>(now - last_ns);
             last_ns = now;
+            anim_time_s_ += static_cast<double>(frame_ns) / static_cast<double>(kNsPerSecond);
             if (window_.minimized()) {
                 // Minimizada la simulación sigue su curso; solo se evita presentar.
                 SDL_WaitEventTimeout(nullptr, static_cast<std::int32_t>(kTickNs / 1'000'000));
@@ -1044,14 +1046,32 @@ private:
         screen_index_.clear();
         const bool can_interpolate = prev_.entities.size() == curr_.entities.size();
         const auto a = static_cast<float>(stats_.alpha);
+        moving_.assign(curr_.entities.size(), false);
+        // Las figuras se pulsan por el cuerpo, no por los pies.
+        const render::Vec2 lift{0.0f, art_ ? -static_cast<float>(data_.engine.view.unit_pick_lift_px) : 0.0f};
         for (std::size_t i = 0; i < curr_.entities.size(); ++i) {
             const sim::SnapshotEntity& c = curr_.entities[i];
             render::Vec2 tile{fixed_to_float(c.pos.x), fixed_to_float(c.pos.y)};
             if (can_interpolate && prev_.entities[i].id == c.id) {
                 const render::Vec2 p{fixed_to_float(prev_.entities[i].pos.x), fixed_to_float(prev_.entities[i].pos.y)};
-                tile = p + (tile - p) * a;
+                const render::Vec2 step = tile - p;
+                if (step.x != 0.0f || step.y != 0.0f) {
+                    moving_[i] = true;
+                    // En pantalla, x crece con (dx - dy): de ahí hacia dónde mira.
+                    const float dx = step.x - step.y;
+                    if (dx != 0.0f) {
+                        facing_left_[c.id] = dx < 0.0f;
+                    }
+                }
+                tile = p + step * a;
             }
-            screen_entities_.push_back({c.id, camera_.world_to_screen(proj_.tile_to_world(tile))});
+            if (c.has_target) {
+                const float dx = (fixed_to_float(c.target_pos.x) - fixed_to_float(c.target_pos.y)) - (tile.x - tile.y);
+                if (dx != 0.0f && !moving_[i]) {
+                    facing_left_[c.id] = dx < 0.0f;
+                }
+            }
+            screen_entities_.push_back({c.id, camera_.world_to_screen(proj_.tile_to_world(tile)) + lift});
         }
         own_screen_entities_.clear();
         for (std::size_t i = 0; i < curr_.entities.size(); ++i) {
@@ -1370,7 +1390,7 @@ private:
         ImGui::BulletText("F10: volver al menú (la partida queda grabada)");
         ImGui::BulletText("F1: datos de depuración · F2: esta ayuda");
         ImGui::SeparatorText("Leyenda");
-        ImGui::BulletText("Cada unidad lleva su inicial; el borde es el color del jugador");
+        ImGui::BulletText("Cada figura viste el color de su jugador; la inicial sale solo como aviso");
         ImGui::BulletText("Punto de color: lo que lleva un aldeano");
         ImGui::BulletText("Inicial en rojo: con hambre o sin munición");
         ImGui::BulletText("Inicial en amarillo: en desbandada (huye y no obedece)");
@@ -1680,6 +1700,9 @@ private:
             const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
             const std::string& label = data_.units.types[se.type].label;
             const bool warn = se.owner == local_ && (se.hungry || out_of_ammo(se));
+            if (art_ && !warn && !se.routing) {
+                continue;  // con arte, la figura ya dice qué es: la inicial solo avisa
+            }
             const ImVec2 size = ImGui::CalcTextSize(label.c_str());
             const render::Vec2 p = screen_entities_[i].pos;
             const ImVec2 at{std::round(p.x + radius + kPadPx * 2.0f), std::round(p.y - size.y * 0.5f)};
@@ -2075,6 +2098,8 @@ private:
             if (remembered) {
                 so.base = shaded(so.base, view.fog_explored_shade_percent);
                 so.body = shaded(so.body, view.fog_explored_shade_percent);
+                so.tint = shaded(so.tint, view.fog_explored_shade_percent);
+                so.fire_permille = 0;  // lo recordado no arde a la vista
             }
             objects_.push_back(so);
         };
@@ -2096,6 +2121,14 @@ private:
             ghost.size = info.type.size;
             ghost.body = can_pay && world_.can_place(*placing_, origin) ? view.ghost_valid_color : view.ghost_invalid_color;
             objects_.push_back(ghost);
+            if (art_) {
+                // El edificio mismo, translúcido y teñido de verde o rojo, sobre la huella.
+                render::SceneObject shape = ghost;
+                shape.art = render::SceneObject::Art::Building;
+                shape.art_type = *placing_;
+                shape.tint = ghost.body;
+                objects_.push_back(shape);
+            }
         }
     }
 
@@ -2108,7 +2141,33 @@ private:
             if (o.kind == sim::ObjectKind::Resource) {
                 so.body = opaque(data_.nodes.types[o.type].color);
                 so.body_percent = view.node_body_percent;
+                if (art_) {
+                    so.art = render::SceneObject::Art::Node;
+                    so.art_type = o.type;
+                    // Variante fija por casilla: el bosque no cambia al moverse la cámara.
+                    constexpr std::uint32_t kVariantMask = 0x7FFF;
+                    so.variant = static_cast<std::int32_t>(
+                        (static_cast<std::uint32_t>(o.origin.x) * 73856093U ^ static_cast<std::uint32_t>(o.origin.y) * 19349663U) &
+                        kVariantMask);
+                }
             } else {
+                if (art_) {
+                    const sim::BuildingType& type = data_.buildings.types[o.type].type;
+                    so.art = render::SceneObject::Art::Building;
+                    so.art_type = o.type;
+                    if (o.owner < data_.engine.player_colors.size()) {
+                        so.team = opaque(data_.engine.player_colors[o.owner]);
+                    }
+                    if (!o.complete && type.build_ticks > 0) {
+                        so.build_permille = std::clamp(o.progress * kPermille / type.build_ticks, 0, kPermille);
+                    }
+                    if (o.burned) {
+                        so.tint = shaded(so.tint, view.burned_shade_percent);
+                    }
+                    if (o.fire > 0 && data_.engine.world.fire.max_intensity > 0) {
+                        so.fire_permille = o.fire * kPermille / data_.engine.world.fire.max_intensity;
+                    }
+                }
                 so.base = o.owner < data_.engine.player_colors.size() ? opaque(data_.engine.player_colors[o.owner])
                                                                       : render::Rgba{};
                 so.body = opaque(data_.buildings.types[o.type].color);
@@ -2137,17 +2196,54 @@ private:
         }
     }
 
+    // Pose de la figura: andando, el ciclo de pasos; combatiendo, según cuánto falta para
+    // el golpe; trabajando, golpes de herramienta. Cada unidad, desfasada de las demás.
+    [[nodiscard]] render::Pose pose_of(const sim::SnapshotEntity& se, bool moving) const {
+        const render::ViewParams& view = data_.engine.view;
+        constexpr double kMsPerS = 1000.0;
+        constexpr std::uint32_t kPhaseSpread = 997;
+        const double t_ms = anim_time_s_ * kMsPerS + static_cast<double>(se.id % kPhaseSpread) * view.walk_frame_ms / 3.0;
+        if (moving) {
+            constexpr std::array<render::Pose, 4> kWalk{render::Pose::StepA, render::Pose::Idle, render::Pose::StepB,
+                                                        render::Pose::Idle};
+            return kWalk[static_cast<std::size_t>(t_ms / view.walk_frame_ms) % kWalk.size()];
+        }
+        if (se.has_target && se.type < data_.units.types.size()) {
+            const std::int32_t reload = data_.units.types[se.type].type.combat.reload_ticks;
+            if (se.cooldown > reload - view.attack_strike_ticks) {
+                return render::Pose::Strike;
+            }
+            if (se.cooldown <= view.attack_windup_ticks) {
+                return render::Pose::Act;
+            }
+            return render::Pose::Idle;
+        }
+        if (se.task == sim::WorkerTask::Gather || se.task == sim::WorkerTask::Build ||
+            se.task == sim::WorkerTask::Demolish) {
+            return static_cast<std::int64_t>(t_ms / view.work_frame_ms) % 2 == 0 ? render::Pose::Act
+                                                                                  : render::Pose::Strike;
+        }
+        return render::Pose::Idle;
+    }
+
     void present() {
         build_screen_entities();
         selection_.retain(own_screen_entities_);
         renderer_.begin_frame();
 
         markers_.clear();
+        const render::Vec2 feet{0.0f, art_ ? static_cast<float>(data_.engine.view.unit_pick_lift_px) : 0.0f};
         for (std::size_t i = 0; i < screen_entities_.size(); ++i) {
             const ScreenEntity& e = screen_entities_[i];
             const sim::SnapshotEntity& se = curr_.entities[screen_index_[i]];
             render::Marker m;
-            m.screen_pos = e.pos;
+            m.screen_pos = e.pos + feet;
+            if (art_) {
+                m.unit_type = se.type;
+                m.pose = pose_of(se, moving_[screen_index_[i]]);
+                const auto f = facing_left_.find(se.id);
+                m.mirror = f != facing_left_.end() && f->second;
+            }
             m.selected = selection_.is_selected(e.id);
             m.color = opaque(data_.units.types[se.type].color);
             if (se.owner < data_.engine.player_colors.size()) {
@@ -2174,6 +2270,7 @@ private:
         scene.objects = objects_;
         scene.markers = markers_;
         scene.hovered_tile = hover;
+        scene.time_s = static_cast<float>(anim_time_s_);
         scene.tile_tints = tints_;
         scene.path_points = path_points_;
         if (const std::vector<std::uint8_t>* fog = view_fog()) {
@@ -2198,6 +2295,10 @@ private:
     }
 
     const GameData& data_;
+    bool art_ = !data_.art.units.empty();  // arte propio (F1); sin él, formas planas
+    double anim_time_s_ = 0.0;             // reloj de la presentación (animaciones)
+    std::vector<bool> moving_;             // por índice de curr_.entities
+    std::unordered_map<std::uint32_t, bool> facing_left_;
     LockstepSession* net_;  // partida en red (E2); null: partida local
     sim::PlayerId local_;   // jugador de esta máquina
     bool net_waiting_ = false;  // este fotograma faltaron órdenes de otros
@@ -2496,6 +2597,7 @@ std::optional<Display> open_display(const GameData& data) {
     for (const TerrainInfo& t : data.terrain.types) {
         desc.terrain_colors.push_back(t.color);
     }
+    desc.art = &data.art;
     auto renderer = render::Renderer::create(desc);
     if (!renderer) {
         spdlog::error("{}", renderer.error());

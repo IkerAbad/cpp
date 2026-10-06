@@ -495,6 +495,18 @@ void World::write_snapshot(Snapshot& out) const {
             s.xp = c->xp;
             s.hero_name = c->hero_name;
             s.stance = c->stance;
+            s.cooldown = c->cooldown;
+            if (c->target != entt::null && registry_.valid(c->target)) {
+                if (const Position* tp = registry_.try_get<Position>(c->target)) {
+                    s.has_target = true;
+                    s.target_pos = *tp;
+                } else if (const Footprint* fp = registry_.try_get<Footprint>(c->target)) {
+                    // Edificio: el centro de su huella.
+                    s.has_target = true;
+                    const Fixed half = Fixed::from_int(fp->size) / Fixed::from_int(2);
+                    s.target_pos = {Fixed::from_int(fp->origin.x) + half, Fixed::from_int(fp->origin.y) + half};
+                }
+            }
         }
         if (const Supply* sp = registry_.try_get<Supply>(e)) {
             s.rations = sp->rations;

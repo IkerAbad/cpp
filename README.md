@@ -16,7 +16,8 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M5 | Repeticiones deterministas: grabación automática, reproductor y verificación | hecho |
 | M6 | Logística: víveres, munición, bagaje, convoyes, campamentos y trabuquete | hecho |
 | M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | en curso: percepción con niebla, 18 módulos |
-| M8 | Multijugador lockstep | — |
+| M8 | Multijugador lockstep | hecho (fase E: sala, charla, 2–4 jugadores, relevo de la IA) |
+| F1 | Arte propio generado por código: figuras animadas, edificios, árboles, fuego y humo | hecho |
 
 El plan completo, con lo que falta y en qué orden, está en [docs/PLAN.md](docs/PLAN.md).
 
@@ -239,6 +240,44 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - `concentrar`: cada unidad que pelea remata al enemigo armado que necesita menos golpes suyos. Los aldeanos enemigos no son prioridad: primero, lo que amenaza al ejército.
   - Economía: dos aldeanos en cola y casas con más margen.
 - **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `facil` 33 de 40 (82 %) y `experto` 36 de 40 (90 %). Casi todas se deciden a los puntos (valor vivo de unidades y edificios): rematar exige asedio.
+
+### Arte propio (F1)
+
+![Escena del juego con el arte generado por código](docs/escena.png)
+
+Ningún píxel viene de fuera: todo se pinta por código al arrancar (62 ms en Release, en un atlas de 1024×1024).
+
+- **Primitivas.** Las piezas son círculos, cápsulas (segmentos con radio) y polígonos. Se suavizan por cobertura o por submuestreo 4×4 y se sombrean con luz de arriba a la izquierda. Llevan un contorno oscuro de un píxel y una sombra en el suelo. El ruido de los materiales es determinista, así que el mismo arte da los mismos píxeles en todas las máquinas.
+- **Qué se pinta.** `data/art.toml` describe cada tipo con unas pocas palabras: su silueta, su arma, su casco, su armadura y sus colores. El parser exige arte para cada tipo de los catálogos y rechaza nombres que no existen o repetidos.
+  - **Figuras:** persona, jinete, acémila, carreta, ariete y trabuquete.
+  - **Edificios:**
+    - Formas: bloque, campo, camino, muro, torre, tiendas, puestos y molino.
+    - Tejados: dos aguas, cuatro aguas, almenas, estacas, cónico.
+    - Materiales: piedra, madera, enlucido con entramado, paja, teja, lona, tierra.
+  - **Recursos:** árbol (uno de cada tres, pino), arbusto, rocas, vetas, escombros.
+  - **Terreno:** hierba, agua, arena, roca, tierra, en 4 variantes por casilla.
+- **Color del jugador.**
+  - Cada sprite tiene dos capas. El cuerpo lleva sus colores; la capa del jugador va en grises y se tiñe al dibujar.
+  - Esa capa cubre túnicas, gualdrapas, mantas, lonas, toldos y estandartes.
+  - Lo que tapa la tela, como un brazo o un escudo, la borra de esa capa. Así, una capa sobre otra da la figura correcta sin pintar una versión por jugador.
+- **Animación.**
+  - Hay cinco poses: quieto, dos pasos, preparar y golpear.
+  - Andando, las figuras siguen un ciclo de pasos. Combatiendo, la pose depende de cuánto falta para el siguiente golpe (la simulación expone el blanco y la recarga). Trabajando, dan golpes de herramienta.
+  - Cada unidad va desfasada de las demás, mira hacia donde anda o hacia su blanco, y hacia la izquierda se dibuja en espejo.
+- **Orden de pintado.**
+  - Lo que está a ras de suelo va primero: terreno, campos y caminos.
+  - Lo que tiene altura (edificios, árboles y figuras) se ordena por la `y` en pantalla de su punto más adelantado. Así, lo de delante tapa a lo de detrás.
+  - Las barras de vida van encima de todo.
+- **Obras y fuego.**
+  - Un edificio en obra enseña su parte de abajo, que crece con el trabajo. El fantasma de colocación es el edificio mismo, translúcido, en verde o rojo.
+  - Un edificio en llamas lleva llamas animadas, más cuanto más arde, y bocanadas de humo que suben, crecen y se deshacen.
+  - Todo eso es reloj de la presentación, no de la simulación.
+- **Ver el arte entero.** `rts_art_sheet --data data --out hoja.pam` lo pinta todo en una hoja (PAM de Netpbm; `convert hoja.pam hoja.png`). Esta es [docs/arte.png](docs/arte.png).
+- **Límites conocidos.**
+  - Solo hay dos sentidos (derecha e izquierda en espejo), no ocho.
+  - No hay animación de muerte.
+  - Los proyectiles siguen siendo puntos.
+  - Las repeticiones grabadas antes de que existiera `art.toml` se ven con los marcadores planos de antes.
 
 ### Repeticiones (M5)
 
@@ -604,6 +643,7 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `unit`: regresión | Hashes tras 1200 ticks de movimiento con 500 unidades, 1500 ticks de una partida económica de dos jugadores, 600 ticks de una batalla de 30 contra 30, y 3000 ticks de IA contra IA con cada perfil |
 | `unit`: repeticiones | Codificar y decodificar sin pérdida; rechazo de ficheros ajenos, truncados, con cualquier byte cambiado o de otra versión; partida grabada (humano contra IA, órdenes programadas a futuro) reproducida con los mismos hashes; una orden alterada en el tick 800 se detecta en el checkpoint 1000, y quitar una orden también se detecta; grabación con los datos reales reproducida desde su copia |
 | `unit`: red | Sala con arranque manual, ajustes y charla que llegan a todos; charla cortada sin partir un carácter; un invitado que se va y la IA que toma su bando en el mismo tick en los que quedan, con el mismo hash final; partida de cuatro con IA en los puestos pedidos; orden de relevo idempotente; códec de órdenes; órdenes de prueba solo para unidades propias; 2 y 3 jugadores por bucle local acaban con el mismo hash habiendo ejecutado órdenes que solo conocía el otro; una orden que solo ve un mundo en el tick 10 se detecta en el hash del tick 20; rechazo por datos distintos; plazo agotado sin noticias de otro jugador |
+| `unit`: arte | `art.toml` cubre todos los tipos y rechaza nombres que no existen o repetidos y valores no válidos; cada figura tiene sus poses, la capa del jugador en grises, y andar y golpear cambian el dibujo; generación determinista; edificios con altura por encima de su huella y campos a ras de suelo; terreno sin juntas; árboles variados con pinos; atlas sin solapes con los píxeles de cada imagen; escena con lo de delante pintado después, espejo, obra recortada y llamas con humo |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |

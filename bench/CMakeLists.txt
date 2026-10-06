@@ -8,3 +8,8 @@ rts_set_warnings(rts_bench)
 add_executable(rts_ai_match rts_ai_match.cpp)
 target_link_libraries(rts_ai_match PRIVATE rts_sim rts_game_core)
 rts_set_warnings(rts_ai_match)
+
+# Hoja de arte (F1): todo el arte generado por código en una imagen, para revisarlo.
+add_executable(rts_art_sheet rts_art_sheet.cpp)
+target_link_libraries(rts_art_sheet PRIVATE rts_game_core rts_render_core)
+rts_set_warnings(rts_art_sheet)

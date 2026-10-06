@@ -936,6 +936,24 @@ night_color = [10, 16, 48, 115]
 minimap_width_px = 240
 minimap_cells = 64
 
+# Arte y animación (F1). Las figuras se pulsan 10 px por encima de los pies (en el
+# cuerpo). Andar: un paso cada 140 ms; trabajar: un golpe de herramienta cada 300 ms.
+# Al combatir, el arma queda extendida 3 ticks tras el golpe y alzada los 6 de antes.
+unit_pick_lift_px = 10
+walk_frame_ms = 140
+work_frame_ms = 300
+attack_strike_ticks = 3
+attack_windup_ticks = 6
+# Fuego: llamas a 10 fotogramas por segundo, hasta 3 por casilla de lado; el humo sube
+# 60 px en 2,4 s mientras se deshace (empieza al 75 % de opacidad).
+flame_fps = 10
+flames_per_tile = 3
+smoke_rise_px = 60
+smoke_period_ms = 2400
+smoke_alpha_percent = 75
+# Un edificio recién empezado enseña el 20 % de abajo; crece con la obra.
+construction_min_percent = 20
+
 [camera]
 scroll_keys_px_per_s = 1200
 scroll_edge_px_per_s = 1200
