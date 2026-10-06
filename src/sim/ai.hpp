@@ -51,6 +51,8 @@ enum class AiBehavior : std::uint8_t {
     Medicine,        // puesto médico, enfermeros, cirujanos y heridos al puesto
     Ambush,          // con niebla: tiradores escondidos en el bosque, camino del enemigo
     Towers,          // torres hacia el enemigo; si atacan la base, se guarnecen
+    Tactics,         // formaciones según la situación y paso forzado para volver a defender
+    Forge,           // herrería y mejoras para su ejército
     Count,
 };
 
@@ -116,6 +118,13 @@ struct AiProfile {
     std::int32_t ambush_search_tiles = 0;
     std::int32_t towers = 0;
     std::int32_t tower_offset_tiles = 0;
+    // Moral y formaciones (D3): se retira si la moral media del ejército en campaña baja
+    // de retreat_morale (milésimas; 0 = no mira la moral). Forma a formation_engage_tiles
+    // de un enemigo armado. Herrería con forge_at_villagers aldeanos o más.
+    std::int32_t retreat_morale = 0;
+    std::int32_t formation_engage_tiles = 0;
+    std::int32_t forge_at_villagers = 0;
+    bool defend_forced_march = false;  // vuelve a paso forzado si atacan la base
     // abastecer: una unidad que no pelea vuelve a abastecerse cuando sus víveres o su
     // munición bajan de este % de lo que puede llevar.
     std::int32_t resupply_percent = 0;
@@ -164,6 +173,8 @@ struct AiParams {
     std::optional<BuildingTypeId> medical_post;  // módulo sanidad
     std::optional<UnitTypeId> surgeon;           // módulo sanidad
     std::optional<BuildingTypeId> tower;         // módulo torres
+    std::optional<BuildingTypeId> forge;         // módulo herreria
+    ArmorClassId cavalry_class = 0;              // módulo tactica (de [formation])
     std::vector<AiProfile> profiles;
 };
 

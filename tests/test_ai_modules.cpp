@@ -888,3 +888,139 @@ TEST_CASE("IA: levanta torres hacia el enemigo y, si atacan la base, las guarnec
         (void)b;
     }
 }
+
+// --- Moral y formaciones (D3) -------------------------------------------------------
+
+namespace {
+
+WorldParams formed() {
+    WorldParams p = flat_two_players();
+    p.formation.enabled = true;
+    p.formation.min_members = 1;
+    p.formation.cohesion_radius = rts::sim::Fixed::from_int(3);
+    p.formation.spacing = rts::sim::Fixed::from_int(1);
+    return p;
+}
+
+AiParams tactics_params() {
+    AiParams params = test_ai_params();
+    params.cavalry_class = kClassArcher;  // en la prueba, el arquero enemigo hace de jinete
+    params.profiles[1].behaviors = {AiBehavior::Tactics};
+    params.profiles[1].formation_engage_tiles = 8;
+    return params;
+}
+
+std::uint8_t form_kind(rts::sim::FormationKind k) {
+    return static_cast<std::uint8_t>(rts::sim::kFormationBase + static_cast<std::uint8_t>(k));
+}
+
+}  // namespace
+
+TEST_CASE("IA: en campaña marcha en columna; ante el enemigo, línea de tiradores y cuadro contra la caballería") {
+    World world(formed());
+    ai_base(world);
+    const auto marching = world.spawn_unit(kAi, kSoldier, {100, 100});
+    const auto archer = world.spawn_unit(kAi, kArcher, {60, 62});
+    const auto pike = world.spawn_unit(kAi, kSoldier, {61, 62});
+    const auto at_home = world.spawn_unit(kAi, kSoldier, {148, 148});
+    world.spawn_unit(kRival, kArcher, {60, 66});  // «caballería» enemiga a 4 casillas
+    world.step();
+    AiSystem ai(tactics_params(), rts::sim::SupplyParams{}, {{kAi, 1}});
+    std::vector<Command> out;
+    ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+    const auto ordered = [&](std::uint32_t id, rts::sim::FormationKind k) {
+        return std::ranges::any_of(out, [&](const Command& c) {
+            return c.type == CommandType::SetStance && c.kind == form_kind(k) &&
+                   std::ranges::find(c.units, id) != c.units.end();
+        });
+    };
+    CHECK(ordered(marching, rts::sim::FormationKind::Column));
+    CHECK(ordered(archer, rts::sim::FormationKind::Line));
+    CHECK(ordered(pike, rts::sim::FormationKind::Square));
+    CHECK_FALSE(ordered(at_home, rts::sim::FormationKind::Column));  // en casa, sin formación
+}
+
+TEST_CASE("IA: herrería con aldeanos de sobra; terminada, investiga para su ejército") {
+    WorldParams p = flat_two_players();
+    rts::sim::UpgradeType up;
+    up.at = kWorkshop;  // en la prueba, el taller hace de herrería
+    up.cost = stock(0, 0, 0, 10);
+    up.research_ticks = 10;
+    up.classes = 1U << kClassInfantry;
+    up.attack_melee = 1;
+    p.upgrades.push_back(up);
+    AiParams params = test_ai_params();
+    params.forge = kWorkshop;
+    params.profiles[1].behaviors = {AiBehavior::Forge};
+    params.profiles[1].forge_at_villagers = 2;
+    const auto think = [&](const World& world) {
+        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        std::vector<Command> out;
+        ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+        return out;
+    };
+    SUBCASE("sin herrería: la levanta") {
+        World world(p);
+        ai_base(world);
+        world.spawn_unit(kAi, kVillager, {145, 145});
+        world.spawn_unit(kAi, kVillager, {146, 145});
+        world.step();
+        const auto out = think(world);
+        const auto place = std::ranges::find(out, CommandType::Place, &Command::type);
+        REQUIRE(place != out.end());
+        CHECK(place->kind == kWorkshop);
+    }
+    SUBCASE("con herrería: investiga") {
+        World world(p);
+        ai_base(world);
+        const auto forge_id = *world.spawn_building(kAi, kWorkshop, {140, 150}, true);
+        world.step();
+        const auto out = think(world);
+        const auto research = std::ranges::find(out, CommandType::Research, &Command::type);
+        REQUIRE(research != out.end());
+        CHECK(research->object == forge_id);
+        CHECK(research->kind == 0);
+    }
+}
+
+TEST_CASE("IA: si la moral de su ejército en campaña flaquea, se retira antes de desbandarse") {
+    WorldParams p = flat_two_players();
+    p.morale.enabled = true;
+    p.morale.interval_ticks = 1000;  // que no la toque durante la prueba
+    p.morale.rout_below = 250;
+    p.morale.rally_above = 600;
+    for (auto& u : p.unit_types) {
+        u.morale_resolve = u.worker ? 0 : 100;
+    }
+    const auto retreats = [&](std::int32_t morale) {
+        World world(p);
+        ai_base(world);
+        std::vector<std::uint32_t> ids;
+        for (std::int32_t i = 0; i < 4; ++i) {
+            ids.push_back(world.spawn_unit(kAi, kSoldier, {60 + i, 60}));
+        }
+        world.spawn_unit(kRival, kSoldier, {62, 64});  // enemigo armado cerca, mucho más débil
+        world.step();
+        Command am;
+        am.type = CommandType::AttackMove;
+        am.player = kAi;
+        am.units = ids;
+        am.target = {40, 40};
+        world.issue(am);
+        world.step();
+        for (const auto id : ids) {
+            world.registry_for_setup().get<rts::sim::Morale>(static_cast<entt::entity>(id)).value = morale;
+        }
+        AiParams params = test_ai_params();
+        params.profiles[1].behaviors = {AiBehavior::AttackStrength};
+        params.profiles[1].retreat_morale = 400;
+        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        std::vector<Command> out;
+        ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
+        return std::ranges::any_of(out, [](const Command& c) {
+            return c.type == CommandType::Move && c.target == rts::sim::TileCoord{151, 151};
+        });
+    };
+    CHECK(retreats(300));        // moral baja: a casa
+    CHECK_FALSE(retreats(900));  // moral alta y más fuerte: sigue
+}

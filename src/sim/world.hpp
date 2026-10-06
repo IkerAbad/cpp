@@ -207,6 +207,9 @@ public:
     [[nodiscard]] const VisionSystem& vision() const noexcept { return vision_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
+    // Solo para preparar escenarios en pruebas y herramientas: tocar el estado fuera de
+    // las órdenes rompe las repeticiones.
+    [[nodiscard]] entt::registry& registry_for_setup() noexcept { return registry_; }
     [[nodiscard]] std::uint64_t state_hash() const;
     void write_snapshot(Snapshot& out) const;
 

@@ -363,6 +363,7 @@ Fuente: Ardant du Picq, [«Battle Studies»](https://www.gutenberg.org/files/729
 - **Desbandada:** por debajo de 250 la unidad huye 10 casillas lejos del enemigo, deja de pelear y no obedece (inicial en amarillo y aviso «¡Tus tropas huyen!»). Se le puede seguir atacando: es la persecución.
 - **Rehacerse:** lejos de los enemigos (8 casillas) recupera moral; a 600 se detiene y pasa 10 s reorganizándose antes de volver a pelear y a obedecer.
 - **Torneo:** cuenta las desbandadas de cada partida y las victorias en las que el vencido se desbandó.
+- **IA** (D3): el perfil «normal» se retira si la moral media de su ejército en campaña baja de 400 (`retreat_morale`), antes de que se desbande a 250.
 - **Desactivada** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
 ### Terreno en combate
@@ -430,7 +431,7 @@ La herrería (requiere cuartel) investiga mejoras de armas y armaduras, de una e
 
 Fuente: [Plate armour](https://en.wikipedia.org/wiki/Plate_armour): «Single plates of metal armour were again used from the late 13th century on, to protect joints and shins, and these were worn over a mail hauberk», «By about 1420, complete suits of plate armour had been developed in Europe», y su coste «was enormous, and inevitably restricted to the wealthy». Por eso el arnés de placas es caro y solo para la caballería.
 
-- **IA:** aún no investiga (fase D).
+- **IA** (módulo `herreria` del perfil «normal», D3): con 18 aldeanos levanta la herrería e investiga la primera mejora pagable para las clases de su ejército.
 
 ### Formaciones
 
@@ -444,7 +445,7 @@ Línea, columna y cuadro (`[formation]` en `engine.toml`; botones en el panel de
 
 - **Cuadro:** es el erizo de picas del *schiltron*, «the thick-set grove of twelve foot spears was far too dense for the cavalry to penetrate» ([Schiltron](https://en.wikipedia.org/wiki/Schiltron)). En Falkirk (1298) cayó ante los arqueros, y por eso las flechas le hacen más daño.
 - **Columna:** su ventaja de velocidad es un valor de diseño. Así se marchaba, pero no tengo una fuente medieval que la cifre.
-- **IA:** aún no usa formaciones (punto D3 del plan).
+- **IA** (módulo `tactica` del perfil «normal», D3): en campaña marcha en columna; con enemigos armados a 8 casillas o menos, los tiradores forman en línea y la infantería en cuadro si hay caballería cerca; en casa, sin formación. Volver a defender a paso forzado está desactivado (`defend_forced_march`): en el torneo, la tropa llegaba agotada.
 
 ### Fortificaciones
 

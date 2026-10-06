@@ -32,7 +32,7 @@ constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior:
     "defensa",  "aldeanos", "casas",       "cuartel",         "granjas",  "almacenes", "obras",
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
     "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",     "explorar",
-    "asalto",      "sanidad",  "emboscada",     "torres",
+    "asalto",      "sanidad",  "emboscada",     "torres",        "tactica",       "herreria",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -979,6 +979,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     };
     fo.cavalry_class = r.get_named("formation.cavalry_class", ClassNames{units}, "units.toml (classes)");
     cfg.world.combat.cavalry_class = fo.cavalry_class;
+    cfg.world.ai.cavalry_class = fo.cavalry_class;
     fo.line = effect("line");
     fo.column = effect("column");
     fo.square = effect("square");
@@ -1105,6 +1106,12 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
             r.fail(std::format("'ai.medical_post' = \"{}\": no es un puesto médico de buildings.toml", post));
         }
     }
+    if (const std::string forge = r.get_string("ai.forge"); !error && !forge.empty()) {
+        ai.forge = catalogs.buildings.find(forge);
+        if (!ai.forge) {
+            r.fail(std::format("'ai.forge' = \"{}\": no está en buildings.toml", forge));
+        }
+    }
     if (const std::string tower = r.get_string("ai.tower"); !error && !tower.empty()) {
         ai.tower = catalogs.buildings.find(tower);
         if (!ai.tower || catalogs.buildings.types[*ai.tower].type.garrison <= 0) {
@@ -1208,6 +1215,10 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.ambush_search_tiles = pr.get_i32("ambush_search_tiles", 0, 64);
         p.towers = pr.get_i32("towers", 0, 32);
         p.tower_offset_tiles = pr.get_i32("tower_offset_tiles", 0, 64);
+        p.retreat_morale = pr.get_i32("retreat_morale", 0, sim::kFullMorale);
+        p.formation_engage_tiles = pr.get_i32("formation_engage_tiles", 0, 64);
+        p.forge_at_villagers = pr.get_i32("forge_at_villagers", 0, 1000);
+        p.defend_forced_march = pr.get_bool("defend_forced_march");
         p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);
         p.upkeep_reserve_percent = pr.get_i32("upkeep_reserve_percent", 0, 1000);
         p.camp_distance_tiles = pr.get_i32("camp_distance_tiles", 0, 1024);

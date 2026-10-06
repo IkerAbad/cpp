@@ -9,6 +9,7 @@
 #include "sim/combat.hpp"
 #include "sim/fire.hpp"
 #include "sim/climb.hpp"
+#include "sim/formation.hpp"
 #include "sim/garrison.hpp"
 #include "sim/state_hash.hpp"
 
@@ -1388,7 +1389,18 @@ void attack_strength(Decision& d) {
         for (const UnitSeen& e : v.enemies) {
             enemy += e.armed && chebyshev(e.tile, center) <= radius ? strength(types[e.type], e.hp) : 0;
         }
-        if (enemy > 0 && own * kPercent < enemy * d.profile.retreat_ratio_percent) {
+        // Moral (D3): si el ejército flaquea, se retira antes de desbandarse.
+        std::int64_t morale = 0;
+        std::int64_t counted = 0;
+        for (const UnitSeen* s : field) {
+            if (const Morale* m = d.registry.try_get<Morale>(s->entity)) {
+                morale += m->value;
+                ++counted;
+            }
+        }
+        const bool shaken = d.profile.retreat_morale > 0 && counted > 0 && enemy > 0 &&
+                            morale < std::int64_t{d.profile.retreat_morale} * counted;
+        if ((enemy > 0 && own * kPercent < enemy * d.profile.retreat_ratio_percent) || shaken) {
             Command c = d.order(CommandType::Move);
             c.target = v.base;
             for (const UnitSeen* s : field) {
@@ -1816,11 +1828,118 @@ void towers(Decision& d) {
     }
 }
 
+// Táctica (D3): formaciones según la situación y paso forzado para volver a defender.
+//   - En campaña sin enemigos cerca: columna (marcha más rápido).
+//   - Con enemigos armados a formation_engage_tiles: los tiradores, en línea; la
+//     infantería, en cuadro si hay caballería enemiga cerca; si no, sin formación.
+//   - Si atacan la base, quien está lejos vuelve a paso forzado; en casa, paso normal.
+void tactics(Decision& d) {
+    const AiView& v = d.v;
+    const auto& units = d.catalog().units;
+    std::array<std::vector<std::uint32_t>, 4> forms;  // por FormationKind
+    std::vector<std::uint32_t> forced;
+    std::vector<std::uint32_t> normal;
+    for (const UnitSeen& s : v.soldiers) {
+        const UnitType& t = units[s.type];
+        const bool home = chebyshev(s.tile, v.base) <= d.profile.defend_radius_tiles;
+        if (const Fatigue* f = d.registry.try_get<Fatigue>(s.entity)) {
+            const bool want = d.profile.defend_forced_march && v.threatened && !home;
+            if (want != f->forced) {
+                (want ? forced : normal).push_back(entt::to_integral(s.entity));
+            }
+        }
+        if (d.profile.formation_engage_tiles <= 0 || t.combat.buildings_only) {
+            continue;
+        }
+        FormationKind want = FormationKind::None;
+        if (!home) {
+            bool enemy_near = false;
+            bool cavalry_near = false;
+            for (const UnitSeen& e : v.enemies) {
+                if (e.armed && chebyshev(e.tile, s.tile) <= d.profile.formation_engage_tiles) {
+                    enemy_near = true;
+                    cavalry_near = cavalry_near || units[e.type].combat.armor_class == d.params.cavalry_class;
+                }
+            }
+            const bool ranged = t.combat.projectile_speed.raw() != 0;
+            if (!enemy_near) {
+                want = FormationKind::Column;
+            } else if (ranged) {
+                want = FormationKind::Line;
+            } else if (cavalry_near && t.combat.armor_class != d.params.cavalry_class) {
+                want = FormationKind::Square;
+            }
+        }
+        const Formation* f = d.registry.try_get<Formation>(s.entity);
+        const FormationKind now = f != nullptr ? f->kind : FormationKind::None;
+        if (now != want) {
+            forms[static_cast<std::size_t>(want)].push_back(entt::to_integral(s.entity));
+        }
+    }
+    for (std::size_t k = 0; k < forms.size(); ++k) {
+        if (!forms[k].empty()) {
+            Command c = d.order(CommandType::SetStance);
+            c.kind = static_cast<std::uint8_t>(kFormationBase + k);
+            c.units = std::move(forms[k]);
+            d.out.push_back(std::move(c));
+        }
+    }
+    const std::array<std::pair<std::vector<std::uint32_t>*, std::uint8_t>, 2> paces{
+        {{&forced, kPaceForced}, {&normal, kPaceNormal}}};
+    for (const auto& [list, kind] : paces) {
+        if (!list->empty()) {
+            Command c = d.order(CommandType::SetStance);
+            c.kind = kind;
+            c.units = std::move(*list);
+            d.out.push_back(std::move(c));
+        }
+    }
+}
+
+// Herrería (D3): con forge_at_villagers aldeanos, la levanta; terminada, investiga la
+// primera mejora pagable para las clases de su ejército (o de las que entrena).
+void forge(Decision& d) {
+    const AiView& v = d.v;
+    if (!d.params.forge || v.own_type_count.empty() || v.threatened) {
+        return;
+    }
+    const BuildingTypeId type = *d.params.forge;
+    if (v.own_type_count[type] == 0) {
+        if (std::cmp_greater_equal(v.workers.size(), d.profile.forge_at_villagers) && v.barracks_complete) {
+            d.place(type, v.base);
+        }
+        return;
+    }
+    std::uint32_t classes = 0;
+    for (const UnitTypeId u : d.profile.army) {
+        classes |= 1U << d.catalog().units[u].combat.armor_class;
+    }
+    for (const auto [e, b, o] : d.registry.view<const Building, const Owner>().each()) {
+        if (o.player != d.me() || b.type != type) {
+            continue;
+        }
+        const auto& ups = d.catalog().upgrades;
+        for (std::size_t u = 0; u < ups.size(); ++u) {
+            const auto id = static_cast<UpgradeId>(u);
+            if ((ups[u].classes & classes) == 0 || !d.economy.can_research(d.registry, d.me(), e, id) ||
+                !affordable(d.budget, ups[u].cost)) {
+                continue;
+            }
+            Command c = d.order(CommandType::Research);
+            c.object = entt::to_integral(e);
+            c.kind = id;
+            d.out.push_back(std::move(c));
+            spend(d.budget, ups[u].cost);
+            return;
+        }
+    }
+}
+
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
     army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics, explore,
-    assault, medicine, ambush, towers,
+    assault, medicine, ambush, towers, tactics, forge,
 };
 
 }  // namespace

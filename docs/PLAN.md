@@ -149,7 +149,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   cirujanos.
 - [x] **D2. Guerra con niebla.** Emboscadas en el bosque, ataques de noche,
   exploración continua y defensa con torres.
-- [ ] **D3. Moral y formaciones en la IA.** Usa B1 a B5.
+- [x] **D3. Moral y formaciones en la IA.** Usa B1 a B5.
 - [ ] **D4. Niveles.** Fácil, normal, difícil y experto, diferenciados por los
   módulos que usan y lo bien que piensan.
   - *Terminado (D1–D4):* en la CI, cada nivel gana al anterior en al menos el 70 %

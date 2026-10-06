@@ -462,6 +462,7 @@ siege_engine = ""
 medical_post = ""
 surgeon = ""
 tower = ""
+forge = ""
 dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
@@ -513,6 +514,10 @@ ambush_wood_tiles = 0
 ambush_search_tiles = 0
 towers = 0
 tower_offset_tiles = 0
+retreat_morale = 0
+formation_engage_tiles = 0
+forge_at_villagers = 0
+defend_forced_march = false
 siege_front_tiles = 0
 scouts = 0
 fog_guard_army = 0
