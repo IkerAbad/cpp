@@ -12,6 +12,7 @@
 #include <string_view>
 #include <vector>
 
+#include "game/lockstep.hpp"
 #include "render/view_params.hpp"
 #include "sim/world.hpp"
 
@@ -156,6 +157,13 @@ struct ReplayConfig {
     std::vector<std::int32_t> speeds;            // multiplicadores del reproductor
 };
 
+// Partidas en red (E1), sección [net].
+struct NetConfig {
+    LockstepConfig lockstep;
+    std::int32_t poll_wait_ms = 0;  // espera máxima por vuelta mientras faltan órdenes
+    ProbeConfig probe;
+};
+
 // Ajustes de una partida elegidos en el menú. Viajan como un fichero de datos más
 // (config/partida.toml) para que la repetición y la partida guardada los lleven.
 struct MatchSettings {
@@ -185,6 +193,7 @@ struct EngineConfig {
     CameraConfig camera;
     SelectionConfig selection;
     ReplayConfig replay;
+    NetConfig net;
     AlertParams alerts;
     std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
     std::vector<std::string> hero_names;                     // por índice de CombatParams

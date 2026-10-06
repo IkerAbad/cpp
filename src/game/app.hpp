@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 #include "game/config.hpp"
 
@@ -19,6 +20,11 @@ struct LaunchOptions {
     std::filesystem::path replay;         // ver esta repetición con ventana
     std::filesystem::path verify_replay;  // reproducirla sin ventana y comprobar sus hashes
     std::filesystem::path load;           // cargar esta partida guardada (.rtssav) y seguir jugando
+    // Partida en red sin ventana (E1): anfitrión en este puerto o invitado de esta dirección.
+    std::optional<std::uint16_t> host_port;
+    std::uint8_t net_players = 2;  // anfitrión: jugadores en total, él incluido
+    std::string join_host;
+    std::uint16_t join_port = 0;
 };
 
 // Analiza argv. Devuelve nullopt y escribe la ayuda si los argumentos no son válidos.
@@ -29,6 +35,11 @@ struct Replay;
 // Simula sin ventana ni GPU y escribe el hash final. Lo usa la CI. Con record no vacío,
 // graba la partida en ese fichero.
 int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem::path& record);
+
+// Partida en red sin ventana: el anfitrión espera a los invitados y fija la duración
+// (ticks); cada uno da órdenes de prueba a su jugador ([net.probe]) y la IA juega dentro
+// de la simulación. Escribe el hash final; 0 si todos acaban con el mismo.
+int run_net_headless(const GameData& data, const LaunchOptions& options);
 
 // Bucle interactivo con ventana, render y paso fijo. Sin replay, partida nueva que se
 // graba sola en data.engine.replay.directory; con ella, reproductor sin órdenes.

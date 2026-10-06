@@ -67,6 +67,9 @@ int run(int argc, char** argv, bool& windowed) {
         spdlog::error("Datos: {}", data.error());
         return 1;
     }
+    if (options->headless && (options->host_port || !options->join_host.empty())) {
+        return rts::game::run_net_headless(*data, *options);
+    }
     if (options->headless) {
         return rts::game::run_headless(*data, options->headless_ticks, options->record);
     }

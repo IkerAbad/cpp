@@ -945,3 +945,31 @@ checkpoint_interval_ticks = 200
 directory = "replays"
 # Velocidades del reproductor (teclas 1, 2, 3, 4).
 speeds = [1, 2, 4, 8]
+
+[net]
+# Partidas en red por lockstep (E1). Turnos de 4 ticks = 200 ms; una orden se ejecuta
+# 2 turnos después de darse (entre 200 y 400 ms), en el mismo tick en todas las
+# máquinas. Es el esquema de Age of Empires (Bettner y Terrano, 2001).
+turn_ticks = 4
+input_delay_turns = 2
+# Hash de estado cada 5 turnos (1 s): una desincronización se localiza con esa precisión.
+hash_every_turns = 5
+# Sin las órdenes de otro jugador durante 30 s, la partida se da por perdida.
+stall_timeout_ms = 30000
+# Espera a que se unan todos los jugadores.
+lobby_timeout_ms = 120000
+# El invitado reintenta conectar cada 100 ms durante 30 s (el anfitrión puede tardar en abrir).
+connect_timeout_ms = 30000
+connect_retry_ms = 100
+# Trama más larga admitida (protege de un otro extremo roto o malicioso).
+max_frame_bytes = 1048576
+max_players = 8
+# Espera máxima por vuelta del bucle mientras faltan órdenes (no gasta CPU en vano).
+poll_wait_ms = 5
+
+[net.probe]
+# Órdenes de prueba de las partidas en red sin ventana: cada 2 s, hasta 3 unidades
+# propias al azar se mueven a como mucho 6 casillas.
+every_ticks = 40
+units = 3
+radius_tiles = 6

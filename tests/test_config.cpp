@@ -608,6 +608,23 @@ click_radius_px = 10
 checkpoint_interval_ticks = 200
 directory = "replays"
 speeds = [1, 2, 4, 8]
+
+[net]
+turn_ticks = 4
+input_delay_turns = 2
+hash_every_turns = 5
+stall_timeout_ms = 30000
+lobby_timeout_ms = 120000
+connect_timeout_ms = 30000
+connect_retry_ms = 100
+max_frame_bytes = 1048576
+max_players = 8
+poll_wait_ms = 5
+
+[net.probe]
+every_ticks = 40
+units = 3
+radius_tiles = 6
 )";
 
 TerrainCatalog catalog() {
@@ -733,6 +750,21 @@ TEST_CASE("Configuración: el reproductor necesita al menos una velocidad") {
     const auto cfg = parse_engine(replaced(kEngine, "speeds = [1, 2, 4, 8]", "speeds = []"));
     REQUIRE_FALSE(cfg.has_value());
     CHECK(cfg.error().find("replay.speeds") != std::string::npos);
+}
+
+TEST_CASE("Configuración: la sección [net] se lee y se valida") {
+    const auto cfg = parse_engine(kEngine);
+    REQUIRE(cfg.has_value());
+    CHECK(cfg->net.lockstep.turn_ticks == 4);
+    CHECK(cfg->net.lockstep.input_delay_turns == 2);
+    CHECK(cfg->net.lockstep.hash_every_turns == 5);
+    CHECK(cfg->net.lockstep.max_players == 8);
+    CHECK(cfg->net.poll_wait_ms == 5);
+    CHECK(cfg->net.probe.every_ticks == 40);
+    CHECK(cfg->net.probe.units == 3);
+    const auto bad = parse_engine(replaced(kEngine, "input_delay_turns = 2", "input_delay_turns = 0"));
+    REQUIRE_FALSE(bad.has_value());
+    CHECK(bad.error().find("net.input_delay_turns") != std::string::npos);
 }
 
 TEST_CASE("Configuración: TOML mal formado da error, no excepción") {

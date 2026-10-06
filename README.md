@@ -249,6 +249,32 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 - **Límite conocido.** Si cambia el formato de los datos (por ejemplo, los perfiles de IA), las repeticiones anteriores no se pueden cargar y el error dice qué clave falta.
 - **Límite conocido.** El fichero no guarda la versión del código. Si cambia la simulación, las repeticiones antiguas divergen y se avisa; no se reproducen mal en silencio.
 
+### Partidas en red (E1)
+
+Lockstep, el esquema de Age of Empires: las máquinas no se mandan el estado, sino las órdenes, y todas simulan lo mismo. Bettner y Terrano lo cuentan así: «the expectation was to run the exact same simulation on each machine, passing each an identical set of commands that were issued by the users at the same time» [1].
+
+- **Turnos.** Un turno dura 4 ticks (200 ms). Una orden dada en el turno *t* se ejecuta al empezar el turno *t* + 2, en el mismo tick en todas las máquinas. Es el retraso del original: «Turns were typically 200 msec in length» y «commands issued during turn 1000 would be scheduled for execution during turn 1002» [1]. Un turno no empieza hasta que han llegado los mensajes de todos (vacíos, si alguien no ha dado órdenes). Los valores están en `[net]` de `engine.toml`.
+- **Estrella.** Los invitados hablan solo con el anfitrión, que reenvía a todos lo que recibe. Cada mensaje lleva su jugador, y el anfitrión no deja que nadie hable por otro.
+- **Desincronización.** Cada 5 turnos (1 s), el mensaje lleva el hash de estado del tick en que sale. Cada máquina lo compara con el suyo. Si no coinciden, la partida se para y dice en qué tick y con qué jugador. Al final se comparan el tick y el hash finales. En el original, «Any simulation that ran differently was tagged as "out of sync" and the game stopped» [1].
+- **Conexión.**
+  - Sockets TCP propios (POSIX y Winsock), sin bibliotecas nuevas y siempre no bloqueantes.
+  - Tramas con longitud y un tope de tamaño.
+  - Al entrar se comprueban la versión del protocolo y el hash de los ficheros de datos: con datos distintos, el anfitrión rechaza la conexión y dice por qué.
+  - Si alguien se calla durante 30 s, la partida falla y nombra a quién se espera.
+- **Sin ventana.**
+  - Para probarlo hay dos órdenes:
+    - `rts --headless --ticks 2400 --host 47000 [--players N]` abre la partida.
+    - `rts --headless --join 127.0.0.1:47000` se une a ella.
+  - La duración la fija el anfitrión.
+  - Cada proceso da a su jugador órdenes de prueba al azar (`[net.probe]`) que el otro solo conoce por la red, y la IA juega dentro de la simulación.
+  - Con `--record`, cada uno graba su repetición, y las dos salen idénticas byte a byte.
+- **Límite conocido.**
+  - Aún no hay sala con ventana ni chat (E2).
+  - Si un jugador se va, la partida termina; todavía no pasa a la IA.
+  - Por ahora, la CI solo prueba la red dentro de una misma plataforma: Windows contra Windows y Linux contra Linux.
+
+[1] Paul Bettner y Mark Terrano, «1500 Archers on a 28.8: Network Programming in Age of Empires and Beyond», Gamasutra, 2001. https://www.gamedeveloper.com/programming/1500-archers-on-a-28-8-network-programming-in-age-of-empires-and-beyond
+
 ### Unidades con criterio histórico (fase 1 del rediseño)
 
 Los papeles y costes reflejan el equipo y la instrucción de cada tipo, que es lo que después tendrá que mover la logística (hierro para armas y armaduras, oro para la paga, comida para el sustento):
@@ -566,12 +592,14 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `unit`: IA | Contra un rival quieto crece, construye cuartel y granjas, ataca y lo derrota en 11 minutos sin gastar lo que no tiene; dos IA juegan la misma partida tick a tick; derrota al quedarse sin nada |
 | `unit`: regresión | Hashes tras 1200 ticks de movimiento con 500 unidades, 1500 ticks de una partida económica de dos jugadores, 600 ticks de una batalla de 30 contra 30, y 3000 ticks de IA contra IA con cada perfil |
 | `unit`: repeticiones | Codificar y decodificar sin pérdida; rechazo de ficheros ajenos, truncados, con cualquier byte cambiado o de otra versión; partida grabada (humano contra IA, órdenes programadas a futuro) reproducida con los mismos hashes; una orden alterada en el tick 800 se detecta en el checkpoint 1000, y quitar una orden también se detecta; grabación con los datos reales reproducida desde su copia |
+| `unit`: red | Códec de órdenes; órdenes de prueba solo para unidades propias; 2 y 3 jugadores por bucle local acaban con el mismo hash habiendo ejecutado órdenes que solo conocía el otro; una orden que solo ve un mundo en el tick 10 se detecta en el hash del tick 20; rechazo por datos distintos; plazo agotado sin noticias de otro jugador |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
 | CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
 | CI torneo de IA | `normal` y `experto` ganan a `facil` al menos en el 70 % de 20 partidas de 30 minutos |
+| CI partida en red | En las cuatro plataformas, anfitrión e invitado (dos procesos) juegan 2400 ticks por bucle local: mismo hash, repeticiones idénticas byte a byte y verificadas |
 | CI `replay-cross` | La repetición grabada en Linux con GCC se verifica con MSVC, clang-cl, Clang y GCC |
 
 Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el cambio de diseño es intencionado, se actualiza `kExpectedHash` en el mismo commit y se justifica en el mensaje.

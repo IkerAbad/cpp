@@ -163,8 +163,11 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
 ### Fase E — Multijugador (M8)
 
-- [ ] **E1. Lockstep.** Las órdenes viajan, no el estado. Cada tick se confirma el
-  hash, y si alguien se desincroniza se detecta y se dice en qué tick.
+- [x] **E1. Lockstep.** Las órdenes viajan, no el estado. Se confirma el hash cada
+  segundo (5 turnos de 200 ms; cada tick sería caro para nada) y, si alguien se
+  desincroniza, se detecta y se dice en qué tick y con quién. Hecho: turnos con
+  retraso de 2 (como AoE), estrella con reenvío, sockets propios, CI con dos procesos
+  en las cuatro plataformas. Falta pasar a la IA a quien se desconecte (E2).
 - [ ] **E2. Sala sencilla.** Anfitrión e invitado por dirección IP, chat y partida
   de 2 a 4 jugadores, mezclando humanos e IA.
 - *Terminado (E1–E2):* dos procesos en la CI juegan una partida de IA contra IA por

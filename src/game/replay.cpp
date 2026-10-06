@@ -7,6 +7,7 @@
 #include <iterator>
 #include <utility>
 
+#include "game/wire.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::game {
@@ -14,118 +15,12 @@ namespace rts::game {
 namespace {
 
 constexpr std::array<std::uint8_t, 8> kMagic{'R', 'T', 'S', 'R', 'E', 'P', 0, 0};
-constexpr std::uint8_t kLastCommandType = static_cast<std::uint8_t>(sim::CommandType::Count) - 1;
 constexpr std::size_t kChecksumBytes = 8;
-constexpr unsigned kByteBits = 8;
-constexpr unsigned kByteMask = 0xffU;
 
 std::uint64_t fnv1a(std::span<const std::uint8_t> bytes) {
     sim::StateHasher h;
     h.add_bytes(bytes);
     return h.value();
-}
-
-class Writer {
-public:
-    void u8(std::uint8_t v) { out_.push_back(v); }
-    void u32(std::uint32_t v) { le(v, 4); }
-    void i32(std::int32_t v) { u32(static_cast<std::uint32_t>(v)); }
-    void u64(std::uint64_t v) { le(v, 8); }
-    void count(std::size_t n) { u32(static_cast<std::uint32_t>(n)); }
-    void str(std::string_view s) {
-        count(s.size());
-        out_.insert(out_.end(), s.begin(), s.end());
-    }
-    void bytes(std::span<const std::uint8_t> b) { out_.insert(out_.end(), b.begin(), b.end()); }
-    [[nodiscard]] std::vector<std::uint8_t>& out() noexcept { return out_; }
-
-private:
-    void le(std::uint64_t v, unsigned n) {
-        for (unsigned i = 0; i < n; ++i) {
-            out_.push_back(static_cast<std::uint8_t>((v >> (kByteBits * i)) & kByteMask));
-        }
-    }
-
-    std::vector<std::uint8_t> out_;
-};
-
-// Lector con límites: cualquier lectura fuera del búfer marca el error y devuelve 0.
-class Reader {
-public:
-    explicit Reader(std::span<const std::uint8_t> in) : in_(in) {}
-
-    std::uint8_t u8() { return static_cast<std::uint8_t>(le(1)); }
-    std::uint32_t u32() { return static_cast<std::uint32_t>(le(4)); }
-    std::int32_t i32() { return static_cast<std::int32_t>(u32()); }
-    std::uint64_t u64() { return le(8); }
-    // Número de elementos de al menos min_bytes cada uno: no puede superar lo que queda.
-    std::size_t count(std::size_t min_bytes) {
-        const std::size_t n = u32();
-        if (n > remaining() / min_bytes) {
-            ok_ = false;
-            return 0;
-        }
-        return n;
-    }
-    std::string str() {
-        const std::size_t n = count(1);
-        std::string s(reinterpret_cast<const char*>(in_.data() + pos_), n);
-        pos_ += n;
-        return s;
-    }
-    [[nodiscard]] bool ok() const noexcept { return ok_; }
-    [[nodiscard]] std::size_t remaining() const noexcept { return in_.size() - pos_; }
-
-private:
-    std::uint64_t le(unsigned n) {
-        if (!ok_ || remaining() < n) {
-            ok_ = false;
-            return 0;
-        }
-        std::uint64_t v = 0;
-        for (unsigned i = 0; i < n; ++i) {
-            v |= static_cast<std::uint64_t>(in_[pos_ + i]) << (kByteBits * i);
-        }
-        pos_ += n;
-        return v;
-    }
-
-    std::span<const std::uint8_t> in_;
-    std::size_t pos_ = 0;
-    bool ok_ = true;
-};
-
-void write_command(Writer& w, const sim::Command& c) {
-    w.u32(c.tick);
-    w.u8(c.player);
-    w.u8(static_cast<std::uint8_t>(c.type));
-    w.count(c.units.size());
-    for (const std::uint32_t id : c.units) {
-        w.u32(id);
-    }
-    w.i32(c.target.x);
-    w.i32(c.target.y);
-    w.u32(c.object);
-    w.u8(c.kind);
-}
-
-bool read_command(Reader& r, sim::Command& c) {
-    c.tick = r.u32();
-    c.player = r.u8();
-    const std::uint8_t type = r.u8();
-    if (type > kLastCommandType) {
-        return false;
-    }
-    c.type = static_cast<sim::CommandType>(type);
-    c.units.resize(r.count(sizeof(std::uint32_t)));
-    for (std::uint32_t& id : c.units) {
-        id = r.u32();
-    }
-    c.target.x = r.i32();
-    c.target.y = r.i32();
-    c.object = r.u32();
-    c.kind = r.u8();
-    return r.ok();
 }
 
 }  // namespace
@@ -141,7 +36,7 @@ std::uint64_t data_hash(std::span<const DataFile> files) {
 }
 
 std::vector<std::uint8_t> encode_replay(const Replay& replay) {
-    Writer w;
+    ByteWriter w;
     w.bytes(kMagic);
     w.u32(kReplayFormatVersion);
     w.u64(data_hash(replay.data));
@@ -170,7 +65,7 @@ std::expected<Replay, std::string> decode_replay(std::span<const std::uint8_t> b
     if (bytes.size() < kMagic.size() || !std::equal(kMagic.begin(), kMagic.end(), bytes.begin())) {
         return std::unexpected("no es una repetición (.rtsrep)");
     }
-    Reader r(bytes.subspan(kMagic.size()));
+    ByteReader r(bytes.subspan(kMagic.size()));
     const std::uint32_t version = r.u32();
     if (!r.ok()) {
         return std::unexpected("repetición truncada");
@@ -184,7 +79,7 @@ std::expected<Replay, std::string> decode_replay(std::span<const std::uint8_t> b
         return std::unexpected("repetición truncada");
     }
     const auto body = bytes.first(bytes.size() - kChecksumBytes);
-    Reader tail(bytes.last(kChecksumBytes));
+    ByteReader tail(bytes.last(kChecksumBytes));
     if (tail.u64() != fnv1a(body)) {
         return std::unexpected("repetición corrupta: la suma de comprobación no coincide");
     }

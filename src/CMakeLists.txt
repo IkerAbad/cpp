@@ -4,7 +4,7 @@
 #    ├── rts_render ──── rts_platform ── SDL3
 #    │      ├── imgui, shaders (dxc)
 #    │      └── rts_render_core          <- proyección, atlas, escena: sin SDL
-#    ├── rts_game_core ── toml++, rts_render_core
+#    ├── rts_game_core ── toml++, rts_render_core, rts_net (sockets: sin SDL)
 #    └── rts_sim ── EnTT                  <- sin SDL, sin E/S, sin coma flotante
 #
 # rts_sim no enlaza SDL: un #include <SDL3/...> en src/sim/ no compila.
@@ -37,6 +37,15 @@ target_include_directories(rts_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(rts_sim PUBLIC EnTT::EnTT)
 rts_set_warnings(rts_sim)
 
+# --- Red (E1): sockets TCP propios, sin dependencias ------------------------------
+add_library(rts_net STATIC
+    net/socket.cpp)
+target_include_directories(rts_net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+if(WIN32)
+    target_link_libraries(rts_net PRIVATE ws2_32)
+endif()
+rts_set_warnings(rts_net)
+
 # --- Presentación sin GPU (se prueba sin ventana) -------------------------------
 add_library(rts_render_core STATIC
     render/atlas.cpp
@@ -50,11 +59,13 @@ add_library(rts_game_core STATIC
     game/config.cpp
     game/fixed_step.cpp
     game/replay.cpp
+    game/wire.cpp
+    game/lockstep.cpp
     game/alerts.cpp
     game/minimap.cpp
     game/selection.cpp)
 target_link_libraries(rts_game_core
-    PUBLIC rts_sim rts_render_core
+    PUBLIC rts_sim rts_render_core rts_net
     PRIVATE tomlplusplus::tomlplusplus)
 rts_set_warnings(rts_game_core)
 

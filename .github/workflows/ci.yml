@@ -138,6 +138,24 @@ jobs:
           name: hash-${{ matrix.name }}
           path: hash-${{ matrix.name }}.txt
 
+      # E1: dos procesos juegan por la red (bucle local) con órdenes que solo conoce cada
+      # uno; la sesión compara hashes cada segundo y al final. Las dos repeticiones deben
+      # ser idénticas byte a byte y verificarse solas.
+      - name: Partida en red (anfitrión e invitado por bucle local)
+        run: |
+          exe="build/${{ matrix.preset }}/src/rts"
+          "$exe" --headless --ticks 2400 --host 47000 --record net-host.rtsrep > net-host.log 2>&1 &
+          host_pid=$!
+          "$exe" --headless --join 127.0.0.1:47000 --record net-guest.rtsrep | tee net-guest.log
+          wait "$host_pid" || { cat net-host.log; exit 1; }
+          cat net-host.log
+          h1=$(grep -o 'state_hash=[0-9a-f]*' net-host.log)
+          h2=$(grep -o 'state_hash=[0-9a-f]*' net-guest.log)
+          echo "anfitrión $h1, invitado $h2"
+          test -n "$h1" && test "$h1" = "$h2"
+          cmp net-host.rtsrep net-guest.rtsrep
+          "$exe" --verify-replay net-guest.rtsrep
+
       - name: Subir la repetición grabada en Linux
         if: matrix.name == 'linux-gcc'
         uses: actions/upload-artifact@v4

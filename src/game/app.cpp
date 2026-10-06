@@ -22,6 +22,7 @@
 #include "game/camera_control.hpp"
 #include "game/alerts.hpp"
 #include "game/fixed_step.hpp"
+#include "game/lockstep.hpp"
 #include "game/minimap.hpp"
 #include "game/replay.hpp"
 #include "game/selection.hpp"
@@ -117,11 +118,29 @@ void print_usage() {
     spdlog::info("Uso: rts [--data <carpeta>] [--frames <N>] | [--headless --ticks <N> [--record <fichero>]]");
     spdlog::info("     rts --replay <fichero> [--frames <N>] | --verify-replay <fichero>");
     spdlog::info("     rts --load <partida.rtssav> [--frames <N>]  (F5 guarda durante la partida)");
+    spdlog::info("     rts --headless --ticks <N> --host <puerto> [--players <N>] [--record <fichero>]");
+    spdlog::info("     rts --headless --join <dirección>:<puerto> [--record <fichero>]");
 }
+
 
 bool parse_count(std::string_view value, std::int64_t& out) {
     const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), out);
     return ec == std::errc{} && end == value.data() + value.size() && out >= 0;
+}
+
+// "anfitrión:puerto" (el puerto tras el último ':').
+bool parse_address(std::string_view value, std::string& host, std::uint16_t& port) {
+    const auto colon = value.rfind(':');
+    if (colon == std::string_view::npos || colon == 0) {
+        return false;
+    }
+    std::int64_t p = 0;
+    if (!parse_count(value.substr(colon + 1), p) || p == 0 || p > std::numeric_limits<std::uint16_t>::max()) {
+        return false;
+    }
+    host = value.substr(0, colon);
+    port = static_cast<std::uint16_t>(p);
+    return true;
 }
 
 // Unidades de un jugador en orden de creación (el del snapshot).
@@ -2171,6 +2190,25 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
                 spdlog::error("{} necesita un entero no negativo, recibido '{}'", arg, value);
                 return std::nullopt;
             }
+        } else if (arg == "--host" && has_value) {
+            std::int64_t port = 0;
+            if (!parse_count(argv[++i], port) || port > std::numeric_limits<std::uint16_t>::max()) {
+                spdlog::error("--host necesita un puerto, recibido '{}'", argv[i]);
+                return std::nullopt;
+            }
+            options.host_port = static_cast<std::uint16_t>(port);
+        } else if (arg == "--players" && has_value) {
+            std::int64_t n = 0;
+            if (!parse_count(argv[++i], n) || n < 2 || n > std::numeric_limits<std::uint8_t>::max()) {
+                spdlog::error("--players necesita un número de jugadores, recibido '{}'", argv[i]);
+                return std::nullopt;
+            }
+            options.net_players = static_cast<std::uint8_t>(n);
+        } else if (arg == "--join" && has_value) {
+            if (!parse_address(argv[++i], options.join_host, options.join_port)) {
+                spdlog::error("--join necesita <dirección>:<puerto>, recibido '{}'", argv[i]);
+                return std::nullopt;
+            }
         } else if (arg == "--load" && has_value) {
             options.load = argv[++i];
         } else if (arg.ends_with(".rtsrep")) {
@@ -2232,6 +2270,101 @@ int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem
         }
         spdlog::info("Repetición guardada en {}", record.string());
     }
+    return 0;
+}
+
+int run_net_headless(const GameData& data, const LaunchOptions& options) {
+    const NetConfig& net = data.engine.net;
+    if (options.host_port && options.headless_ticks <= 0) {
+        spdlog::error("red: el anfitrión necesita --ticks (la duración de la partida)");
+        return 2;
+    }
+    const std::uint64_t hash = data_hash(data.files);
+    auto session = options.host_port
+                       ? LockstepSession::host(*options.host_port, options.net_players, net.lockstep, hash,
+                                               static_cast<sim::Tick>(options.headless_ticks))
+                       : LockstepSession::join(options.join_host, options.join_port, net.lockstep, hash);
+    if (!session) {
+        spdlog::error("red: {}", session.error());
+        return 1;
+    }
+    if (options.host_port) {
+        spdlog::info("red: anfitrión en el puerto {}, esperando a {} jugadores más", session->port(),
+                     options.net_players - 1);
+    }
+    while (session->state() == LockstepState::Lobby) {
+        session->poll(net.poll_wait_ms);
+    }
+    if (session->state() == LockstepState::Failed) {
+        spdlog::error("red: {}", session->error());
+        return 1;
+    }
+    const sim::PlayerId me = session->local_player();
+    spdlog::info("red: partida de {} jugadores, soy el {}, {} ticks", session->players(), me, session->end_tick());
+
+    sim::World world(data.engine.world);
+    std::optional<ReplayRecorder> recorder;
+    if (!options.record.empty()) {
+        recorder.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
+    }
+    const auto issue = [&](sim::Command c) {
+        if (recorder) {
+            recorder->issue(world, std::move(c));
+        } else {
+            world.issue(std::move(c));
+        }
+    };
+    // Cada jugador su propia serie: la del otro solo se conoce por la red.
+    sim::Xoshiro256pp rng(data.engine.world.setup.seed + me);
+    const sim::TileCoord map_size{world.map().width(), world.map().height()};
+    std::optional<sim::Tick> probed;
+    std::int64_t waits = 0;
+    const auto start = SteadyClock::now();
+    while (world.tick() < session->end_tick() && session->state() == LockstepState::Running) {
+        const sim::Tick tick = world.tick();
+        if (tick % static_cast<sim::Tick>(net.probe.every_ticks) == 0 && probed != tick) {
+            probed = tick;
+            sim::Snapshot snap;
+            world.write_snapshot(snap);
+            for (sim::Command& c : probe_orders(snap, me, net.probe, map_size, rng)) {
+                session->submit(std::move(c));
+            }
+        }
+        session->poll(0);
+        if (session->begin_tick(world, issue)) {
+            world.step();
+            if (recorder) {
+                recorder->after_step(world);
+            }
+        } else {
+            ++waits;
+            session->poll(net.poll_wait_ms);
+        }
+    }
+    session->finish(world);
+    while (session->state() == LockstepState::Running) {
+        session->poll(net.poll_wait_ms);
+    }
+    // Lo último (el fin propio, lo que reenvía el anfitrión) tiene que salir antes de cerrar.
+    const auto flush_start = SteadyClock::now();
+    while (!session->flushed() && elapsed_ms(flush_start) < net.lockstep.stall_timeout_ms) {
+        session->poll(net.poll_wait_ms);
+    }
+    spdlog::info("red: {} ticks en {:.0f} ms, {} esperas a la red, {} hashes comparados", world.tick(),
+                 elapsed_ms(start), waits, session->hashes_compared());
+    spdlog::info("state_hash={:016x}", world.state_hash());
+    if (recorder) {
+        if (const auto saved = save_replay(options.record, recorder->finish(world)); !saved) {
+            spdlog::error("Repetición: {}", saved.error());
+            return 1;
+        }
+        spdlog::info("Repetición guardada en {}", options.record.string());
+    }
+    if (session->state() != LockstepState::Finished) {
+        spdlog::error("red: {}", session->error());
+        return 1;
+    }
+    spdlog::info("red: todos los jugadores acaban con el mismo hash");
     return 0;
 }
 

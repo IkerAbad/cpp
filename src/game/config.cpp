@@ -22,6 +22,13 @@ constexpr std::int64_t kByteMax = std::numeric_limits<std::uint8_t>::max();
 // Límites de cordura de los datos (no de diseño): atrapan erratas como un cero de más.
 constexpr std::int64_t kMaxAmount = 1'000'000;
 constexpr std::int64_t kMaxTicks = 1'000'000;
+// Límites de cordura de [net].
+constexpr std::int64_t kMaxNetTurns = 1000;
+constexpr std::int64_t kMaxNetMs = 3'600'000;
+constexpr std::int64_t kMinNetFrameBytes = 1024;
+constexpr std::int64_t kMaxNetFrameBytes = 64 * 1024 * 1024;
+constexpr std::int64_t kMaxProbeUnits = 1000;
+constexpr std::int64_t kMaxProbeRadius = 1024;
 constexpr std::int64_t kMaxFootprint = 8;
 constexpr std::int64_t kMaxPlayers = 8;
 constexpr std::size_t kMaxReplaySpeeds = 8;
@@ -1337,6 +1344,21 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     if (!error && cfg.replay.speeds.empty()) {
         r.fail("'replay.speeds' debe tener al menos una velocidad");
     }
+
+    LockstepConfig& ls = cfg.net.lockstep;
+    ls.turn_ticks = r.get_i32("net.turn_ticks", 1, kMaxTicks);
+    ls.input_delay_turns = r.get_i32("net.input_delay_turns", 1, kMaxNetTurns);
+    ls.hash_every_turns = r.get_i32("net.hash_every_turns", 1, kMaxNetTurns);
+    ls.stall_timeout_ms = r.get_i32("net.stall_timeout_ms", 1, kMaxNetMs);
+    ls.lobby_timeout_ms = r.get_i32("net.lobby_timeout_ms", 1, kMaxNetMs);
+    ls.connect_timeout_ms = r.get_i32("net.connect_timeout_ms", 1, kMaxNetMs);
+    ls.connect_retry_ms = r.get_i32("net.connect_retry_ms", 1, kMaxNetMs);
+    ls.max_frame_bytes = r.get_i32("net.max_frame_bytes", kMinNetFrameBytes, kMaxNetFrameBytes);
+    ls.max_players = r.get_i32("net.max_players", 2, kMaxPlayers);
+    cfg.net.poll_wait_ms = r.get_i32("net.poll_wait_ms", 0, kMaxNetMs);
+    cfg.net.probe.every_ticks = r.get_i32("net.probe.every_ticks", 1, kMaxTicks);
+    cfg.net.probe.units = r.get_i32("net.probe.units", 0, kMaxProbeUnits);
+    cfg.net.probe.radius_tiles = r.get_i32("net.probe.radius_tiles", 0, kMaxProbeRadius);
 
     if (error) {
         return std::unexpected(*error);
