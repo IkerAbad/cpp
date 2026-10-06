@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "sim/economy.hpp"
+#include "sim/formation.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::sim {
@@ -86,6 +87,9 @@ Fixed MovementSystem::effective_speed(const entt::registry& registry, entt::enti
     }
     if (const Fatigue* f = registry.try_get<Fatigue>(e)) {
         percent = percent * f->speed_percent / kPercent;  // cansancio y paso
+    }
+    if (const Formation* fm = registry.try_get<Formation>(e); fm != nullptr && fm->active) {
+        percent = percent * fm->speed_percent / kPercent;  // formación
     }
     if (percent == kPercent) {
         return unit.speed;

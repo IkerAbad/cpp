@@ -14,6 +14,7 @@ add_executable(rts_tests
     test_terrain_combat.cpp
     test_fatigue.cpp
     test_fortifications.cpp
+    test_formation.cpp
     test_vision.cpp
     test_orders.cpp
     test_minimap.cpp

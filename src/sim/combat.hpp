@@ -97,6 +97,8 @@ struct CombatParams {
     TerrainCombatParams terrain;
     // Escalando un muro (B4: [climb]): el daño que recibe, a este %.
     std::int32_t climb_exposed_percent = 100;
+    // Clase de armadura de la caballería (B5: el cuadro la resiste).
+    ArmorClassId cavalry_class = 0;
 };
 
 // Proyectil en vuelo: una entidad propia, sin Unit (el movimiento no lo ve).
@@ -157,6 +159,7 @@ private:
         entt::entity target;
         entt::entity attacker;
         std::int32_t amount;
+        UnitTypeId attacker_type = 0;  // para las formaciones: caballería, proyectil
     };
 
     // Rejilla espacial de unidades del tick (ordenación por conteo), índice denso.
@@ -204,6 +207,7 @@ private:
     [[nodiscard]] std::int32_t slope_levels(const entt::registry& registry, FVec2 a, entt::entity target) const;
     [[nodiscard]] TerrainId terrain_at(FVec2 p) const noexcept;
     [[nodiscard]] bool charge_ground(TerrainId t) const noexcept;  // llano firme: se puede cargar
+    [[nodiscard]] bool stops_charge(const entt::registry& registry, entt::entity target) const;
     [[nodiscard]] Fixed effective_range(const CombatStats& st, std::int32_t levels) const noexcept;
 
     const TileMap* map_;

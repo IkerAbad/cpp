@@ -909,6 +909,28 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     cfg.world.combat.climb_exposed_percent = cl.exposed_percent;
     cfg.world.ai.ladder_cost = cl.ladder_cost;
 
+    sim::FormationParams& fo = cfg.world.formation;
+    fo.enabled = r.get_bool("formation.enabled");
+    fo.min_members = r.get_i32("formation.min_members", 1, 1000);
+    fo.cohesion_radius = sim::Fixed::from_ratio(r.get_i32("formation.cohesion_milli_tiles", 0, 32 * kMilli), kMilli);
+    fo.spacing = sim::Fixed::from_ratio(r.get_i32("formation.spacing_milli_tiles", 250, 4 * kMilli), kMilli);
+    const auto effect = [&](const std::string& name) {
+        sim::FormationEffect fx;
+        const std::string k = "formation." + name + ".";
+        fx.speed_percent = r.get_i32(k + "speed_percent", 1, 300);
+        fx.melee_attack_percent = r.get_i32(k + "melee_attack_percent", 0, 300);
+        fx.ranged_attack_percent = r.get_i32(k + "ranged_attack_percent", 0, 300);
+        fx.cavalry_taken_percent = r.get_i32(k + "cavalry_taken_percent", 0, 300);
+        fx.ranged_taken_percent = r.get_i32(k + "ranged_taken_percent", 0, 300);
+        fx.stops_charge = r.get_bool(k + "stops_charge");
+        return fx;
+    };
+    fo.cavalry_class = r.get_named("formation.cavalry_class", ClassNames{units}, "units.toml (classes)");
+    cfg.world.combat.cavalry_class = fo.cavalry_class;
+    fo.line = effect("line");
+    fo.column = effect("column");
+    fo.square = effect("square");
+
     sim::FatigueParams& fa = cfg.world.fatigue;
     fa.enabled = r.get_bool("fatigue.enabled");
     fa.march_per_tick = r.get_i32("fatigue.march_per_tick", 0, sim::kFullFatigue);

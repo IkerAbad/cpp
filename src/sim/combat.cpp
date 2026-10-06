@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "sim/climb.hpp"
+#include "sim/formation.hpp"
 #include "sim/garrison.hpp"
 #include "sim/state_hash.hpp"
 
@@ -50,6 +51,9 @@ std::int32_t CombatSystem::attack_percent(const entt::registry& registry, entt::
     std::int32_t percent = attack_percent(c, aura);
     if (const Fatigue* f = registry.try_get<Fatigue>(e)) {
         percent = static_cast<std::int32_t>(std::int64_t{percent} * f->attack_percent / kPercent);  // cansancio
+    }
+    if (const Formation* fm = registry.try_get<Formation>(e); fm != nullptr && fm->active) {
+        percent = static_cast<std::int32_t>(std::int64_t{percent} * fm->attack_percent / kPercent);  // formación
     }
     const Supply* s = registry.try_get<Supply>(e);
     if (s == nullptr || units_[registry.get<Unit>(e).type].supply.rations <= 0 || !s->hungry()) {
@@ -175,6 +179,11 @@ void CombatSystem::apply(entt::registry& registry, MovementSystem& movement, con
             }
             return;
     }
+}
+
+bool CombatSystem::stops_charge(const entt::registry& registry, entt::entity target) const {
+    const Formation* f = registry.try_get<Formation>(target);
+    return f != nullptr && f->active && f->stops_charge;  // el erizo de picas
 }
 
 bool CombatSystem::charge_ground(TerrainId t) const noexcept {
@@ -426,7 +435,8 @@ void CombatSystem::strike(const entt::registry& registry, FireSystem& fire, entt
         if (st.undermine && stone) {
             // Mina bajo los cimientos: la armadura de los muros no cuenta.
             const std::int64_t dig = std::int64_t{st.attack_melee} * percent / kPercent;
-            hits_.push_back({target, attacker, static_cast<std::int32_t>(std::clamp<std::int64_t>(dig, 1, kMaxHitDamage))});
+            hits_.push_back(
+                {target, attacker, static_cast<std::int32_t>(std::clamp<std::int64_t>(dig, 1, kMaxHitDamage)), attacker_type});
             return;
         }
         if (!st.siege) {
@@ -434,7 +444,7 @@ void CombatSystem::strike(const entt::registry& registry, FireSystem& fire, entt
             return;
         }
     }
-    hits_.push_back({target, attacker, damage(attacker_type, percent, registry, target)});
+    hits_.push_back({target, attacker, damage(attacker_type, percent, registry, target), attacker_type});
 }
 
 bool CombatSystem::can_harm_building(const entt::registry& registry, UnitTypeId attacker_type,
@@ -580,7 +590,8 @@ void CombatSystem::update(entt::registry& registry, MovementSystem& movement, Ec
                     percent = slope_percent(percent, per_level, levels);
                     const std::int32_t charge = units_[unit.type].charge_percent;
                     if (!ranged && charge > kPercent && c.run_ticks >= tc.charge_run_ticks &&
-                        registry.all_of<Unit>(c.target) && charge_ground(terrain_at(pos)) &&
+                        registry.all_of<Unit>(c.target) && !stops_charge(registry, c.target) &&
+                        charge_ground(terrain_at(pos)) &&
                         charge_ground(terrain_at(aim_point(registry, c.target)))) {
                         percent = static_cast<std::int32_t>(std::int64_t{percent} * charge / kPercent);
                     }
@@ -756,6 +767,17 @@ void CombatSystem::apply_hits(entt::registry& registry, MovementSystem& movement
         if (const Climbing* cl = registry.try_get<Climbing>(h.target); cl != nullptr && cl->timer >= 0) {
             // En lo alto de la escala no hay cómo cubrirse.
             h.amount = static_cast<std::int32_t>(std::int64_t{h.amount} * params_.climb_exposed_percent / kPercent);
+        }
+        if (const Formation* f = registry.try_get<Formation>(h.target); f != nullptr && f->active) {
+            // Formación (B5): el cuadro aguanta a la caballería pero es blanco fácil.
+            const CombatStats& by = units_[h.attacker_type].combat;
+            std::int64_t amount = h.amount;
+            if (by.projectile_speed.raw() != 0) {
+                amount = amount * f->ranged_taken_percent / kPercent;
+            } else if (by.armor_class == params_.cavalry_class) {
+                amount = amount * f->cavalry_taken_percent / kPercent;
+            }
+            h.amount = static_cast<std::int32_t>(std::max<std::int64_t>(amount, 1));
         }
     }
     for (const Hit& h : hits_) {

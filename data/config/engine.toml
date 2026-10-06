@@ -210,6 +210,47 @@ climb_ticks = 100
 reach_milli_tiles = 800
 exposed_percent = 150
 
+[formation]
+# Formaciones (B5): valen con al menos 4 en la misma formación a 3 casillas o menos;
+# al moverse, cada una va a su puesto, a 1 casilla de las vecinas.
+# Cuadro: el erizo de picas del «schiltron», «the thick-set grove of twelve foot spears
+# was far too dense for the cavalry to penetrate» (Wikipedia, «Schiltron»): anula la
+# carga y la caballería le hace la mitad; lento, y blanco fácil para los arqueros
+# (Falkirk, 1298): las flechas le hacen un 25 % más.
+# Columna: marcha un 15 % más rápido (valor de diseño: así se marchaba, pero no tengo
+# una fuente medieval que lo cifre); desplegada pega un 20 % menos y la caballería que
+# la pilla de lado, un 20 % más.
+# Línea: todos con tiro libre: los tiradores hieren un 20 % más; marcha al 90 %.
+enabled = true
+min_members = 4
+cohesion_milli_tiles = 3000
+spacing_milli_tiles = 1000
+cavalry_class = "caballeria"
+
+[formation.line]
+speed_percent = 90
+melee_attack_percent = 100
+ranged_attack_percent = 120
+cavalry_taken_percent = 100
+ranged_taken_percent = 100
+stops_charge = false
+
+[formation.column]
+speed_percent = 115
+melee_attack_percent = 80
+ranged_attack_percent = 80
+cavalry_taken_percent = 120
+ranged_taken_percent = 100
+stops_charge = false
+
+[formation.square]
+speed_percent = 50
+melee_attack_percent = 100
+ranged_attack_percent = 90
+cavalry_taken_percent = 50
+ranged_taken_percent = 125
+stops_charge = true
+
 [fatigue]
 # Fatiga (B3). Cansancio de 0 a 100000 (agotada). Vegetius: «They should march with the
 # common military step twenty miles in five summer-hours, and with the full step,

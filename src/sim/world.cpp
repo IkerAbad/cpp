@@ -67,6 +67,7 @@ World::World(const WorldParams& params)
       fatigue_(params.fatigue, params.unit_types),
       garrison_(params.garrison, params.unit_types, params.building_types),
       climb_(params.climb, params.unit_types, params.building_types),
+      formation_(map_->width(), map_->height(), params.formation, params.unit_types),
       vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
@@ -270,7 +271,13 @@ void World::apply_command(const Command& command) {
     supply_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     medicine_.apply(registry_, movement_, command, units, next_order_id_, tick_);
     fatigue_.apply(registry_, command, units);
-    if (command.type == CommandType::Move) {
+    // En formación, cada una a su puesto; el resto, al destino como siempre.
+    const std::vector<entt::entity> placed =
+        formation_.apply(registry_, movement_, command, units, next_order_id_, tick_);
+    if (!placed.empty()) {
+        std::erase_if(units, [&](entt::entity e) { return std::ranges::find(placed, e) != placed.end(); });
+    }
+    if (command.type == CommandType::Move && (placed.empty() || !units.empty())) {
         movement_.order_move(registry_, units, command.target, next_order_id_++, tick_);
     } else if (command.type == CommandType::Stop) {
         MovementSystem::stop(registry_, units);
@@ -303,6 +310,7 @@ void World::step() {
     medicine_.update(registry_, movement_, economy_, next_order_id_, tick_);
     garrison_.update(registry_, movement_, economy_, next_order_id_, tick_);
     climb_.update(registry_, movement_, economy_, next_order_id_, tick_);
+    formation_.update(registry_);
     combat_.update(registry_, movement_, economy_, fire_, next_order_id_, tick_, &vision_);
     morale_.update(registry_, movement_, combat_.morale_hits(), combat_.morale_deaths(),
                    vision_.daylight_percent(tick_), next_order_id_, tick_);
@@ -443,6 +451,7 @@ std::uint64_t World::state_hash() const {
     fatigue_.hash_into(h, registry_);
     garrison_.hash_into(h, registry_);
     climb_.hash_into(h, registry_);
+    formation_.hash_into(h, registry_);
     vision_.hash_into(h);
     ai_.hash_into(h);
     return h.value();
@@ -506,6 +515,10 @@ void World::write_snapshot(Snapshot& out) const {
         }
         if (const Climbing* cl = registry_.try_get<Climbing>(e); cl != nullptr && cl->timer >= 0) {
             s.climbing = true;
+        }
+        if (const Formation* fm = registry_.try_get<Formation>(e)) {
+            s.formation = fm->kind;
+            s.formation_active = fm->active;
         }
         if (const Carer* c = registry_.try_get<Carer>(e)) {
             s.tending = true;

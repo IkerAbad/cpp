@@ -23,6 +23,7 @@ add_library(rts_sim STATIC
     sim/fatigue.cpp
     sim/garrison.cpp
     sim/climb.cpp
+    sim/formation.cpp
     sim/vision.cpp
     sim/map_gen.cpp
     sim/movement.cpp

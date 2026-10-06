@@ -387,6 +387,20 @@ Fuentes:
 - **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
+### Formaciones
+
+Línea, columna y cuadro (`[formation]` en `engine.toml`; botones en el panel de la tropa). Una formación solo vale con al menos 4 en ella a 3 casillas o menos; al moverse, cada una va a su puesto.
+
+| Formación | Marcha | Ataque | Recibe de la caballería | Recibe de flechas | Carga |
+|---|---|---|---|---|---|
+| Línea | 90 % | tiradores 120 % | 100 % | 100 % | — |
+| Columna | 115 % | 80 % | 120 % | 100 % | — |
+| Cuadro | 50 % | tiradores 90 % | 50 % | 125 % | la anula |
+
+- **Cuadro:** es el erizo de picas del *schiltron*, «the thick-set grove of twelve foot spears was far too dense for the cavalry to penetrate» ([Schiltron](https://en.wikipedia.org/wiki/Schiltron)). En Falkirk (1298) cayó ante los arqueros, y por eso las flechas le hacen más daño.
+- **Columna:** su ventaja de velocidad es un valor de diseño. Así se marchaba, pero no tengo una fuente medieval que la cifre.
+- **IA:** aún no usa formaciones (punto D3 del plan).
+
 ### Fortificaciones
 
 Muros, puertas, torres y escalas (B4). Todo de una casilla, para trazarlo tramo a tramo (Mayús + clic sigue colocando).

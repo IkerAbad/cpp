@@ -45,6 +45,7 @@ esconden, y un asedio sin suministro fracasa.
 | Sanidad | Puesto de socorro, hospital de campaña, hospital, enfermeros, cirujanos, heridas leves, reorganización |
 | Niebla | Tres estados, árboles, altura, día y noche, memoria de edificios |
 | Terreno | Altura para tiradores y cuerpo a cuerpo, bosque que cubre, marcha por terreno, carga en llano |
+| Formaciones | Línea (tiro), columna (marcha), cuadro (contra caballería y carga) |
 | Fortificaciones | Empalizada, muralla, puertas del dueño, torres con guarnición, escalas; la IA rodea o abre brecha |
 | Fatiga | Marcha y combate cansan, descanso, paso forzado, aguante por tipo |
 | Moral | Bajas cercanas, flanco y retaguardia, contagio, hambre, noche, héroes; desbandada, persecución y rehacerse |
@@ -117,7 +118,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   - Escalas de asedio para tomar la muralla.
   - *Terminado:* la IA rodea o derriba los muros; pruebas de paso por la puerta y
     de guarnición.
-- [ ] **B5. Formaciones.** Línea, columna y cuadro, con efectos:
+- [x] **B5. Formaciones.** Línea, columna y cuadro, con efectos:
   - la columna marcha más rápido;
   - el cuadro aguanta la carga de caballería;
   - la línea concentra el tiro.

@@ -1152,6 +1152,11 @@ private:
         if (e.climbing) {
             ImGui::TextColored(kWarnColor, "subiendo por una escala: no pelea y está expuesto");
         }
+        if (e.formation != sim::FormationKind::None) {
+            static constexpr std::array<const char*, 4> kNames{"", "línea", "columna", "cuadro"};
+            ImGui::Text("en %s%s", kNames[static_cast<std::size_t>(e.formation)],
+                        e.formation_active ? "" : " (pocos para formar: sin efecto)");
+        }
         if (e.fatigue >= 0) {
             ImGui::Text("cansancio %d %%%s", e.fatigue * kPercent / sim::kFullFatigue,
                         e.forced_march ? " · a paso forzado" : "");
@@ -1701,6 +1706,24 @@ private:
                     sim::Command c = local_command(sim::CommandType::SetStance);
                     c.kind = sim::kPaceForced;
                     issue(std::move(c));
+                }
+            }
+            if (world_.formation().enabled()) {
+                constexpr std::array<std::pair<const char*, sim::FormationKind>, 4> kForms{{
+                    {"Sin formación", sim::FormationKind::None},
+                    {"Línea", sim::FormationKind::Line},
+                    {"Columna", sim::FormationKind::Column},
+                    {"Cuadro", sim::FormationKind::Square},
+                }};
+                for (std::size_t i = 0; i < kForms.size(); ++i) {
+                    if (i > 0) {
+                        ImGui::SameLine();
+                    }
+                    if (ImGui::Button(kForms[i].first)) {
+                        sim::Command c = local_command(sim::CommandType::SetStance);
+                        c.kind = static_cast<std::uint8_t>(sim::kFormationBase + static_cast<std::uint8_t>(kForms[i].second));
+                        issue(std::move(c));
+                    }
                 }
             }
             if (workers > 0) {

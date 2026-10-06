@@ -332,6 +332,38 @@ climb_ticks = 100
 reach_milli_tiles = 800
 exposed_percent = 150
 
+[formation]
+enabled = false
+min_members = 4
+cohesion_milli_tiles = 3000
+spacing_milli_tiles = 1000
+cavalry_class = "infanteria"
+
+[formation.line]
+speed_percent = 90
+melee_attack_percent = 100
+ranged_attack_percent = 120
+cavalry_taken_percent = 100
+ranged_taken_percent = 100
+stops_charge = false
+
+[formation.column]
+speed_percent = 115
+melee_attack_percent = 80
+ranged_attack_percent = 80
+cavalry_taken_percent = 120
+ranged_taken_percent = 100
+stops_charge = false
+
+[formation.square]
+speed_percent = 50
+melee_attack_percent = 100
+ranged_attack_percent = 90
+cavalry_taken_percent = 50
+ranged_taken_percent = 125
+stops_charge = true
+
+
 [fatigue]
 enabled = false
 march_per_tick = 15
