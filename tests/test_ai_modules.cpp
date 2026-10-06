@@ -387,12 +387,29 @@ const Command* find_order(const std::vector<Command>& out, CommandType type) {
 
 }  // namespace
 
-TEST_CASE("IA: con ejército para atacar entrena bagaje; el vacío va a cargar a casa") {
+namespace {
+
+// Dos soldados de la IA en campaña (ataque-movimiento lejos de casa).
+void field_army(World& world) {
+    std::vector<std::uint32_t> ids{world.spawn_unit(kAi, kSoldier, {100, 150}),
+                                   world.spawn_unit(kAi, kSoldier, {101, 150})};
+    world.step();
+    Command am;
+    am.type = CommandType::AttackMove;
+    am.player = kAi;
+    am.units = ids;
+    am.target = {60, 150};
+    world.issue(am);
+}
+
+}  // namespace
+
+TEST_CASE("IA: con el ejército en campaña y la aldea completa entrena bagaje; el vacío va a cargar a casa") {
     BaggageSetup s;
+    s.ai.profiles[1].villager_target = 0;  // aldea completa
     World world(s.params);
     ai_base(world);
-    world.spawn_unit(kAi, kSoldier, {140, 150});
-    world.spawn_unit(kAi, kSoldier, {141, 150});
+    field_army(world);
     const auto mule = world.spawn_unit(kAi, s.mule, {145, 155});
     world.step();
     const auto out = s.think(world);
@@ -402,6 +419,16 @@ TEST_CASE("IA: con ejército para atacar entrena bagaje; el vacío va a cargar a
     const Command* convoy = find_order(out, CommandType::Convoy);
     REQUIRE(convoy != nullptr);
     CHECK(convoy->units == std::vector<std::uint32_t>{mule});
+}
+
+TEST_CASE("IA: con la aldea a medias no entrena bagaje: el centro urbano es para los aldeanos") {
+    BaggageSetup s;
+    s.ai.profiles[1].villager_target = 30;
+    World world(s.params);
+    ai_base(world);
+    field_army(world);
+    world.step();
+    CHECK(find_order(s.think(world), CommandType::Train) == nullptr);
 }
 
 TEST_CASE("IA: el bagaje cargado sigue al ejército en campaña por detrás; las tropas se abastecen en él") {

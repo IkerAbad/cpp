@@ -515,10 +515,12 @@ army = ["leva", "hombre_armas", "arquero"]
 # batalla), fuego concentrado, dos aldeanos en cola y casas con más margen.
 # Niveles (D4): fácil, normal, difícil y experto. Juegan con las mismas reglas y costes;
 # los separa lo que piensan (los módulos que usan) y la paciencia. Medido en 40
-# partidas: normal gana a fácil el 82 % y experto el 90 %; entre normal, difícil y
-# experto la diferencia aún no es significativa (52 % y 47 %): los módulos de más
-# juegan más rico (emboscadas, formaciones, sanidad), pero todavía no más fuerte. La
-# logística, medida aparte, resta (32 %): ningún nivel la usa hasta mejorarla.
+# partidas: normal y difícil ganan a fácil el 82 % y experto el 90 %; entre normal,
+# difícil y experto la diferencia aún no es significativa (50 %, 50 %; experto contra
+# normal, 62 %): los módulos de más
+# juegan más rico (emboscadas, formaciones, sanidad, convoyes), pero todavía no más
+# fuerte. La logística restaba (32 %) porque el bagaje le quitaba el centro urbano a
+# los aldeanos; ahora solo se entrena con la aldea completa y queda neutra (55 %).
 # Normal: economía, ejército según el rival, ataque por fuerza y fuego concentrado.
 [[ai.profile]]
 name = "normal"
@@ -609,10 +611,10 @@ fog_guard_army = 6
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 # Difícil: como el normal, y además emboscadas, formaciones según la situación,
-# retirada por moral, incendios, taller y asalto de recintos, y sanidad.
+# retirada por moral, incendios, taller y asalto de recintos, sanidad y convoyes.
 [[ai.profile]]
 name = "dificil"
-behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad"]
+behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "logistica"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
@@ -702,7 +704,7 @@ army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", 
 # el 150 % de la fuerza enemiga.
 [[ai.profile]]
 name = "experto"
-behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "herreria"]
+behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "herreria", "logistica"]
 villager_target = 30
 gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5

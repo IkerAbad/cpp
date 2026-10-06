@@ -156,9 +156,9 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
     de las partidas.
   - *Estado de D4:* los cuatro niveles existen, y la CI comprueba que `normal` y
     `experto` ganan a `facil`. Entre `normal`, `difícil` y `experto` (40 partidas)
-    sale 52 % y 47 %, sin diferencia significativa. Falta que piensen mejor:
-    arreglar el módulo de logística (resta: 32 %) y que los módulos tácticos sumen
-    fuerza, no solo variedad. Se medirá siempre con 40 partidas: con 10, el ruido
+    sale 50 % y 50 % (`experto` contra `normal`, 62 %), sin diferencia significativa.
+    La logística ya no resta (de 32 % a 55 %: el bagaje no le quita el centro urbano
+    a los aldeanos). Falta que los módulos tácticos sumen fuerza, no solo variedad. Se medirá siempre con 40 partidas: con 10, el ruido
     es de ±15 puntos.
 
 ### Fase E — Multijugador (M8)

@@ -1090,9 +1090,13 @@ void logistics(Decision& d) {
     }
     const UnitTypeId carrier = *d.params.carrier;
     const std::int32_t capacity = d.catalog().units[carrier].convoy_capacity;
-    const bool campaigning = std::cmp_greater_equal(v.army.size(), d.profile.min_attack_army);
+    // Bagaje solo con el ejército ya en campaña y la aldea completa: en el centro urbano
+    // le quitaría el turno a los aldeanos, y frenar la economía cuesta más que lo que
+    // el bagaje aporta (medido: con la aldea a medias, la logística restaba).
+    const bool campaigning = field_center(d).has_value();
+    const bool village_done = std::cmp_greater_equal(v.workers.size(), d.profile.villager_target);
     const Stock& cost = d.catalog().units[carrier].cost;
-    if (campaigning && std::cmp_less(v.carriers.size(), d.profile.convoy_carriers) && v.town_center &&
+    if (campaigning && village_done && std::cmp_less(v.carriers.size(), d.profile.convoy_carriers) && v.town_center &&
         v.town_center_queue < d.profile.villager_queue && d.population < d.ps.population_cap &&
         affordable(d.budget, cost)) {
         Command c = d.order(CommandType::Train);
