@@ -758,7 +758,9 @@ army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", 
 name = "experto"
 behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "herreria", "logistica"]
 villager_target = 30
-gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
+# D4: medio ejército de aldeanos a la comida (aldeanos y raciones salen de ella; el
+# hierro se acumulaba sin usar). Medido: gana al difícil 15 de 20 (antes, 6 de 10).
+gather_percent = { comida = 50, madera = 35, oro = 5, piedra = 0, hierro = 10 }
 house_margin = 5
 barracks_at_villagers = 8
 dropoff_distance_tiles = 12
