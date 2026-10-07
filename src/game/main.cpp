@@ -12,6 +12,7 @@
 
 #include "game/app.hpp"
 #include "game/config.hpp"
+#include "game/crash_report.hpp"
 #include "platform/window.hpp"
 
 namespace {
@@ -52,6 +53,10 @@ int run(int argc, char** argv, bool& windowed) {
         return 2;
     }
     windowed = !options->headless && options->verify_replay.empty();
+    // Informes de errores (G3): una caída deja repetición y registro.
+    const std::filesystem::path exe_dir = rts::platform::executable_dir();
+    rts::game::install_crash_handlers(
+        options->report_dir.empty() ? exe_dir / rts::game::kReportDir : options->report_dir, exe_dir / "rts.log");
     // Las repeticiones llevan sus propios datos: no se lee data/.
     if (!options->verify_replay.empty()) {
         return rts::game::run_verify_replay(options->verify_replay);
@@ -74,7 +79,7 @@ int run(int argc, char** argv, bool& windowed) {
         return rts::game::run_net_windowed(*data, *options);
     }
     if (options->headless) {
-        return rts::game::run_headless(*data, options->headless_ticks, options->record);
+        return rts::game::run_headless(*data, options->headless_ticks, options->record, options->crash_at);
     }
     // Sin límite de fotogramas (lo normal al abrirlo), el menú; con él (pruebas de humo),
     // directamente una partida.

@@ -25,6 +25,10 @@ struct LaunchOptions {
     std::uint8_t net_players = 2;  // anfitrión: jugadores en total, él incluido
     std::string join_host;
     std::uint16_t join_port = 0;
+    // Informes de errores (G3): dónde se escriben (vacío: informes/ junto al ejecutable).
+    std::filesystem::path report_dir;
+    // Solo para probar los informes: sin ventana, provocar una caída en este tick.
+    std::int64_t crash_at = -1;
 };
 
 // Analiza argv. Devuelve nullopt y escribe la ayuda si los argumentos no son válidos.
@@ -34,7 +38,9 @@ struct Replay;
 
 // Simula sin ventana ni GPU y escribe el hash final. Lo usa la CI. Con record no vacío,
 // graba la partida en ese fichero.
-int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem::path& record);
+// crash_at >= 0: provoca una caída en ese tick (prueba de los informes de errores, G3).
+int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem::path& record,
+                 std::int64_t crash_at = -1);
 
 // Partida en red sin ventana: el anfitrión espera a los invitados y fija la duración
 // (ticks); cada uno da órdenes de prueba a su jugador ([net.probe]) y la IA juega dentro

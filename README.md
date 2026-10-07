@@ -758,6 +758,17 @@ Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el ca
 
 `rts_fuzz --data data [--seeds N] [--ticks T] [--orders K] [--only texto] [--first-seed S]` juega partidas reales (2 y 4 jugadores, con y sin niebla, y cada capítulo de la campaña) dándoles órdenes al azar: muchas válidas y otras mal formadas a propósito (unidades ajenas o inexistentes y repetidas, casillas fuera del mapa, tipos y jugadores que no existen). Cada 20 ticks comprueba las invariantes (unidades dentro del mapa, vida en rango, almacenes y cargas sin negativos), que otro mundo con las mismas órdenes tenga el mismo hash y, al final, que la repetición grabada se reproduzca igual. Encontró una caída: una orden con una unidad repetida la guarnecía dos veces y EnTT abortaba; ahora cada unidad cuenta una vez.
 
+
+### Informe de errores (G3)
+
+Si el juego se cae (violación de memoria, `abort` o una aserción, una excepción que nadie captura) o una partida en red se desincroniza, escribe `informes/informe-<fecha>/` junto al ejecutable (o en `--report-dir`):
+
+- `partida.rtsrep`: la repetición hasta ese tick. `rts --verify-replay` la reproduce y `--replay` la enseña, así que el fallo se repite en otra máquina.
+- `rts.log`: el registro.
+- `informe.txt`: qué pasó, en qué tick y con qué compilación.
+
+Ante una señal, escribir ficheros no es del todo seguro; es un último intento y luego el programa termina como lo habría hecho. La prueba `crash_report` de CTest provoca una caída (`--crash-at 200`, solo para eso) y comprueba el informe en las cuatro plataformas.
+
 ## Rendimiento medido
 
 Release, Clang 20, contenedor de 4 núcleos. Guion de `rts_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.

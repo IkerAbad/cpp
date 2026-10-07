@@ -5,6 +5,7 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -27,6 +28,7 @@
 #include "game/i18n.hpp"
 #include "game/options.hpp"
 #include "game/campaign.hpp"
+#include "game/crash_report.hpp"
 #include "game/alerts.hpp"
 #include "game/fixed_step.hpp"
 #include "game/lockstep.hpp"
@@ -153,6 +155,7 @@ void print_usage() {
     spdlog::info("     rts --load <partida.rtssav> [--frames <N>]  (F5 guarda durante la partida)");
     spdlog::info("     rts --headless --ticks <N> --host <puerto> [--players <N>] [--record <fichero>]");
     spdlog::info("     rts --headless --join <dirección>:<puerto> [--record <fichero>]");
+    spdlog::info("     [--report-dir <carpeta>]  informes de errores (por omisión, informes/ junto al ejecutable)");
 }
 
 
@@ -466,6 +469,9 @@ public:
         } else {
             recorder_.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
             replay_path_ = auto_replay_path(data);
+            if (editor_ == nullptr) {
+                crash_guard_.emplace(*recorder_, *world_);  // G3: un fallo guarda esta partida
+            }
             if (resume != nullptr) {
                 // Partida guardada: se rehace hasta donde se guardó y se sigue desde ahí.
                 if (auto ok = resume_saved_game(*resume, *world_, *recorder_); !ok) {
@@ -1144,6 +1150,10 @@ private:
         if (net_ != nullptr) {
             net_->poll(0);
             net_waiting_ = false;
+            if (net_->desync() && !desync_reported_) {
+                desync_reported_ = true;
+                write_crash_report(std::format("desincronización en red: {}", net_->error()));
+            }
         }
         const StepPlan plan = clock_.advance(sim_ns);
         const auto start = SteadyClock::now();
@@ -2847,6 +2857,8 @@ private:
     std::vector<render::Vec2> path_points_;
     std::vector<render::Vec2> projectile_points_;
     std::optional<ReplayRecorder> recorder_;
+    std::optional<CrashGuard> crash_guard_;  // después de recorder_ y world_: se va antes
+    bool desync_reported_ = false;
     std::filesystem::path replay_path_;
     std::optional<ReplayPlayer> player_;
     sim::Tick replay_end_ = 0;
@@ -2915,6 +2927,13 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
                 spdlog::error("--join necesita <dirección>:<puerto>, recibido '{}'", argv[i]);
                 return std::nullopt;
             }
+        } else if (arg == "--report-dir" && has_value) {
+            options.report_dir = argv[++i];
+        } else if (arg == "--crash-at" && has_value) {
+            if (!parse_count(argv[++i], options.crash_at)) {
+                spdlog::error("--crash-at necesita un tick, recibido '{}'", argv[i]);
+                return std::nullopt;
+            }
         } else if (arg == "--load" && has_value) {
             options.load = argv[++i];
         } else if (arg.ends_with(".rtsrep")) {
@@ -2930,13 +2949,18 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
     return options;
 }
 
-int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem::path& record) {
+int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem::path& record,
+                 std::int64_t crash_at) {
     const auto gen_start = SteadyClock::now();
     sim::World world(data.engine.world);
     const double gen_ms = elapsed_ms(gen_start);
     std::optional<ReplayRecorder> recorder;
     if (!record.empty()) {
         recorder.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
+    }
+    std::optional<CrashGuard> guard;
+    if (recorder) {
+        guard.emplace(*recorder, world);
     }
     issue_scenario(data, world, [&](sim::Command c) {
         if (recorder) {
@@ -2948,6 +2972,10 @@ int run_headless(const GameData& data, std::int64_t ticks, const std::filesystem
 
     const auto start = SteadyClock::now();
     for (std::int64_t i = 0; i < ticks; ++i) {
+        if (i == crash_at) {
+            spdlog::warn("--crash-at: caída provocada en el tick {}", world.tick());
+            std::raise(SIGSEGV);
+        }
         world.step();
         if (recorder) {
             recorder->after_step(world);
@@ -3013,6 +3041,10 @@ int run_net_headless(const GameData& data, const LaunchOptions& options) {
     if (!options.record.empty()) {
         recorder.emplace(data.files, data.engine.replay.checkpoint_interval_ticks);
     }
+    std::optional<CrashGuard> guard;
+    if (recorder) {
+        guard.emplace(*recorder, world);
+    }
     const auto issue = [&](sim::Command c) {
         if (recorder) {
             recorder->issue(world, std::move(c));
@@ -3068,6 +3100,9 @@ int run_net_headless(const GameData& data, const LaunchOptions& options) {
     }
     if (session->state() != LockstepState::Finished) {
         spdlog::error("red: {}", session->error());
+        if (session->desync()) {
+            write_crash_report(std::format("desincronización en red: {}", session->error()));
+        }
         return 1;
     }
     spdlog::info("red: todos los jugadores acaban con el mismo hash");

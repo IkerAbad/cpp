@@ -55,3 +55,9 @@ add_test(NAME sim_purity
 
 # Humo: el ejecutable arranca, lee data/ y simula un minuto de juego sin ventana.
 add_test(NAME headless_smoke COMMAND rts --headless --ticks 1200)
+
+# Informe de errores (G3): una caída provocada deja repetición, registro e informe.
+add_test(NAME crash_report
+    COMMAND ${CMAKE_COMMAND} -DRTS=$<TARGET_FILE:rts> -DDATA=${PROJECT_SOURCE_DIR}/data
+            -DREPORT_DIR=${CMAKE_CURRENT_BINARY_DIR}/informes_prueba
+            -P ${PROJECT_SOURCE_DIR}/cmake/CheckCrashReport.cmake)

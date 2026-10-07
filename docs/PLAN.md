@@ -218,7 +218,11 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   repetición verificada. Encontró una caída real (una unidad repetida en una orden,
   posible por la red), ya arreglada. Medido: 672 000 órdenes en Release y 63 000 con
   aserciones, sin fallos; en la CI, 3 semillas x 6000 ticks en cada partida.
-- [ ] **G3. Informe de errores.** Ante un fallo, guardar la repetición y el registro.
+- [x] **G3. Informe de errores.** Ante un fallo, guardar la repetición y el registro.
+  Hecho: ante una caída (violación de memoria, abort o aserción, excepción sin
+  capturar) o una desincronización en red, `informes/informe-<fecha>/` con la
+  repetición hasta ese tick, el registro y un resumen. Una prueba de CTest provoca una
+  caída y comprueba que la repetición del informe se reproduce.
 
 ## 4. Cómo se trabaja cada punto
 

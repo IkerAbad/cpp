@@ -73,6 +73,7 @@ add_library(rts_game_core STATIC
     game/lockstep.cpp
     game/sound_director.cpp
     game/campaign.cpp
+    game/crash_report.cpp
     game/fuzz.cpp
     game/i18n.cpp
     game/options.cpp
