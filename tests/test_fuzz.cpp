@@ -111,17 +111,18 @@ count = 2
     REQUIRE(s.entities.size() == 2);
     const auto tower = std::ranges::find(s.objects, rts::sim::ObjectKind::Building, &rts::sim::SnapshotObject::kind);
     REQUIRE(tower != s.objects.end());
+    const std::uint32_t tower_id = tower->id;  // el snapshot se reescribe abajo
     rts::sim::Command c;
     c.type = rts::sim::CommandType::Garrison;
     c.player = 0;
     c.units = {s.entities[0].id, s.entities[0].id, s.entities[1].id, s.entities[0].id};
-    c.object = tower->id;
+    c.object = tower_id;
     world.issue(c);
     for (int t = 0; t < 400; ++t) {
         world.step();
     }
     world.write_snapshot(s);
-    const auto t = std::ranges::find(s.objects, tower->id, &rts::sim::SnapshotObject::id);
+    const auto t = std::ranges::find(s.objects, tower_id, &rts::sim::SnapshotObject::id);
     REQUIRE(t != s.objects.end());
     CHECK(t->garrison == 2);
     CHECK_FALSE(rts::game::check_invariants(world));
