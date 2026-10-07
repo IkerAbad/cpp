@@ -212,8 +212,12 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   la CI. Hecho: medido aquí (4 núcleos), movimiento media 14,4 ms y máximo 30,5 ms;
   batalla de 2000 contra 2000, media 18,8 ms y máximo 37,8 ms. La CI lo comprueba en
   cada cambio (pasa también en su máquina).
-- [ ] **G2. Pruebas aleatorias de órdenes.** Órdenes al azar sobre partidas reales
-  sin que nada se rompa ni se desincronice.
+- [x] **G2. Pruebas aleatorias de órdenes.** Órdenes al azar sobre partidas reales
+  sin que nada se rompa ni se desincronice. Hecho: `rts_fuzz` (y pruebas cortas)
+  con órdenes válidas y mal formadas, invariantes, dos mundos a la par y la
+  repetición verificada. Encontró una caída real (una unidad repetida en una orden,
+  posible por la red), ya arreglada. Medido: 672 000 órdenes en Release y 63 000 con
+  aserciones, sin fallos; en la CI, 3 semillas x 6000 ticks en cada partida.
 - [ ] **G3. Informe de errores.** Ante un fallo, guardar la repetición y el registro.
 
 ## 4. Cómo se trabaja cada punto

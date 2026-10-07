@@ -753,6 +753,11 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 
 Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el cambio de diseño es intencionado, se actualiza `kExpectedHash` en el mismo commit y se justifica en el mensaje.
 
+
+### Órdenes al azar (G2)
+
+`rts_fuzz --data data [--seeds N] [--ticks T] [--orders K] [--only texto] [--first-seed S]` juega partidas reales (2 y 4 jugadores, con y sin niebla, y cada capítulo de la campaña) dándoles órdenes al azar: muchas válidas y otras mal formadas a propósito (unidades ajenas o inexistentes y repetidas, casillas fuera del mapa, tipos y jugadores que no existen). Cada 20 ticks comprueba las invariantes (unidades dentro del mapa, vida en rango, almacenes y cargas sin negativos), que otro mundo con las mismas órdenes tenga el mismo hash y, al final, que la repetición grabada se reproduzca igual. Encontró una caída: una orden con una unidad repetida la guarnecía dos veces y EnTT abortaba; ahora cada unidad cuenta una vez.
+
 ## Rendimiento medido
 
 Release, Clang 20, contenedor de 4 núcleos. Guion de `rts_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.

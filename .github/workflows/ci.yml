@@ -232,7 +232,7 @@ jobs:
       - name: Configurar y compilar (RelWithDebInfo)
         run: |
           cmake --preset linux-clang-release
-          cmake --build --preset linux-clang-release --target rts_bench rts_ai_match rts_tests
+          cmake --build --preset linux-clang-release --target rts_bench rts_ai_match rts_tests rts_fuzz
 
       # Criterio de M2: ningún tick por encima de 50 ms (el presupuesto de un tick a
       # 20 Hz). El runner es compartido: un fallo aislado se reproduce antes de culpar
@@ -262,6 +262,11 @@ jobs:
       # 30 minutos de partida por defecto con la IA en todos los jugadores.
       - name: IA contra IA, 30 minutos
         run: build/linux-clang-release/bench/rts_bench --ticks 36000 --max-ms 50 --ai-data data
+
+      # Órdenes al azar (G2): 3 semillas x 6000 ticks en partidas de 2 y 4 jugadores,
+      # con y sin niebla, y en cada capítulo; sin caídas, invariantes rotas ni divergencias.
+      - name: Órdenes al azar
+        run: build/linux-clang-release/bench/rts_fuzz --data data --seeds 3 --ticks 6000
 
       # Equilibrio de la campaña (F4): lo que es lento sin optimizar, aquí.
       - name: Campaña (equilibrio de Las Navas)
