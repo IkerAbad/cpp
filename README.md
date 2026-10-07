@@ -312,7 +312,7 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
   - No hay sonidos de ambiente (viento, pájaros, agua).
   - El volumen solo se cambia en `sound.toml`; las opciones en pantalla son de F5.
 
-### Mapas: ríos con vados y de 2 a 4 jugadores (F3)
+### Mapas: ríos con vados, de 2 a 4 jugadores y editor de escenarios (F3)
 
 - **Tipos de mapa.**
   - En el menú se elige el mapa:
@@ -332,9 +332,22 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
   - El edificio inicial se busca en la región de tierra más grande del mapa, que es una sola. Antes bastaba con una región «grande», y un lago podía dejar a un jugador en una isla.
   - Si aun así el bosque corta el paso entre dos inicios, se talan los árboles del camino más corto por terreno transitable. Nunca se quita una mina ni unas bayas.
   - Medido en 270 combinaciones (3 tipos de mapa, 30 semillas, 2, 3 y 4 jugadores): todos los inicios se alcanzan por tierra en todas.
+- **Editor de escenarios.**
+  - En el menú, «Nuevo escenario con este mapa» abre el editor sobre el mapa generado con los ajustes de arriba: semilla, tipo de mapa y jugadores.
+  - El editor es la misma vista del juego, sin simulación ni niebla. Sus herramientas:
+    - pintar terreno con pincel de 1 a 8 casillas, arrastrando;
+    - subir (botón izquierdo) y bajar (derecho) la altura;
+    - colocar recursos, edificios y unidades de cada jugador, con el edificio fantasma donde va;
+    - borrar, también con el botón derecho;
+    - elegir de 1 a 4 jugadores, guardar y probar.
+  - El mundo se rehace al soltar el pincel o tras cada cambio (unos 65 ms en Release). Mientras se arrastra, el trazo se ve teñido.
+  - Los escenarios se guardan en `escenarios/` junto al ejecutable. Es un TOML legible: el terreno y la altura van con una letra o un dígito por casilla, y debajo la lista de objetos.
+  - Desde el menú se juegan o se editan. Al jugar, el escenario viaja con los datos de la partida (`config/escenario.toml`), así que la repetición y la partida en red lo llevan dentro.
 - **Límite conocido.**
   - Se puede construir sobre un vado.
   - La IA cruza los vados como cualquier terreno, sin planear dónde defenderlos.
+  - El editor no tiene deshacer.
+  - Un escenario no lleva aún objetivos ni sucesos (eso es la campaña, F4).
 
 ### Repeticiones (M5)
 
@@ -703,6 +716,7 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `unit`: arte | `art.toml` cubre todos los tipos y rechaza nombres que no existen o repetidos y valores no válidos; cada figura tiene sus poses, la capa del jugador en grises, y andar y golpear cambian el dibujo; generación determinista; edificios con altura por encima de su huella y campos a ras de suelo; terreno sin juntas; árboles variados con pinos; atlas sin solapes con los píxeles de cada imagen; escena con lo de delante pintado después, espejo, obra recortada y llamas con humo |
 | `unit`: sonido | El tono que se pide (cruces por cero) y una octava al subir 1200 cents, sin pasar de ±1 y determinista; ruido distinto por semilla y apagado por el filtro; música con la duración de sus compases, sin saturar; mezclador con panorama, robo de la voz más débil, música en bucle y fundido; banco con versiones; director que hace sonar lo visible con panorama, calla lo lejano y lo cubierto por la niebla, respeta las esperas, cambia a música de batalla y vuelve a la de paz, y oye bajas, derrumbes, obras, avisos, órdenes, trabajo y fuego; errores claros en `sound.toml` |
 | `unit`: mapas | Sin ríos, el mapa es idéntico al de siempre; con ríos, cruzan de borde a borde, con vados, lejos de los inicios y siempre igual; con «Ríos» y «Gran río», 2 y 4 jugadores y varias semillas, todos los inicios en la misma región de tierra; tipo de mapa desconocido, error claro |
+| `unit`: escenarios | Un mundo capturado sale y vuelve igual del fichero; jugado con él, el mapa y los objetos son los mismos, la IA juega y la repetición (con el escenario dentro) se verifica; pintar, subir, bajar y borrar (la unidad antes que el edificio); errores claros en el fichero |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |

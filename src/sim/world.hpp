@@ -73,8 +73,30 @@ struct SetupParams {
     std::int32_t clear_radius = 0;
 };
 
+// Escenario hecho a mano (F3): mapa y objetos propios en lugar del generador y de la
+// preparación de la partida. Con width = 0, partida generada como siempre.
+struct ScenarioPlacement {
+    enum class Kind : std::uint8_t { Unit, Building, Node };
+    Kind kind = Kind::Unit;
+    std::uint8_t type = 0;  // UnitTypeId, BuildingTypeId o NodeTypeId
+    PlayerId owner = 0;     // unidades y edificios
+    TileCoord at;           // casilla de la unidad, u origen del edificio o del recurso
+};
+
+struct ScenarioParams {
+    std::int32_t width = 0;
+    std::int32_t height = 0;
+    std::vector<TerrainId> terrain;       // width * height, fila a fila
+    std::vector<std::uint8_t> elevation;  // width * height
+    std::vector<ScenarioPlacement> placements;
+    std::int32_t players = 0;
+
+    [[nodiscard]] bool active() const noexcept { return width > 0 && height > 0; }
+};
+
 struct WorldParams {
     MapGenParams map;
+    ScenarioParams scenario;
     std::vector<std::uint8_t> passable_by_terrain;  // por TerrainId
     std::vector<UnitType> unit_types;                // por UnitTypeId
     std::vector<BuildingType> building_types;        // por BuildingTypeId
@@ -232,6 +254,8 @@ public:
 
     // Consultas de solo lectura para la interfaz (fantasma de colocación, clic derecho).
     [[nodiscard]] bool can_place(BuildingTypeId type, TileCoord origin) const;
+    // Cabe algo de size x size con ese origen (libre y transitable): editor de escenarios.
+    [[nodiscard]] bool can_place_size(std::int32_t size, TileCoord origin) const;
     [[nodiscard]] bool meets_requirements(PlayerId player, BuildingTypeId type) const {
         return economy_.meets_requirements(registry_, player, type);
     }
@@ -280,6 +304,7 @@ private:
     };
     [[nodiscard]] std::vector<Footprint> starts_footprints(const std::vector<StartSite>& starts) const;
     void open_paths(const std::vector<Footprint>& feet, NodeTypeId tree_type);
+    void place_scenario(const ScenarioParams& scenario, const Stock& stock);
 
     std::vector<Command> pending_;
     std::vector<Command> ai_orders_;

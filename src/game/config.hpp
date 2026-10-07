@@ -269,6 +269,7 @@ struct GameData {
     Scenario headless_scenario;
     render::ArtSpec art;  // F1; vacío si los datos no traen art.toml (repeticiones antiguas)
     audio::SoundSpec sound;  // F2; vacío si no traen sound.toml
+    std::string scenario_name;  // F3: escenario hecho a mano (vacío: mapa generado)
 };
 
 // data/art.toml: cómo se pinta cada tipo (F1). Todo tipo de los catálogos debe tener su arte.

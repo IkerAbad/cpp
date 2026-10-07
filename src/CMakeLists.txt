@@ -71,6 +71,7 @@ add_library(rts_game_core STATIC
     game/wire.cpp
     game/lockstep.cpp
     game/sound_director.cpp
+    game/scenario.cpp
     game/alerts.cpp
     game/minimap.cpp
     game/selection.cpp)

@@ -1,11 +1,13 @@
 #include "game/app.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <future>
 #include <limits>
 #include <optional>
@@ -25,6 +27,7 @@
 #include "game/alerts.hpp"
 #include "game/fixed_step.hpp"
 #include "game/lockstep.hpp"
+#include "game/scenario.hpp"
 #include "game/sound_director.hpp"
 #include "game/minimap.hpp"
 #include "game/replay.hpp"
@@ -58,6 +61,9 @@ constexpr std::uint8_t kOpaque = 255;
 constexpr sim::PlayerId kLocalPlayer = 0;
 constexpr std::int32_t kPercent = 100;
 constexpr std::int32_t kPermille = 1000;
+// Editor de escenarios (F3): pincel máximo y carpeta de los escenarios (junto al ejecutable).
+constexpr int kMaxBrush = 8;
+constexpr std::string_view kScenarioDir = "escenarios";
 
 render::Rgba opaque(const std::array<std::uint8_t, 3>& rgb) noexcept {
     return {rgb[0], rgb[1], rgb[2], kOpaque};
@@ -399,20 +405,28 @@ public:
     // Con replay, reproduce esa repetición (sin órdenes); sin ella, partida nueva que
     // se graba sola.
     WindowedGame(const GameData& data, platform::Window& window, render::Renderer& renderer, const Replay* replay,
-                 const Replay* resume, LockstepSession* net = nullptr, AudioSystem* audio = nullptr)
+                 const Replay* resume, LockstepSession* net = nullptr, AudioSystem* audio = nullptr,
+                 ScenarioDoc* editor = nullptr)
         : data_(data),
+          editor_(editor),
           net_(net),
           audio_(audio),
           local_(net != nullptr ? net->local_player() : kLocalPlayer),
           window_(window),
           renderer_(renderer),
-          world_(data.engine.world),
+          world_(std::make_unique<sim::World>(data.engine.world)),
           proj_(data.engine.view),
           // A velocidad xN caben N veces más ticks por fotograma.
           clock_({kTickNs, data.engine.loop.max_ticks_per_frame *
                                (replay != nullptr ? data.engine.replay.speeds.back() : 1)}),
           selection_(data.engine.selection) {
         view_player_ = local_;
+        if (editor_ != nullptr) {
+            // Editor de escenarios (F3): todo a la vista, sin simulación ni ayuda de partida.
+            view_player_.reset();
+            show_help_ = false;
+            edit_params_ = data_.engine.world;
+        }
         if (audio_ != nullptr && !data_.sound.recipes.empty()) {
             sounds_.emplace(data_.sound, data_);
         }
@@ -425,18 +439,18 @@ public:
             replay_path_ = auto_replay_path(data);
             if (resume != nullptr) {
                 // Partida guardada: se rehace hasta donde se guardó y se sigue desde ahí.
-                if (auto ok = resume_saved_game(*resume, world_, *recorder_); !ok) {
+                if (auto ok = resume_saved_game(*resume, *world_, *recorder_); !ok) {
                     throw std::runtime_error(ok.error());
                 }
-                spdlog::info("Partida cargada en el tick {}", world_.tick());
+                spdlog::info("Partida cargada en el tick {}", world_->tick());
             }
         }
-        world_.write_snapshot(curr_);
+        world_->write_snapshot(curr_);
         prev_ = curr_;
-        stats_.state_hash = world_.state_hash();
+        stats_.state_hash = world_->state_hash();
         // La cámara arranca sobre el primer edificio del jugador local o, sin él, en el
         // centro del mapa (donde aparecen las unidades de prueba).
-        const sim::TileMap& map = world_.map();
+        const sim::TileMap& map = world_->map();
         render::Vec2 center{static_cast<float>(map.width()) * 0.5f, static_cast<float>(map.height()) * 0.5f};
         for (const sim::SnapshotObject& o : curr_.objects) {
             if (o.kind == sim::ObjectKind::Building && o.owner == local_) {
@@ -448,7 +462,9 @@ public:
         camera_.center_on(proj_.tile_to_world(center), renderer_.screen_size());
     }
 
-    [[nodiscard]] sim::Tick tick() const noexcept { return world_.tick(); }
+    [[nodiscard]] sim::Tick tick() const noexcept { return world_->tick(); }
+    // Editor: se pidió probar el escenario.
+    [[nodiscard]] bool play_requested() const noexcept { return play_requested_; }
 
     // Al salir de run(): ¿se pidió volver al menú (F10 o el botón del final)?
     [[nodiscard]] bool back_to_menu() const noexcept { return back_to_menu_; }
@@ -481,8 +497,8 @@ public:
         spdlog::info("{} fotogramas; medias móviles: escena {:.3f} ms, envío {:.3f} ms (con espera de vsync), "
                      "simulación {:.3f} ms/tick; {} sprites en el último",
                      frame, stats_.scene_ms, stats_.submit_ms, stats_.sim_ms_per_tick, renderer_.sprites_last_frame());
-        if (recorder_ && world_.tick() > 0) {
-            if (const auto saved = save_replay(replay_path_, recorder_->finish(world_)); saved) {
+        if (recorder_ && world_->tick() > 0) {
+            if (const auto saved = save_replay(replay_path_, recorder_->finish(*world_)); saved) {
                 spdlog::info("Repetición guardada en {}", replay_path_.string());
             } else {
                 spdlog::error("Repetición: {}", saved.error());
@@ -500,6 +516,9 @@ private:
                 return false;
             }
             const bool ui_mouse = renderer_.ui_wants_mouse();
+            if (editor_ != nullptr && edit_event(event, ui_mouse)) {
+                continue;
+            }
             switch (event.type) {
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                     if (event.button.button == SDL_BUTTON_LEFT && !ui_mouse) {
@@ -671,7 +690,7 @@ private:
         if (net_ != nullptr) {
             net_->submit(std::move(c));  // sale por la red y se graba al ejecutarse
         } else if (recorder_) {
-            recorder_->issue(world_, std::move(c));
+            recorder_->issue(*world_, std::move(c));
         }
     }
 
@@ -688,7 +707,7 @@ private:
     // Lo que el jugador que mira sabe que hay en la casilla: el objeto si lo ve (o, si
     // es un recurso, si la casilla está explorada) o, si no, el edificio recordado.
     [[nodiscard]] const sim::SnapshotObject* object_under(sim::TileCoord tile) const {
-        const auto id = world_.object_at(tile);
+        const auto id = world_->object_at(tile);
         const sim::SnapshotObject* o = id ? find_object(*id) : nullptr;
         if (o != nullptr && shows_object(*o)) {
             return o;
@@ -806,7 +825,7 @@ private:
         // Se aplica al inicio del siguiente tick; en lockstep (M8) se programará unos
         // ticks más tarde para absorber la latencia.
         sim::Command c;
-        c.tick = world_.tick();
+        c.tick = world_->tick();
         c.player = local_;
         c.type = type;
         c.units = selection_.selected();
@@ -1027,8 +1046,8 @@ private:
             }
         }
         path_points_.clear();
-        const sim::MovementSystem& mv = world_.movement();
-        const auto& reg = world_.registry();
+        const sim::MovementSystem& mv = world_->movement();
+        const auto& reg = world_->registry();
         if (show_portals_) {
             for (std::size_t n = 0; n < mv.hpa().node_count(); ++n) {
                 tints_.push_back({mv.hpa().node_tile(n), data_.engine.view.debug_overlay_color});
@@ -1062,7 +1081,7 @@ private:
         if (show_flow_ && field != nullptr) {
             // Tinte proporcional a la cercanía al destino, solo en las casillas visibles.
             const render::Vec2 screen = renderer_.screen_size();
-            const sim::TileMap& map = world_.map();
+            const sim::TileMap& map = world_->map();
             std::int32_t max_cost = 1;
             render::for_each_visible_tile(proj_, camera_, screen, map.width(), map.height(), [&](std::int32_t i, std::int32_t j) {
                 const std::int32_t c = field->cost(mv.grid(), {i, j});
@@ -1083,9 +1102,12 @@ private:
     }
 
     void simulate(std::int64_t frame_ns) {
+        if (editor_ != nullptr) {
+            return;  // el editor no simula: el mundo es lo que se está dibujando
+        }
         std::int64_t sim_ns = frame_ns;
         if (player_) {
-            const bool stopped = paused_ || player_->finished(world_);
+            const bool stopped = paused_ || player_->finished(*world_);
             sim_ns = stopped ? 0 : frame_ns * data_.engine.replay.speeds[speed_index_];
         }
         if (net_ != nullptr) {
@@ -1096,27 +1118,27 @@ private:
         const auto start = SteadyClock::now();
         for (std::int32_t i = 0; i < plan.ticks; ++i) {
             RTS_PROFILE_ZONE_NAMED("sim_tick");
-            if (player_ && player_->finished(world_)) {
+            if (player_ && player_->finished(*world_)) {
                 break;
             }
             // En red, un turno solo empieza con las órdenes de todos: si faltan, este
             // fotograma no avanza más (la partida va al paso del más lento).
             if (net_ != nullptr &&
-                !net_->begin_tick(world_, [this](sim::Command c) { recorder_->issue(world_, std::move(c)); })) {
+                !net_->begin_tick(*world_, [this](sim::Command c) { recorder_->issue(*world_, std::move(c)); })) {
                 net_waiting_ = net_->state() == LockstepState::Running;
                 break;
             }
             std::swap(prev_, curr_);
             if (player_) {
-                player_->before_step(world_);
+                player_->before_step(*world_);
             }
-            world_.step();
+            world_->step();
             if (player_) {
-                player_->after_step(world_);
+                player_->after_step(*world_);
             } else {
-                recorder_->after_step(world_);
+                recorder_->after_step(*world_);
             }
-            world_.write_snapshot(curr_);
+            world_->write_snapshot(curr_);
             if (sounds_) {
                 sounds_->on_tick(prev_, curr_, local_, [this](sim::Position p) { return locate(p); },
                                  renderer_.screen_size(), now_ms());
@@ -1132,7 +1154,7 @@ private:
         if (plan.ticks > 0) {
             const double per_tick = elapsed_ms(start) / plan.ticks;
             stats_.sim_ms_per_tick += kSmoothing * (per_tick - stats_.sim_ms_per_tick);
-            stats_.state_hash = world_.state_hash();
+            stats_.state_hash = world_->state_hash();
         }
         if (plan.dropped_ticks > 0) {
             spdlog::warn("Fotograma lento: {} ticks descartados", plan.dropped_ticks);
@@ -1160,7 +1182,7 @@ private:
 
         const float dt = std::min(static_cast<float>(frame_ns) / kNsPerSecondF, kMaxCameraDtS);
         camera_.origin = camera_.origin + camera_scroll(data_.engine.camera, input, screen, dt);
-        const sim::TileMap& map = world_.map();
+        const sim::TileMap& map = world_->map();
         camera_.clamp_to_map(proj_, map.width(), map.height(), screen);
     }
 
@@ -1236,6 +1258,9 @@ private:
 
     void draw_ui(const std::optional<sim::TileCoord>& hover) {
         const ImVec2 display = ImGui::GetIO().DisplaySize;
+        if (editor_ != nullptr) {
+            draw_editor(display, hover);
+        }
         draw_resource_bar(display);
         draw_selection_panel(display);
         draw_outcome(display);
@@ -1274,19 +1299,19 @@ private:
         ImGui::Text("alpha: %.3f", stats_.alpha);
         ImGui::Text("Hash de estado: %016llx", static_cast<unsigned long long>(stats_.state_hash));
         ImGui::Separator();
-        const sim::MovementTickStats& mv = world_.movement().last_stats();
+        const sim::MovementTickStats& mv = world_->movement().last_stats();
         ImGui::Text("Movimiento: %d en marcha · %d caminos resueltos, %d pendientes", mv.moving_units, mv.paths_solved,
                     mv.paths_pending);
         ImGui::Text("Nodos expandidos en el último tick: %lld · campos de flujo: %d",
                     static_cast<long long>(mv.nodes_expanded), mv.flow_fields_built);
         ImGui::Text("HPA*: %zu nodos, %zu aristas · sectores rehechos en el último tick: %d",
-                    world_.movement().hpa().node_count(), world_.movement().hpa().edge_count(), mv.sectors_rebuilt);
+                    world_->movement().hpa().node_count(), world_->movement().hpa().edge_count(), mv.sectors_rebuilt);
         ImGui::Checkbox("Portales HPA*", &show_portals_);
         ImGui::SameLine();
         ImGui::Checkbox("Ruta", &show_paths_);
         ImGui::SameLine();
         ImGui::Checkbox("Campo de flujo", &show_flow_);
-        const sim::CombatTickStats& cb = world_.combat().last_stats();
+        const sim::CombatTickStats& cb = world_->combat().last_stats();
         ImGui::Text("Combate: %d golpes, %d proyectiles (%d aciertos, %d fallos), %d bajas en el último tick",
                     cb.melee_hits, cb.projectiles_fired, cb.projectiles_hit, cb.projectiles_missed, cb.kills);
         ImGui::End();
@@ -1368,10 +1393,10 @@ private:
 
     // Mercado (C3): comprar y vender lotes por oro a los precios de ahora.
     void draw_market(const sim::SnapshotObject& o, std::uint32_t id) {
-        if (!data_.buildings.types[o.type].type.market || !world_.market().enabled()) {
+        if (!data_.buildings.types[o.type].type.market || !world_->market().enabled()) {
             return;
         }
-        const sim::MarketParams& mp = world_.market().params();
+        const sim::MarketParams& mp = world_->market().params();
         ImGui::SeparatorText(std::format("Mercado (lotes de {})", mp.lot).c_str());
         ImGui::TextDisabled("Clic derecho con bagaje: caravana desde el mercado propio más cercano");
         static constexpr std::array<const char*, sim::kResourceCount> kNames{"comida", "madera", "piedra", "oro", "hierro"};
@@ -1379,7 +1404,7 @@ private:
             if (mp.base_price[r] <= 0) {
                 continue;
             }
-            ImGui::Text("%s: compra %d, venta %d", kNames[r], curr_.market_prices[r], world_.market().sell_price(r));
+            ImGui::Text("%s: compra %d, venta %d", kNames[r], curr_.market_prices[r], world_->market().sell_price(r));
             ImGui::SameLine();
             ImGui::PushID(static_cast<int>(r));
             if (ImGui::SmallButton("Comprar")) {
@@ -1775,7 +1800,7 @@ private:
     // F5: guarda la partida (su repetición hasta ahora) y lo dice en pantalla.
     void save_game() {
         const auto path = save_game_path(data_);
-        if (auto ok = save_replay(path, recorder_->finish(world_)); !ok) {
+        if (auto ok = save_replay(path, recorder_->finish(*world_)); !ok) {
             spdlog::error("No se pudo guardar: {}", ok.error());
             notice_ = "No se pudo guardar (detalles en rts.log)";
         } else {
@@ -1793,7 +1818,7 @@ private:
                     {static_cast<float>(a.where.x) + 0.5f, static_cast<float>(a.where.y) + 0.5f});
                 const render::Vec2 screen = renderer_.screen_size();
                 camera_.origin = world - screen * 0.5f;
-                camera_.clamp_to_map(proj_, world_.map().width(), world_.map().height(), screen);
+                camera_.clamp_to_map(proj_, world_->map().width(), world_->map().height(), screen);
                 return;
             }
         }
@@ -1848,7 +1873,7 @@ private:
             constexpr sim::Tick kSecondsPerMinute = 60;
             return std::format("{}:{:02}", seconds / kSecondsPerMinute, seconds % kSecondsPerMinute);
         };
-        ImGui::Text("%s / %s", clock_text(world_.tick()).c_str(), clock_text(replay_end_).c_str());
+        ImGui::Text("%s / %s", clock_text(world_->tick()).c_str(), clock_text(replay_end_).c_str());
         ImGui::SameLine();
         if (ImGui::Button(paused_ ? "Reanudar" : "Pausa")) {
             paused_ = !paused_;
@@ -1879,7 +1904,7 @@ private:
                                player_->diverged_at());
         } else {
             ImGui::TextDisabled("%zu comprobaciones de hash correctas%s", player_->checkpoints_checked(),
-                                player_->finished(world_) ? " · fin" : "");
+                                player_->finished(*world_) ? " · fin" : "");
         }
         ImGui::TextDisabled("Espacio: pausa · 1-%zu: velocidad · sin órdenes", speeds.size());
         ImGui::End();
@@ -2041,7 +2066,7 @@ private:
                 c.kind = static_cast<std::uint8_t>(sim::Stance::HoldGround);
                 issue(std::move(c));
             }
-            if (world_.fatigue().enabled()) {
+            if (world_->fatigue().enabled()) {
                 if (ImGui::Button("Paso normal")) {
                     sim::Command c = local_command(sim::CommandType::SetStance);
                     c.kind = sim::kPaceNormal;
@@ -2054,7 +2079,7 @@ private:
                     issue(std::move(c));
                 }
             }
-            if (world_.formation().enabled()) {
+            if (world_->formation().enabled()) {
                 constexpr std::array<std::pair<const char*, sim::FormationKind>, 4> kForms{{
                     {"Sin formación", sim::FormationKind::None},
                     {"Línea", sim::FormationKind::Line},
@@ -2077,7 +2102,7 @@ private:
                 for (std::size_t b = 0; b < data_.buildings.types.size(); ++b) {
                     const BuildingInfo& info = data_.buildings.types[b];
                     const auto type = static_cast<sim::BuildingTypeId>(b);
-                    const bool allowed = world_.meets_requirements(local_, type);
+                    const bool allowed = world_->meets_requirements(local_, type);
                     ImGui::BeginDisabled(!allowed || !affordable(stock, info.type.cost));
                     if (ImGui::Button(std::format("{} ({})", info.name, cost_text(info.type.cost)).c_str())) {
                         placing_ = type;
@@ -2243,7 +2268,7 @@ private:
             render::SceneObject ghost;
             ghost.origin = origin;
             ghost.size = info.type.size;
-            ghost.body = can_pay && world_.can_place(*placing_, origin) ? view.ghost_valid_color : view.ghost_invalid_color;
+            ghost.body = can_pay && world_->can_place(*placing_, origin) ? view.ghost_valid_color : view.ghost_invalid_color;
             objects_.push_back(ghost);
             if (art_) {
                 // El edificio mismo, translúcido y teñido de verde o rojo, sobre la huella.
@@ -2318,6 +2343,260 @@ private:
             }
             return so;
         }
+    }
+
+    // --- Editor de escenarios (F3) ---------------------------------------------------
+
+    void rebuild_world() {
+        edit_params_.scenario = editor_->params;
+        world_ = std::make_unique<sim::World>(edit_params_);
+        world_->write_snapshot(curr_);
+        prev_ = curr_;
+        remembered_objects_.clear();
+    }
+
+    [[nodiscard]] std::optional<sim::TileCoord> mouse_tile(float x, float y) const {
+        const sim::TileCoord t = tile_at({x, y});
+        return world_->map().contains(t) ? std::optional(t) : std::nullopt;
+    }
+
+    // Pincel (terreno y altura) en una casilla nueva del trazo.
+    void edit_stroke(sim::TileCoord t) {
+        if (edit_last_ == t) {
+            return;
+        }
+        edit_last_ = t;
+        sim::ScenarioParams& sp = editor_->params;
+        if (edit_tool_ == EditTool::Terrain) {
+            paint_terrain(sp, t, edit_radius_ - 1, static_cast<sim::TerrainId>(edit_type_));
+        } else {
+            raise(sp, t, edit_radius_ - 1, edit_lowering_ ? -1 : 1, data_.engine.world.map.elevation_levels - 1);
+        }
+        edit_stroke_.push_back(t);
+    }
+
+    // Colocar en la casilla t lo que dice la herramienta, si cabe.
+    void edit_place(sim::TileCoord t) {
+        sim::ScenarioParams& sp = editor_->params;
+        sim::ScenarioPlacement p;
+        p.type = static_cast<std::uint8_t>(edit_type_);
+        p.owner = static_cast<sim::PlayerId>(std::min(edit_player_, sp.players - 1));
+        bool fits = false;
+        switch (edit_tool_) {
+            case EditTool::Building: {
+                p.kind = sim::ScenarioPlacement::Kind::Building;
+                p.at = ghost_origin(t, p.type);
+                fits = world_->can_place(p.type, p.at);
+                break;
+            }
+            case EditTool::Node: {
+                p.kind = sim::ScenarioPlacement::Kind::Node;
+                const std::int32_t size = data_.nodes.types[p.type].type.size;
+                p.at = {t.x - size / 2, t.y - size / 2};
+                fits = world_->can_place_size(size, p.at);
+                break;
+            }
+            case EditTool::Unit:
+                p.kind = sim::ScenarioPlacement::Kind::Unit;
+                p.at = t;
+                fits = world_->movement().grid().passable(t);
+                break;
+            case EditTool::Terrain:
+            case EditTool::Height:
+            case EditTool::Erase:
+                return;
+        }
+        if (!fits) {
+            edit_status_ = "No cabe ahí";
+            return;
+        }
+        sp.placements.push_back(p);
+        edit_status_.clear();
+        rebuild_world();
+    }
+
+    // Eventos del ratón en el editor; true si los ha consumido.
+    bool edit_event(const SDL_Event& event, bool ui_mouse) {
+        switch (event.type) {
+            case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+                if (ui_mouse) {
+                    return false;
+                }
+                const auto t = mouse_tile(event.button.x, event.button.y);
+                if (!t) {
+                    return true;
+                }
+                if (event.button.button == SDL_BUTTON_RIGHT && edit_tool_ != EditTool::Height) {
+                    if (erase_at(editor_->params, *t, data_)) {
+                        rebuild_world();
+                    }
+                    return true;
+                }
+                if (edit_tool_ == EditTool::Terrain || edit_tool_ == EditTool::Height) {
+                    edit_painting_ = true;
+                    edit_lowering_ = event.button.button == SDL_BUTTON_RIGHT;
+                    edit_last_.reset();
+                    edit_stroke(*t);
+                } else if (edit_tool_ == EditTool::Erase) {
+                    if (erase_at(editor_->params, *t, data_)) {
+                        rebuild_world();
+                    }
+                } else if (event.button.button == SDL_BUTTON_LEFT) {
+                    edit_place(*t);
+                }
+                return true;
+            }
+            case SDL_EVENT_MOUSE_MOTION:
+                if (edit_painting_) {
+                    if (const auto t = mouse_tile(event.motion.x, event.motion.y)) {
+                        edit_stroke(*t);
+                    }
+                    return true;
+                }
+                return false;
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                if (edit_painting_) {
+                    edit_painting_ = false;
+                    edit_stroke_.clear();
+                    rebuild_world();  // al soltar: el mundo se rehace una vez por trazo
+                    return true;
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    void draw_editor(const ImVec2& display, const std::optional<sim::TileCoord>& hover) {
+        sim::ScenarioParams& sp = editor_->params;
+        if (edit_name_[0] == '\0') {
+            std::ranges::copy(editor_->name.substr(0, edit_name_.size() - 1), edit_name_.begin());
+        }
+        ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx * 5.0f}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
+        ImGui::Begin("Editor de escenarios", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::InputText("Nombre", edit_name_.data(), edit_name_.size());
+        int players = sp.players;
+        const auto max_players = static_cast<int>(data_.engine.seat_starts.size());
+        if (ImGui::SliderInt("Jugadores", &players, 1, max_players)) {
+            sp.players = players;
+            // Lo de jugadores que ya no están, fuera.
+            std::erase_if(sp.placements, [&](const sim::ScenarioPlacement& p) {
+                return p.kind != sim::ScenarioPlacement::Kind::Node && p.owner >= players;
+            });
+            rebuild_world();
+        }
+        ImGui::SeparatorText("Herramienta");
+        constexpr std::array<const char*, 6> kTools{"Terreno", "Altura", "Recurso", "Edificio", "Unidad", "Borrar"};
+        for (std::size_t i = 0; i < kTools.size(); ++i) {
+            if (ImGui::RadioButton(kTools[i], edit_tool_ == static_cast<EditTool>(i))) {
+                edit_tool_ = static_cast<EditTool>(i);
+                edit_type_ = 0;
+            }
+            if (i % 3 != 2) {
+                ImGui::SameLine();
+            }
+        }
+        const auto type_list = [&](const auto& types) {
+            const std::size_t current = std::min<std::size_t>(static_cast<std::size_t>(edit_type_), types.size() - 1);
+            if (ImGui::BeginCombo("Tipo", types[current].name.c_str())) {
+                for (std::size_t i = 0; i < types.size(); ++i) {
+                    if (ImGui::Selectable(types[i].name.c_str(), i == current)) {
+                        edit_type_ = static_cast<int>(i);
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        };
+        switch (edit_tool_) {
+            case EditTool::Terrain:
+                type_list(data_.terrain.types);
+                ImGui::SliderInt("Pincel", &edit_radius_, 1, kMaxBrush);
+                ImGui::TextDisabled("Arrastrar: pintar");
+                break;
+            case EditTool::Height:
+                ImGui::SliderInt("Pincel", &edit_radius_, 1, kMaxBrush);
+                ImGui::TextDisabled("Izquierdo: subir; derecho: bajar");
+                break;
+            case EditTool::Node:
+                type_list(data_.nodes.types);
+                break;
+            case EditTool::Building:
+            case EditTool::Unit:
+                if (edit_tool_ == EditTool::Building) {
+                    type_list(data_.buildings.types);
+                } else {
+                    type_list(data_.units.types);
+                }
+                edit_player_ = std::min(edit_player_, sp.players - 1);
+                ImGui::SliderInt("Jugador", &edit_player_, 0, sp.players - 1);
+                break;
+            case EditTool::Erase:
+                ImGui::TextDisabled("Clic: quitar lo que hay");
+                break;
+        }
+        ImGui::TextDisabled("Derecho (salvo altura): quitar");
+        // Siempre la misma línea: que los botones no se muevan al pasar sobre el panel.
+        if (hover) {
+            ImGui::Text("Casilla %d, %d", hover->x, hover->y);
+        } else {
+            ImGui::TextDisabled("Casilla -");
+        }
+        ImGui::Separator();
+        if (ImGui::Button("Guardar")) {
+            editor_->name = edit_name_.data();
+            edit_status_ = save_scenario();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Probar")) {
+            editor_->name = edit_name_.data();
+            play_requested_ = true;
+            back_to_menu_ = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Salir")) {
+            back_to_menu_ = true;
+        }
+        if (!edit_status_.empty()) {
+            ImGui::TextUnformatted(edit_status_.c_str());
+        }
+        ImGui::End();
+        // El trazo en curso, teñido (el mundo se rehace al soltar).
+        for (const sim::TileCoord& t : edit_stroke_) {
+            for (std::int32_t y = t.y - edit_radius_ + 1; y <= t.y + edit_radius_ - 1; ++y) {
+                for (std::int32_t x = t.x - edit_radius_ + 1; x <= t.x + edit_radius_ - 1; ++x) {
+                    if (std::abs(x - t.x) + std::abs(y - t.y) <= edit_radius_ - 1) {
+                        tints_.push_back({{x, y}, data_.engine.view.ghost_valid_color});
+                    }
+                }
+            }
+        }
+        // Fantasma del edificio a colocar.
+        placing_.reset();
+        if (edit_tool_ == EditTool::Building && hover) {
+            placing_ = static_cast<sim::BuildingTypeId>(edit_type_);
+        }
+    }
+
+    // Guarda en escenarios/<nombre>.toml, junto al ejecutable. Devuelve el mensaje.
+    std::string save_scenario() {
+        std::string file;
+        for (const char c : editor_->name) {
+            file += std::isalnum(static_cast<unsigned char>(c)) != 0 ? c : '_';
+        }
+        if (file.empty()) {
+            file = "escenario";
+        }
+        const auto dir = std::filesystem::path(platform::executable_dir()) / kScenarioDir;
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        const auto path = dir / (file + ".toml");
+        std::ofstream out(path, std::ios::binary);
+        out << scenario_doc_toml(*editor_, data_);
+        if (!out) {
+            return "No se pudo guardar (detalles en rts.log)";
+        }
+        spdlog::info("Escenario guardado en {}", path.string());
+        return std::format("Guardado: {}", path.filename().string());
     }
 
     // Pose de la figura: andando, el ciclo de pasos; combatiendo, según cuánto falta para
@@ -2421,7 +2700,22 @@ private:
     }
 
     const GameData& data_;
+    ScenarioDoc* editor_;  // editor de escenarios (F3); null: partida
     bool art_ = !data_.art.units.empty();  // arte propio (F1); sin él, formas planas
+    // Estado del editor.
+    enum class EditTool : std::uint8_t { Terrain, Height, Node, Building, Unit, Erase };
+    EditTool edit_tool_ = EditTool::Terrain;
+    int edit_type_ = 0;
+    int edit_player_ = 0;
+    int edit_radius_ = 1;
+    bool edit_painting_ = false;
+    bool edit_lowering_ = false;
+    std::optional<sim::TileCoord> edit_last_;
+    std::vector<sim::TileCoord> edit_stroke_;
+    sim::WorldParams edit_params_;
+    std::string edit_status_;
+    std::array<char, 64> edit_name_{};
+    bool play_requested_ = false;
     std::optional<SoundDirector> sounds_;  // F2; solo con audio y datos de sonido
     std::unordered_map<std::uint32_t, render::Pose> last_pose_;  // para oír cada golpe de herramienta
     double anim_time_s_ = 0.0;             // reloj de la presentación (animaciones)
@@ -2434,7 +2728,7 @@ private:
     std::string chat_input_;
     platform::Window& window_;
     render::Renderer& renderer_;
-    sim::World world_;
+    std::unique_ptr<sim::World> world_;  // se rehace al editar un escenario (F3)
     sim::Snapshot prev_;
     sim::Snapshot curr_;
     render::IsoProjection proj_;
@@ -2757,7 +3051,7 @@ std::optional<Display> open_display(const GameData& data) {
 }
 
 struct MenuChoice {
-    enum class Kind : std::uint8_t { New, Load, Replay, Host, Join, Quit };
+    enum class Kind : std::uint8_t { New, Load, Replay, Host, Join, EditNew, Edit, PlayScenario, Quit };
     Kind kind = Kind::Quit;
     std::filesystem::path path;
 };
@@ -2783,6 +3077,29 @@ std::vector<std::filesystem::path> saved_files(const GameData& data, std::string
         out.resize(max);
     }
     return out;
+}
+
+// Escenarios guardados por el editor (F3), por nombre.
+std::vector<std::filesystem::path> scenario_files() {
+    std::vector<std::filesystem::path> out;
+    const auto dir = std::filesystem::path(platform::executable_dir()) / kScenarioDir;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        if (entry.path().extension() == ".toml") {
+            out.push_back(entry.path());
+        }
+    }
+    std::ranges::sort(out);
+    return out;
+}
+
+std::expected<ScenarioDoc, std::string> read_scenario(const std::filesystem::path& path, const GameData& base) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        return std::unexpected(std::format("no se puede leer {}", path.string()));
+    }
+    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    return parse_scenario_doc(text, base, path.filename().string());
 }
 
 // Menú inicial: nueva partida (semilla, rival, niebla), cargar, repeticiones, salir.
@@ -2856,6 +3173,26 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
         if (ImGui::Button("Unirse")) {
             choice.kind = MenuChoice::Kind::Join;
             chosen = true;
+        }
+        ImGui::SeparatorText("Escenarios (F3)");
+        if (ImGui::Button("Nuevo escenario con este mapa")) {
+            choice.kind = MenuChoice::Kind::EditNew;
+            chosen = true;
+        }
+        for (const auto& p : scenario_files()) {
+            ImGui::PushID(p.string().c_str());
+            if (ImGui::SmallButton("Jugar")) {
+                choice = {MenuChoice::Kind::PlayScenario, p};
+                chosen = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Editar")) {
+                choice = {MenuChoice::Kind::Edit, p};
+                chosen = true;
+            }
+            ImGui::SameLine();
+            ImGui::TextUnformatted(p.stem().string().c_str());
+            ImGui::PopID();
         }
         ImGui::SeparatorText("Cargar partida guardada (F5 durante la partida)");
         if (saves.empty()) {
@@ -3055,9 +3392,52 @@ int run_interactive(const GameData& base) {
         std::optional<GameData> data;
         std::optional<Replay> recorded;
         std::optional<LockstepSession> net;
+        std::optional<ScenarioDoc> editing;
         switch (choice.kind) {
             case MenuChoice::Kind::Quit:
                 return 0;
+            case MenuChoice::Kind::EditNew:
+            case MenuChoice::Kind::Edit:
+            case MenuChoice::Kind::PlayScenario: {
+                if (choice.kind == MenuChoice::Kind::EditNew) {
+                    // Punto de partida: el mapa generado con los ajustes del menú.
+                    auto gen = with_match_settings(base, settings);
+                    if (!gen) {
+                        spdlog::error("Ajustes de partida: {}", gen.error());
+                        continue;
+                    }
+                    const sim::World world(gen->engine.world);
+                    editing = scenario_from_world(world, "Nuevo escenario",
+                                                  static_cast<std::int32_t>(gen->engine.world.setup.starts.size()));
+                } else {
+                    auto doc = read_scenario(choice.path, base);
+                    if (!doc) {
+                        spdlog::error("{}", doc.error());
+                        continue;
+                    }
+                    editing = std::move(*doc);
+                }
+                if (choice.kind == MenuChoice::Kind::PlayScenario) {
+                    auto d = with_scenario(base, *editing, settings);
+                    if (!d) {
+                        spdlog::error("Escenario: {}", d.error());
+                        continue;
+                    }
+                    data = std::move(*d);
+                    editing.reset();
+                    break;
+                }
+                // Editor: los datos con todos los puestos (colores de hasta cuatro jugadores).
+                ScenarioDoc all = *editing;
+                all.params.players = static_cast<std::int32_t>(base.engine.seat_starts.size());
+                auto d = with_scenario(base, all, settings);
+                if (!d) {
+                    spdlog::error("Escenario: {}", d.error());
+                    continue;
+                }
+                data = std::move(*d);
+                break;
+            }
             case MenuChoice::Kind::Host:
             case MenuChoice::Kind::Join: {
                 const std::uint64_t hash = data_hash(base.files);
@@ -3107,10 +3487,25 @@ int run_interactive(const GameData& base) {
         const bool is_load = choice.kind == MenuChoice::Kind::Load;
         try {
             WindowedGame game(*data, *display->window, *display->renderer, is_replay ? &*recorded : nullptr,
-                              is_load ? &*recorded : nullptr, net ? &*net : nullptr, display->audio.get());
+                              is_load ? &*recorded : nullptr, net ? &*net : nullptr, display->audio.get(),
+                              editing ? &*editing : nullptr);
             game.run(0);
             if (!game.back_to_menu()) {
                 return 0;  // ventana cerrada
+            }
+            // Editor: «Probar» juega el escenario tal como está.
+            if (editing && game.play_requested()) {
+                auto d = with_scenario(base, *editing, settings);
+                if (!d) {
+                    spdlog::error("Escenario: {}", d.error());
+                    continue;
+                }
+                WindowedGame trial(*d, *display->window, *display->renderer, nullptr, nullptr, nullptr,
+                                   display->audio.get());
+                trial.run(0);
+                if (!trial.back_to_menu()) {
+                    return 0;
+                }
             }
         } catch (const std::exception& e) {
             spdlog::error("{}", e.what());  // p. ej. una partida guardada que no se reproduce

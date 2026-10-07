@@ -20,11 +20,24 @@ constexpr std::int32_t kStartNodeAttempts = 64;
 constexpr std::uint32_t kPermille = 1000;
 
 std::shared_ptr<TileMap> make_map(const WorldParams& params) {
-    return std::make_shared<TileMap>(generate_map(params.map));
+    const ScenarioParams& sc = params.scenario;
+    if (!sc.active()) {
+        return std::make_shared<TileMap>(generate_map(params.map));
+    }
+    auto map = std::make_shared<TileMap>(sc.width, sc.height);
+    for (std::int32_t y = 0; y < sc.height; ++y) {
+        for (std::int32_t x = 0; x < sc.width; ++x) {
+            const auto i = static_cast<std::size_t>(y) * static_cast<std::size_t>(sc.width) + static_cast<std::size_t>(x);
+            map->set_terrain({x, y}, sc.terrain[i]);
+            map->set_elevation({x, y}, sc.elevation[i]);
+        }
+    }
+    return map;
 }
 
 std::int32_t player_count(const WorldParams& params) {
-    return std::max({1, static_cast<std::int32_t>(params.setup.starts.size()), params.demo.player + 1});
+    return std::max({1, static_cast<std::int32_t>(params.setup.starts.size()), params.demo.player + 1,
+                     params.scenario.players});
 }
 
 FVec2 tile_center(TileCoord c) noexcept {
@@ -72,7 +85,11 @@ World::World(const WorldParams& params)
       vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
       rng_(params.demo.seed) {
-    setup_game(params.setup);
+    if (params.scenario.active()) {
+        place_scenario(params.scenario, params.setup.start_stock);
+    } else {
+        setup_game(params.setup);
+    }
     spawn_demo_units(params.demo);
     movement_.commit_grid_changes(registry_);
     economy_.recount_population(registry_);
@@ -212,6 +229,37 @@ void World::setup_game(const SetupParams& setup) {
             }
             economy_.spawn_unit(registry_, static_cast<PlayerId>(p), setup.start_unit, tile_center(*tile));
             ++b.spawned;
+        }
+    }
+}
+
+void World::place_scenario(const ScenarioParams& scenario, const Stock& stock) {
+    for (std::int32_t p = 0; p < scenario.players; ++p) {
+        economy_.player_state(static_cast<PlayerId>(p)).stock = stock;
+    }
+    const EconomyCatalog& catalog = economy_.catalog();
+    // En el orden del fichero: lo que no cabe (fuera del mapa, encima de otra cosa) se
+    // omite; el editor no deja guardarlo así.
+    for (const ScenarioPlacement& pl : scenario.placements) {
+        switch (pl.kind) {
+            case ScenarioPlacement::Kind::Building:
+                if (pl.type < catalog.buildings.size() && pl.owner < economy_.players().size() &&
+                    economy_.can_place(registry_, movement_.grid(), catalog.buildings[pl.type].size, pl.at)) {
+                    economy_.place_building(registry_, movement_, pl.owner, pl.type, pl.at, true);
+                }
+                break;
+            case ScenarioPlacement::Kind::Node:
+                if (pl.type < catalog.nodes.size() &&
+                    economy_.can_place(registry_, movement_.grid(), catalog.nodes[pl.type].size, pl.at)) {
+                    economy_.place_node(registry_, movement_, pl.type, pl.at);
+                }
+                break;
+            case ScenarioPlacement::Kind::Unit:
+                if (pl.type < catalog.units.size() && pl.owner < economy_.players().size() &&
+                    movement_.grid().passable(pl.at)) {
+                    economy_.spawn_unit(registry_, pl.owner, pl.type, tile_center(pl.at));
+                }
+                break;
         }
     }
 }
@@ -469,6 +517,10 @@ void World::advance_waypoints() {
         const std::array<entt::entity, 1> one{e};
         movement_.order_move(registry_, one, next, next_order_id_++, tick_);
     }
+}
+
+bool World::can_place_size(std::int32_t size, TileCoord origin) const {
+    return economy_.can_place(registry_, movement_.grid(), size, origin);
 }
 
 bool World::can_place(BuildingTypeId type, TileCoord origin) const {

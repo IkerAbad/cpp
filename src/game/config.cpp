@@ -1,4 +1,5 @@
 #include "game/config.hpp"
+#include "game/scenario.hpp"
 
 #include <algorithm>
 #include <format>
@@ -1945,6 +1946,15 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         for (sim::AiSeat& seat : data.engine.world.ai_players) {
             seat.profile = profile;
         }
+    }
+    // Escenario hecho a mano (F3, opcional): mapa y objetos propios.
+    if (const auto sc = std::ranges::find(data.files, kScenarioFile, &DataFile::path); sc != data.files.end()) {
+        auto doc = parse_scenario_doc(sc->text, data, sc->path);
+        if (!doc) {
+            return std::unexpected(doc.error());
+        }
+        data.engine.world.scenario = std::move(doc->params);
+        data.scenario_name = std::move(doc->name);
     }
     return data;
 }
