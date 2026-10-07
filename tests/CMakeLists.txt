@@ -34,13 +34,15 @@ add_executable(rts_tests
     test_art.cpp
     test_audio.cpp
     test_campaign.cpp
+    test_i18n.cpp
     test_scenario.cpp
     test_rng.cpp
     test_scene.cpp
     test_selection.cpp
     test_sim_regression.cpp)
 target_link_libraries(rts_tests PRIVATE rts_game_core rts_render_core rts_sim doctest::doctest)
-target_compile_definitions(rts_tests PRIVATE RTS_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
+target_compile_definitions(rts_tests PRIVATE RTS_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
+                                            RTS_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src")
 rts_set_warnings(rts_tests)
 
 add_test(NAME unit COMMAND rts_tests)

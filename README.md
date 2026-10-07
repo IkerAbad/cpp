@@ -349,6 +349,15 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
   - El editor no tiene deshacer.
   - Un escenario no lleva aún objetivos ni sucesos (eso es la campaña, F4).
 
+### Idiomas y opciones (F5)
+
+Menú → «Opciones»: idioma, pantalla completa, tamaño de la ventana, volumen (general, efectos, música) y las 13 teclas (cámara, último aviso, guardar, menú, depuración, ayuda). Clic en una tecla y se pulsa la nueva; Esc la deja como estaba. La ayuda en partida muestra las teclas elegidas.
+
+- **Idiomas** (`data/lang/<código>.toml`, `src/game/i18n.hpp`). El texto español del código es la clave: `T("Empezar")` da «Start» en inglés y, si falta, el propio español. `TF` traduce formatos de `std::format`; `TK` marca literales de listas. Los tipos de los datos tienen nombre a la vista (`hombre_armas` → «Hombre de armas», «Man-at-arms»). Hay español e inglés; otro idioma es un fichero más.
+- **Pruebas** (`tests/test_i18n.cpp`). Leen el código fuente: todo texto marcado tiene traducción con los mismos especificadores (`%d`, `{}`...), no sobra ninguna traducción, y todo tipo de los datos, perfil de IA y tipo de mapa tiene nombre en cada idioma.
+- **Opciones** (`data/opciones.toml` por omisión, `opciones.toml` del jugador junto al ejecutable). No son datos de la partida: no van en repeticiones ni por la red, así que cambiarlas no rompe nada.
+- **Lo que no está traducido:** los textos de la campaña (informes, notas históricas; las fuentes citadas son en español o inglés por naturaleza), los mensajes del registro (`rts.log`) y el título provisional de la ventana.
+
 ### Campaña: Las Navas de Tolosa, 1212 (F4)
 
 Menú → «Campaña». Tres capítulos en orden; ganar uno desbloquea el siguiente (el progreso se guarda en `campana.toml`, junto al ejecutable). De cada capítulo se ve la fecha, el informe, una nota histórica propia y sus fuentes: citas literales, comprobadas palabra por palabra contra el texto de cada artículo, con su enlace.

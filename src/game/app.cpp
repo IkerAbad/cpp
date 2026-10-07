@@ -24,6 +24,8 @@
 #include <spdlog/spdlog.h>
 
 #include "game/camera_control.hpp"
+#include "game/i18n.hpp"
+#include "game/options.hpp"
 #include "game/campaign.hpp"
 #include "game/alerts.hpp"
 #include "game/fixed_step.hpp"
@@ -66,6 +68,26 @@ constexpr std::int32_t kPermille = 1000;
 constexpr int kMaxBrush = 8;
 constexpr std::string_view kScenarioDir = "escenarios";
 
+// Teclas en uso (F5), como códigos de SDL, en el orden de KeyAction. Hasta que se leen
+// las opciones del jugador, las de siempre (las mismas que data/opciones.toml).
+std::array<std::int32_t, kKeyActionCount>& key_codes() {
+    static std::array<std::int32_t, kKeyActionCount> codes{
+        SDL_SCANCODE_LEFT,  SDL_SCANCODE_RIGHT, SDL_SCANCODE_UP,  SDL_SCANCODE_DOWN, SDL_SCANCODE_A,
+        SDL_SCANCODE_D,     SDL_SCANCODE_W,     SDL_SCANCODE_S,   SDL_SCANCODE_SPACE, SDL_SCANCODE_F5,
+        SDL_SCANCODE_F10,   SDL_SCANCODE_F1,    SDL_SCANCODE_F2,
+    };
+    return codes;
+}
+
+bool is_key(SDL_Scancode code, KeyAction a) {
+    return static_cast<std::int32_t>(code) == key_codes()[static_cast<std::size_t>(a)];
+}
+
+// Nombre a la vista de la tecla de una acción ("F10").
+std::string key_label(KeyAction a) {
+    return platform::scancode_name(key_codes()[static_cast<std::size_t>(a)]);
+}
+
 render::Rgba opaque(const std::array<std::uint8_t, 3>& rgb) noexcept {
     return {rgb[0], rgb[1], rgb[2], kOpaque};
 }
@@ -82,10 +104,10 @@ std::string cost_text(const sim::Stock& cost) {
     std::string out;
     for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
         if (cost[r] > 0) {
-            out += std::format("{}{} {}", out.empty() ? "" : ", ", resource_key(static_cast<sim::Resource>(r)), cost[r]);
+            out += std::format("{}{} {}", out.empty() ? "" : ", ", T(resource_key(static_cast<sim::Resource>(r)).data()), cost[r]);
         }
     }
-    return out.empty() ? "gratis" : out;
+    return out.empty() ? T("gratis") : out;
 }
 
 bool affordable(const sim::Stock& stock, const sim::Stock& cost) noexcept {
@@ -100,17 +122,17 @@ bool affordable(const sim::Stock& stock, const sim::Stock& cost) noexcept {
 const char* task_name(sim::WorkerTask t) noexcept {
     switch (t) {
         case sim::WorkerTask::Idle:
-            return "ocioso";
+            return T("ocioso");
         case sim::WorkerTask::Gather:
-            return "recogiendo";
+            return T("recogiendo");
         case sim::WorkerTask::Deliver:
-            return "llevando al almacén";
+            return T("llevando al almacén");
         case sim::WorkerTask::Build:
-            return "construyendo";
+            return T("construyendo");
         case sim::WorkerTask::Demolish:
-            return "desmontando";
+            return T("desmontando");
         case sim::WorkerTask::Nurse:
-            return "de enfermero";
+            return T("de enfermero");
     }
     return "?";
 }
@@ -383,8 +405,8 @@ void draw_chat(LockstepSession& net, const GameData& data, std::string& input) {
                                                                                                      kOpaque};
         ImGui::TextColored({static_cast<float>(c[0]) / kOpaque, static_cast<float>(c[1]) / kOpaque,
                             static_cast<float>(c[2]) / kOpaque, 1.0f},
-                           "Jugador %u%s:", static_cast<unsigned>(line.player),
-                           line.player == net.local_player() ? " (tú)" : "");
+                           T("Jugador %u%s:"), static_cast<unsigned>(line.player),
+                           line.player == net.local_player() ? T(" (tú)") : "");
         ImGui::SameLine();
         ImGui::TextWrapped("%s", line.text.c_str());
     }
@@ -558,20 +580,20 @@ private:
                     }
                     if (!player_ && !renderer_.ui_wants_keyboard()) {
                         control_group_key(event.key.scancode);
-                        if (event.key.scancode == SDL_SCANCODE_SPACE) {
+                        if (is_key(event.key.scancode, KeyAction::LastAlert)) {
                             jump_to_alert();
                         }
-                        if (event.key.scancode == SDL_SCANCODE_F5) {
+                        if (is_key(event.key.scancode, KeyAction::QuickSave)) {
                             save_game();
                         }
                     }
-                    if (event.key.scancode == SDL_SCANCODE_F10) {
+                    if (is_key(event.key.scancode, KeyAction::Menu)) {
                         back_to_menu_ = true;  // la partida se graba al salir
                     }
-                    if (event.key.scancode == SDL_SCANCODE_F1) {
+                    if (is_key(event.key.scancode, KeyAction::Debug)) {
                         show_debug_ = !show_debug_;
                     }
-                    if (event.key.scancode == SDL_SCANCODE_F2) {
+                    if (is_key(event.key.scancode, KeyAction::Help)) {
                         show_help_ = !show_help_;
                     }
                     if (event.key.scancode == SDL_SCANCODE_ESCAPE && !renderer_.ui_wants_keyboard()) {
@@ -1294,62 +1316,62 @@ private:
     // Paneles de depuración (F1): rendimiento, movimiento, combate y la casilla bajo el ratón.
     void draw_debug(const ImVec2& display, const std::optional<sim::TileCoord>& hover) {
         ImGui::SetNextWindowPos({kPanelMarginPx, kPanelMarginPx}, ImGuiCond_FirstUseEver);
-        ImGui::Begin("Depuración", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::Text("Backend GPU: %s", renderer_.driver_name());
-        ImGui::Text("Fotograma: %.2f ms (%.0f FPS)", stats_.frame_ms,
+        ImGui::Begin(T("Depuración"), nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Text(T("Backend GPU: %s"), renderer_.driver_name());
+        ImGui::Text(T("Fotograma: %.2f ms (%.0f FPS)"), stats_.frame_ms,
                     stats_.frame_ms > 0.0 ? 1000.0 / stats_.frame_ms : 0.0);
-        ImGui::Text("Escena: %.3f ms · envío: %.3f ms (incluye vsync)", stats_.scene_ms, stats_.submit_ms);
-        ImGui::Text("Sprites: %zu (%d casillas, %d objetos, %d marcadores), 1 llamada de dibujo",
+        ImGui::Text(T("Escena: %.3f ms · envío: %.3f ms (incluye vsync)"), stats_.scene_ms, stats_.submit_ms);
+        ImGui::Text(T("Sprites: %zu (%d casillas, %d objetos, %d marcadores), 1 llamada de dibujo"),
                     renderer_.sprites_last_frame(), stats_.scene.tiles_drawn, stats_.scene.objects_drawn,
                     stats_.scene.markers_drawn);
         ImGui::Separator();
-        ImGui::Text("Tick: %u", curr_.tick);
-        ImGui::Text("Ticks en este fotograma: %d", stats_.ticks_this_frame);
-        ImGui::Text("Simulación: %.3f ms/tick (media)", stats_.sim_ms_per_tick);
-        ImGui::Text("Ticks descartados (total): %lld", static_cast<long long>(stats_.dropped_ticks_total));
-        ImGui::Text("alpha: %.3f", stats_.alpha);
-        ImGui::Text("Hash de estado: %016llx", static_cast<unsigned long long>(stats_.state_hash));
+        ImGui::Text(T("Tick: %u"), curr_.tick);
+        ImGui::Text(T("Ticks en este fotograma: %d"), stats_.ticks_this_frame);
+        ImGui::Text(T("Simulación: %.3f ms/tick (media)"), stats_.sim_ms_per_tick);
+        ImGui::Text(T("Ticks descartados (total): %lld"), static_cast<long long>(stats_.dropped_ticks_total));
+        ImGui::Text(T("alpha: %.3f"), stats_.alpha);
+        ImGui::Text(T("Hash de estado: %016llx"), static_cast<unsigned long long>(stats_.state_hash));
         ImGui::Separator();
         const sim::MovementTickStats& mv = world_->movement().last_stats();
-        ImGui::Text("Movimiento: %d en marcha · %d caminos resueltos, %d pendientes", mv.moving_units, mv.paths_solved,
+        ImGui::Text(T("Movimiento: %d en marcha · %d caminos resueltos, %d pendientes"), mv.moving_units, mv.paths_solved,
                     mv.paths_pending);
-        ImGui::Text("Nodos expandidos en el último tick: %lld · campos de flujo: %d",
+        ImGui::Text(T("Nodos expandidos en el último tick: %lld · campos de flujo: %d"),
                     static_cast<long long>(mv.nodes_expanded), mv.flow_fields_built);
-        ImGui::Text("HPA*: %zu nodos, %zu aristas · sectores rehechos en el último tick: %d",
+        ImGui::Text(T("HPA*: %zu nodos, %zu aristas · sectores rehechos en el último tick: %d"),
                     world_->movement().hpa().node_count(), world_->movement().hpa().edge_count(), mv.sectors_rebuilt);
-        ImGui::Checkbox("Portales HPA*", &show_portals_);
+        ImGui::Checkbox(T("Portales HPA*"), &show_portals_);
         ImGui::SameLine();
-        ImGui::Checkbox("Ruta", &show_paths_);
+        ImGui::Checkbox(T("Ruta"), &show_paths_);
         ImGui::SameLine();
-        ImGui::Checkbox("Campo de flujo", &show_flow_);
+        ImGui::Checkbox(T("Campo de flujo"), &show_flow_);
         const sim::CombatTickStats& cb = world_->combat().last_stats();
-        ImGui::Text("Combate: %d golpes, %d proyectiles (%d aciertos, %d fallos), %d bajas en el último tick",
+        ImGui::Text(T("Combate: %d golpes, %d proyectiles (%d aciertos, %d fallos), %d bajas en el último tick"),
                     cb.melee_hits, cb.projectiles_fired, cb.projectiles_hit, cb.projectiles_missed, cb.kills);
         ImGui::End();
 
         // Arriba a la derecha, anclado por su esquina superior derecha.
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
-        ImGui::Begin("Casilla", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Begin(T("Casilla"), nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         if (hover && curr_.map) {
             const sim::TileMap& map = *curr_.map;
             const sim::TerrainId id = map.terrain(*hover);
             const TerrainInfo& info = data_.terrain.types[id];
             ImGui::Text("(%d, %d)", hover->x, hover->y);
-            ImGui::Text("Terreno: %s (id %u)", info.name.c_str(), static_cast<unsigned>(id));
-            ImGui::Text("Transitable: %s", info.passable ? "sí" : "no");
-            ImGui::Text("Altura: %u", static_cast<unsigned>(map.elevation(*hover)));
+            ImGui::Text(T("Terreno: %s (id %u)"), N(info.name), static_cast<unsigned>(id));
+            ImGui::Text(T("Transitable: %s"), info.passable ? T("sí") : T("no"));
+            ImGui::Text(T("Altura: %u"), static_cast<unsigned>(map.elevation(*hover)));
             if (const sim::SnapshotObject* o = object_under(*hover)) {
                 if (o->kind == sim::ObjectKind::Resource) {
                     const NodeInfo& n = data_.nodes.types[o->type];
-                    ImGui::Text("%s: quedan %d de %s", n.name.c_str(), o->amount,
-                                std::string(resource_key(n.type.kind)).c_str());
+                    ImGui::Text(T("%s: quedan %d de %s"), N(n.name), o->amount,
+                                T(resource_key(n.type.kind).data()));
                 } else {
-                    ImGui::Text("%s del jugador %u", data_.buildings.types[o->type].name.c_str(),
+                    ImGui::Text(T("%s del jugador %u"), N(data_.buildings.types[o->type].name),
                                 static_cast<unsigned>(o->owner));
                 }
             }
         } else {
-            ImGui::TextDisabled("Pasa el ratón sobre el mapa");
+            ImGui::TextDisabled("%s", T("Pasa el ratón sobre el mapa"));
         }
         ImGui::End();
     }
@@ -1359,22 +1381,22 @@ private:
         std::string out;
         for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
             if (s[r] != 0) {
-                out += std::format("{}{} {}", out.empty() ? "" : " · ", resource_key(static_cast<sim::Resource>(r)), s[r]);
+                out += std::format("{}{} {}", out.empty() ? "" : " · ", T(resource_key(static_cast<sim::Resource>(r)).data()), s[r]);
             }
         }
-        return out.empty() ? std::string("nada") : out;
+        return out.empty() ? std::string(T("nada")) : out;
     }
 
     [[nodiscard]] static const char* convoy_text(sim::ConvoyTask t) {
         switch (t) {
             case sim::ConvoyTask::Load:
-                return "va a cargar";
+                return T("va a cargar");
             case sim::ConvoyTask::Unload:
-                return "lleva la carga al campamento";
+                return T("lleva la carga al campamento");
             case sim::ConvoyTask::Idle:
                 break;
         }
-        return "parada: abastece a las tropas de alrededor";
+        return T("parada: abastece a las tropas de alrededor");
     }
 
     [[nodiscard]] bool out_of_ammo(const sim::SnapshotEntity& e) const {
@@ -1385,20 +1407,20 @@ private:
     void draw_supply_text(const sim::SnapshotEntity& e) const {
         const sim::SupplyStats& st = data_.units.types[e.type].type.supply;
         if (st.rations > 0) {
-            ImGui::Text("víveres %d/%d", e.rations, st.rations);
+            ImGui::Text(T("víveres %d/%d"), e.rations, st.rations);
             if (st.ammo > 0) {
                 ImGui::SameLine();
             }
         }
         if (st.ammo > 0) {
-            ImGui::Text("munición %d/%d", e.ammo, st.ammo);
+            ImGui::Text(T("munición %d/%d"), e.ammo, st.ammo);
         }
         if (e.hungry) {
-            ImGui::TextColored(kWarnColor, "con hambre: ataca y trabaja peor%s",
-                               st.starves ? "; acabará perdiendo vida" : "");
+            ImGui::TextColored(kWarnColor, T("con hambre: ataca y trabaja peor%s"),
+                               st.starves ? T("; acabará perdiendo vida") : "");
         }
         if (out_of_ammo(e)) {
-            ImGui::TextColored(kWarnColor, "sin munición: no puede disparar");
+            ImGui::TextColored(kWarnColor, "%s", T("sin munición: no puede disparar"));
         }
     }
 
@@ -1408,17 +1430,17 @@ private:
             return;
         }
         const sim::MarketParams& mp = world_->market().params();
-        ImGui::SeparatorText(std::format("Mercado (lotes de {})", mp.lot).c_str());
-        ImGui::TextDisabled("Clic derecho con bagaje: caravana desde el mercado propio más cercano");
-        static constexpr std::array<const char*, sim::kResourceCount> kNames{"comida", "madera", "piedra", "oro", "hierro"};
+        ImGui::SeparatorText(TF("Mercado (lotes de {})", mp.lot).c_str());
+        ImGui::TextDisabled("%s", T("Clic derecho con bagaje: caravana desde el mercado propio más cercano"));
+        static constexpr std::array<const char*, sim::kResourceCount> kNames{TK("comida"), TK("madera"), TK("piedra"), TK("oro"), TK("hierro")};
         for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
             if (mp.base_price[r] <= 0) {
                 continue;
             }
-            ImGui::Text("%s: compra %d, venta %d", kNames[r], curr_.market_prices[r], world_->market().sell_price(r));
+            ImGui::Text(T("%s: compra %d, venta %d"), T(kNames[r]), curr_.market_prices[r], world_->market().sell_price(r));
             ImGui::SameLine();
             ImGui::PushID(static_cast<int>(r));
-            if (ImGui::SmallButton("Comprar")) {
+            if (ImGui::SmallButton(T("Comprar"))) {
                 sim::Command c = local_command(sim::CommandType::Trade);
                 c.units.clear();
                 c.object = id;
@@ -1426,7 +1448,7 @@ private:
                 issue(std::move(c));
             }
             ImGui::SameLine();
-            if (ImGui::SmallButton("Vender")) {
+            if (ImGui::SmallButton(T("Vender"))) {
                 sim::Command c = local_command(sim::CommandType::Trade);
                 c.units.clear();
                 c.object = id;
@@ -1443,7 +1465,7 @@ private:
         if (std::ranges::none_of(ups, [&](const UpgradeInfo& u) { return u.type.at == o.type; })) {
             return;
         }
-        ImGui::SeparatorText("Mejoras");
+        ImGui::SeparatorText(T("Mejoras"));
         const sim::PlayerState* me = local_ < curr_.players.size() ? &curr_.players[local_] : nullptr;
         const auto done = [&](std::size_t u) {
             return me != nullptr && u < me->researched.size() && me->researched[u] != 0;
@@ -1451,8 +1473,8 @@ private:
         if (o.research >= 0) {
             const UpgradeInfo& u = ups[static_cast<std::size_t>(o.research)];
             ImGui::ProgressBar(static_cast<float>(o.research_progress) / static_cast<float>(u.type.research_ticks),
-                               {-1.0f, 0.0f}, u.label.c_str());
-            if (ImGui::SmallButton("Anular (se devuelve el coste)")) {
+                               {-1.0f, 0.0f}, N(u.name));
+            if (ImGui::SmallButton(T("Anular (se devuelve el coste)"))) {
                 sim::Command c = local_command(sim::CommandType::CancelTrain);
                 c.units.clear();
                 c.object = id;
@@ -1465,12 +1487,12 @@ private:
                 continue;
             }
             if (done(i)) {
-                ImGui::TextDisabled("%s: hecha", u.label.c_str());
+                ImGui::TextDisabled(T("%s: hecha"), N(u.name));
                 continue;
             }
             const bool ready = !u.type.requires_upgrade || done(*u.type.requires_upgrade);
             ImGui::BeginDisabled(!ready || o.research >= 0 || me == nullptr || !affordable(me->stock, u.type.cost));
-            if (ImGui::Button(std::format("{} ({})", u.label, cost_text(u.type.cost)).c_str())) {
+            if (ImGui::Button(std::format("{} ({})", N(u.name), cost_text(u.type.cost)).c_str())) {
                 sim::Command c = local_command(sim::CommandType::Research);
                 c.units.clear();
                 c.object = id;
@@ -1484,33 +1506,33 @@ private:
     // Estado sanitario de una unidad.
     void draw_care_text(const sim::SnapshotEntity& e) const {
         if (e.admitted) {
-            ImGui::TextColored({0.6f, 0.85f, 1.0f, 1.0f}, "ingresado en un puesto médico: no combate");
+            ImGui::TextColored({0.6f, 0.85f, 1.0f, 1.0f}, "%s", T("ingresado en un puesto médico: no combate"));
         } else if (e.care_post != sim::kNoObject) {
-            ImGui::TextDisabled("herido, camino del puesto médico");
+            ImGui::TextDisabled("%s", T("herido, camino del puesto médico"));
         }
         if (e.reorganizing) {
-            ImGui::TextColored(kWarnColor, "reorganizándose: aún no ataca");
+            ImGui::TextColored(kWarnColor, "%s", T("reorganizándose: aún no ataca"));
         }
         if (e.morale >= 0) {
-            ImGui::Text("moral %d %%", e.morale * kPercent / sim::kFullMorale);
+            ImGui::Text(T("moral %d %%"), e.morale * kPercent / sim::kFullMorale);
         }
         if (e.routing) {
-            ImGui::TextColored(kWarnColor, "en desbandada: huye y no obedece hasta rehacerse");
+            ImGui::TextColored(kWarnColor, "%s", T("en desbandada: huye y no obedece hasta rehacerse"));
         }
         if (e.caravan) {
-            ImGui::TextDisabled("caravana entre mercados: cada llegada da oro");
+            ImGui::TextDisabled("%s", T("caravana entre mercados: cada llegada da oro"));
         }
         if (e.climbing) {
-            ImGui::TextColored(kWarnColor, "subiendo por una escala: no pelea y está expuesto");
+            ImGui::TextColored(kWarnColor, "%s", T("subiendo por una escala: no pelea y está expuesto"));
         }
         if (e.formation != sim::FormationKind::None) {
-            static constexpr std::array<const char*, 4> kNames{"", "línea", "columna", "cuadro"};
-            ImGui::Text("en %s%s", kNames[static_cast<std::size_t>(e.formation)],
-                        e.formation_active ? "" : " (pocos para formar: sin efecto)");
+            static constexpr std::array<const char*, 4> kNames{"", TK("línea"), TK("columna"), TK("cuadro")};
+            ImGui::Text(T("en %s%s"), T(kNames[static_cast<std::size_t>(e.formation)]),
+                        e.formation_active ? "" : T(" (pocos para formar: sin efecto)"));
         }
         if (e.fatigue >= 0) {
-            ImGui::Text("cansancio %d %%%s", e.fatigue * kPercent / sim::kFullFatigue,
-                        e.forced_march ? " · a paso forzado" : "");
+            ImGui::Text(T("cansancio %d %%%s"), e.fatigue * kPercent / sim::kFullFatigue,
+                        e.forced_march ? T(" · a paso forzado") : "");
         }
     }
 
@@ -1522,65 +1544,74 @@ private:
             ImGui::Begin("AyudaOculta", nullptr,
                          ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
                              ImGuiWindowFlags_NoInputs);
-            ImGui::TextDisabled("F2: ayuda · F1: depuración");
+            ImGui::TextDisabled("%s", TF("{}: ayuda · {}: depuración", key_label(KeyAction::Help), key_label(KeyAction::Debug)).c_str());
             ImGui::End();
             return;
         }
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, display.y - kPanelMarginPx}, ImGuiCond_FirstUseEver,
                                 {1.0f, 1.0f});
-        ImGui::Begin("Ayuda (F2)", &show_help_, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::SeparatorText("Ratón");
-        ImGui::BulletText("Clic o arrastre: seleccionar tus unidades (Mayús: añadir)");
-        ImGui::BulletText("Clic en un edificio tuyo: ver su panel y entrenar unidades");
-        ImGui::BulletText("Clic derecho en el suelo: mover");
-        ImGui::BulletText("Clic derecho en un enemigo: atacar (sin asedio, a un edificio se le prende fuego)");
-        ImGui::BulletText("Clic derecho en un recurso o granja: recoger (aldeanos)");
-        ImGui::BulletText("Clic derecho en un edificio tuyo: construir, reparar o descargar");
-        ImGui::BulletText("Clic derecho en un edificio tuyo en llamas: apagarlo");
-        ImGui::BulletText("Ctrl + clic derecho: avanzar atacando lo que salga");
-        ImGui::BulletText("Mayús + clic derecho en un edificio tuyo: desmontarlo");
-        ImGui::BulletText("Mayús + clic derecho en el suelo: añadir un punto de paso");
-        ImGui::BulletText("Edificio seleccionado + clic derecho: punto de reunión");
-        ImGui::BulletText("Doble clic en una unidad: todas las de su tipo en pantalla");
-        ImGui::SeparatorText("Teclado");
-        ImGui::BulletText("Flechas, WASD o borde de la ventana: mover la cámara");
-        ImGui::BulletText("Esc: cancelar colocación o soltar la selección");
-        ImGui::BulletText("Ctrl + 1-9: guardar grupo; 1-9: seleccionarlo");
-        ImGui::BulletText("Espacio: ir al último aviso · F5: guardar la partida");
-        ImGui::BulletText("F10: volver al menú (la partida queda grabada)");
-        ImGui::BulletText("F1: datos de depuración · F2: esta ayuda");
-        ImGui::SeparatorText("Leyenda");
-        ImGui::BulletText("Cada figura viste el color de su jugador; la inicial sale solo como aviso");
-        ImGui::BulletText("Punto de color: lo que lleva un aldeano");
-        ImGui::BulletText("Inicial en rojo: con hambre o sin munición");
-        ImGui::BulletText("Inicial en amarillo: en desbandada (huye y no obedece)");
-        ImGui::BulletText("Ctrl + clic derecho en un muro enemigo: escalarlo (leva y hombres de armas)");
-        ImGui::BulletText("Clic derecho en una torre propia con tropas: guarnecerla");
-        ImGui::SeparatorText("Logística");
-        ImGui::BulletText("Las tropas gastan víveres; los tiradores, munición");
-        ImGui::BulletText("Se reponen junto al centro urbano, el molino, el cuartel o un campamento");
-        ImGui::BulletText("Cada ración cuesta comida; la munición, madera (y hierro)");
-        ImGui::BulletText("Campamento: almacén avanzado que llenan acémilas y carretas");
-        ImGui::BulletText("Bagaje + clic derecho en un campamento: ruta de convoy");
-        ImGui::BulletText("Bagaje cargado y parado: abastece a las tropas de alrededor");
-        ImGui::BulletText("Trabuquete: se monta en un campamento con lo traído en convoy");
-        ImGui::SeparatorText("Sanidad");
-        ImGui::BulletText("Heridos + clic derecho en un puesto médico: ingresan");
-        ImGui::BulletText("Aldeanos o cirujanos + clic derecho en él: atienden (el cirujano cura mejor)");
-        ImGui::BulletText("Socorro estabiliza; hospital de campaña y hospital curan del todo");
-        ImGui::BulletText("Solo lo leve (%d %% de vida o más) sana solo; si cae el puesto, mueren",
+        ImGui::Begin(T("Ayuda (F2)"), &show_help_, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::SeparatorText(T("Ratón"));
+        ImGui::BulletText("%s", T("Clic o arrastre: seleccionar tus unidades (Mayús: añadir)"));
+        ImGui::BulletText("%s", T("Clic en un edificio tuyo: ver su panel y entrenar unidades"));
+        ImGui::BulletText("%s", T("Clic derecho en el suelo: mover"));
+        ImGui::BulletText("%s", T("Clic derecho en un enemigo: atacar (sin asedio, a un edificio se le prende fuego)"));
+        ImGui::BulletText("%s", T("Clic derecho en un recurso o granja: recoger (aldeanos)"));
+        ImGui::BulletText("%s", T("Clic derecho en un edificio tuyo: construir, reparar o descargar"));
+        ImGui::BulletText("%s", T("Clic derecho en un edificio tuyo en llamas: apagarlo"));
+        ImGui::BulletText("%s", T("Ctrl + clic derecho: avanzar atacando lo que salga"));
+        ImGui::BulletText("%s", T("Mayús + clic derecho en un edificio tuyo: desmontarlo"));
+        ImGui::BulletText("%s", T("Mayús + clic derecho en el suelo: añadir un punto de paso"));
+        ImGui::BulletText("%s", T("Edificio seleccionado + clic derecho: punto de reunión"));
+        ImGui::BulletText("%s", T("Doble clic en una unidad: todas las de su tipo en pantalla"));
+        ImGui::SeparatorText(T("Teclado"));
+        ImGui::BulletText("%s", TF("{}, {}, {}, {} o {}, {}, {}, {}, o borde de la ventana: mover la cámara",
+                                   key_label(KeyAction::CameraLeft), key_label(KeyAction::CameraRight),
+                                   key_label(KeyAction::CameraUp), key_label(KeyAction::CameraDown),
+                                   key_label(KeyAction::CameraLeftAlt), key_label(KeyAction::CameraRightAlt),
+                                   key_label(KeyAction::CameraUpAlt), key_label(KeyAction::CameraDownAlt))
+                                    .c_str());
+        ImGui::BulletText("%s", T("Esc: cancelar colocación o soltar la selección"));
+        ImGui::BulletText("%s", T("Ctrl + 1-9: guardar grupo; 1-9: seleccionarlo"));
+        ImGui::BulletText("%s", TF("{}: ir al último aviso · {}: guardar la partida", key_label(KeyAction::LastAlert),
+                                   key_label(KeyAction::QuickSave))
+                                    .c_str());
+        ImGui::BulletText("%s", TF("{}: volver al menú (la partida queda grabada)", key_label(KeyAction::Menu)).c_str());
+        ImGui::BulletText("%s", TF("{}: datos de depuración · {}: esta ayuda", key_label(KeyAction::Debug),
+                                   key_label(KeyAction::Help))
+                                    .c_str());
+        ImGui::SeparatorText(T("Leyenda"));
+        ImGui::BulletText("%s", T("Cada figura viste el color de su jugador; la inicial sale solo como aviso"));
+        ImGui::BulletText("%s", T("Punto de color: lo que lleva un aldeano"));
+        ImGui::BulletText("%s", T("Inicial en rojo: con hambre o sin munición"));
+        ImGui::BulletText("%s", T("Inicial en amarillo: en desbandada (huye y no obedece)"));
+        ImGui::BulletText("%s", T("Ctrl + clic derecho en un muro enemigo: escalarlo (leva y hombres de armas)"));
+        ImGui::BulletText("%s", T("Clic derecho en una torre propia con tropas: guarnecerla"));
+        ImGui::SeparatorText(T("Logística"));
+        ImGui::BulletText("%s", T("Las tropas gastan víveres; los tiradores, munición"));
+        ImGui::BulletText("%s", T("Se reponen junto al centro urbano, el molino, el cuartel o un campamento"));
+        ImGui::BulletText("%s", T("Cada ración cuesta comida; la munición, madera (y hierro)"));
+        ImGui::BulletText("%s", T("Campamento: almacén avanzado que llenan acémilas y carretas"));
+        ImGui::BulletText("%s", T("Bagaje + clic derecho en un campamento: ruta de convoy"));
+        ImGui::BulletText("%s", T("Bagaje cargado y parado: abastece a las tropas de alrededor"));
+        ImGui::BulletText("%s", T("Trabuquete: se monta en un campamento con lo traído en convoy"));
+        ImGui::SeparatorText(T("Sanidad"));
+        ImGui::BulletText("%s", T("Heridos + clic derecho en un puesto médico: ingresan"));
+        ImGui::BulletText("%s", T("Aldeanos o cirujanos + clic derecho en él: atienden (el cirujano cura mejor)"));
+        ImGui::BulletText("%s", T("Socorro estabiliza; hospital de campaña y hospital curan del todo"));
+        ImGui::BulletText(T("Solo lo leve (%d %% de vida o más) sana solo; si cae el puesto, mueren"),
                           data_.engine.world.medicine.light_wound_percent);
-        ImGui::SeparatorText("Niebla de guerra");
-        ImGui::BulletText("Negro: sin explorar; oscuro: explorado, sin vista ahora");
-        ImGui::BulletText("Los árboles tapan la vista; desde una loma se ve más lejos");
-        ImGui::BulletText("De noche se ve la mitad; los edificios enemigos se recuerdan");
-        ImGui::BulletText("Pasa el ratón sobre algo para ver qué es");
+        ImGui::SeparatorText(T("Niebla de guerra"));
+        ImGui::BulletText("%s", T("Negro: sin explorar; oscuro: explorado, sin vista ahora"));
+        ImGui::BulletText("%s", T("Los árboles tapan la vista; desde una loma se ve más lejos"));
+        ImGui::BulletText("%s", T("De noche se ve la mitad; los edificios enemigos se recuerdan"));
+        ImGui::BulletText("%s", T("Pasa el ratón sobre algo para ver qué es"));
         ImGui::End();
     }
 
     // Texto del dueño visto por el jugador local.
     [[nodiscard]] std::string owner_text(sim::PlayerId owner) const {
-        return owner == local_ ? std::string("tuyo") : std::format("enemigo (jugador {})", owner);
+        return owner == local_ ? std::string(T("tuyo")) : TF("enemigo (jugador {})", owner);
     }
 
     // Nombre de lo que hay bajo el ratón: la unidad más cercana dentro del radio de clic
@@ -1605,14 +1636,14 @@ private:
         if (best != nullptr) {
             const UnitInfo& u = data_.units.types[best->type];
             ImGui::BeginTooltip();
-            ImGui::Text("%s · %s", u.name.c_str(), owner_text(best->owner).c_str());
-            ImGui::Text("vida %d/%d · nivel %d", best->hp, best->max_hp, best->level);
+            ImGui::Text("%s · %s", N(u.name), owner_text(best->owner).c_str());
+            ImGui::Text(T("vida %d/%d · nivel %d"), best->hp, best->max_hp, best->level);
             if (best->owner == local_) {
                 draw_supply_text(*best);
             }
             draw_care_text(*best);
             if (best->carried > 0) {
-                ImGui::Text("lleva %d de %s", best->carried, std::string(resource_key(best->carry_kind)).c_str());
+                ImGui::Text(T("lleva %d de %s"), best->carried, T(resource_key(best->carry_kind).data()));
             }
             ImGui::EndTooltip();
             return;
@@ -1624,16 +1655,16 @@ private:
         ImGui::BeginTooltip();
         if (o->kind == sim::ObjectKind::Resource) {
             const NodeInfo& n = data_.nodes.types[o->type];
-            ImGui::Text("%s: quedan %d de %s", n.name.c_str(), o->amount,
-                        std::string(resource_key(n.type.kind)).c_str());
+            ImGui::Text(T("%s: quedan %d de %s"), N(n.name), o->amount,
+                        T(resource_key(n.type.kind).data()));
         } else {
             const BuildingInfo& b = data_.buildings.types[o->type];
-            ImGui::Text("%s · %s", b.name.c_str(), owner_text(o->owner).c_str());
-            ImGui::Text("vida %d/%d%s", o->hp, b.type.hp, o->complete ? "" : " · en obra");
+            ImGui::Text("%s · %s", N(b.name), owner_text(o->owner).c_str());
+            ImGui::Text(T("vida %d/%d%s"), o->hp, b.type.hp, o->complete ? "" : " · en obra");
             if (o->fire > 0) {
-                ImGui::TextColored({1.0f, 0.5f, 0.1f, 1.0f}, "en llamas");
+                ImGui::TextColored({1.0f, 0.5f, 0.1f, 1.0f}, "%s", T("en llamas"));
             } else if (o->burned) {
-                ImGui::TextColored({0.8f, 0.6f, 0.4f, 1.0f}, "quemado: no funciona");
+                ImGui::TextColored({0.8f, 0.6f, 0.4f, 1.0f}, "%s", T("quemado: no funciona"));
             }
         }
         ImGui::EndTooltip();
@@ -1653,7 +1684,7 @@ private:
         const auto width = static_cast<float>(view.minimap_width_px);
         const float k = width / static_cast<float>(map.width() + map.height());  // píxeles por casilla
         ImGui::SetNextWindowPos({kPanelMarginPx, kPanelMarginPx * 5.0f}, ImGuiCond_FirstUseEver);
-        ImGui::Begin("Mapa", nullptr,
+        ImGui::Begin(T("Mapa"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse);
         const ImVec2 o = ImGui::GetCursorScreenPos();
         const auto to_mini = [&](float tx, float ty) {
@@ -1731,17 +1762,17 @@ private:
     [[nodiscard]] static const char* alert_text(AlertKind k) {
         switch (k) {
             case AlertKind::UnderAttack:
-                return "¡Te atacan!";
+                return T("¡Te atacan!");
             case AlertKind::Fire:
-                return "¡Un edificio arde!";
+                return T("¡Un edificio arde!");
             case AlertKind::Hunger:
-                return "Tus tropas pasan hambre";
+                return T("Tus tropas pasan hambre");
             case AlertKind::NoFood:
-                return "Sin comida para las raciones";
+                return T("Sin comida para las raciones");
             case AlertKind::UnitReady:
-                return "Unidad lista";
+                return T("Unidad lista");
             case AlertKind::Rout:
-                return "¡Tus tropas huyen!";
+                return T("¡Tus tropas huyen!");
             case AlertKind::Count:
                 break;
         }
@@ -1756,14 +1787,14 @@ private:
         }
         constexpr float kBelowBarPx = 48.0f;
         ImGui::SetNextWindowPos({display.x * 0.5f, kBelowBarPx}, ImGuiCond_Always, {0.5f, 0.0f});
-        ImGui::Begin("Avisos", nullptr,
+        ImGui::Begin(T("Avisos"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
                          ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
         for (const Alert& a : shown) {
             const bool urgent = a.kind != AlertKind::UnitReady;
             ImGui::TextColored(urgent ? kWarnColor : ImVec4{0.7f, 0.9f, 0.7f, 1.0f}, "%s", alert_text(a.kind));
         }
-        ImGui::TextDisabled("Espacio: ir allí");
+        ImGui::TextDisabled("%s", TF("{}: ir allí", key_label(KeyAction::LastAlert)).c_str());
         ImGui::End();
     }
 
@@ -1773,7 +1804,7 @@ private:
             return;
         }
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.25f}, ImGuiCond_Always, {0.5f, 0.5f});
-        ImGui::Begin("Aviso", nullptr,
+        ImGui::Begin(T("Aviso"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
                          ImGuiWindowFlags_NoInputs);
         ImGui::TextUnformatted(notice_.c_str());
@@ -1784,24 +1815,24 @@ private:
     void draw_net(const ImVec2& display) {
         ImGui::SetNextWindowPos({kPanelMarginPx, display.y * 0.5f}, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize({display.x * 0.3f, display.y * 0.25f}, ImGuiCond_FirstUseEver);
-        ImGui::Begin("Charla");
+        ImGui::Begin(T("Charla"));
         draw_chat(*net_, data_, chat_input_);
         ImGui::End();
         if (net_waiting_) {
             ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.35f}, ImGuiCond_Always, {0.5f, 0.5f});
-            ImGui::Begin("Red", nullptr,
+            ImGui::Begin(T("Red"), nullptr,
                          ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
                              ImGuiWindowFlags_NoInputs);
-            ImGui::TextUnformatted("Esperando a los demás jugadores...");
+            ImGui::TextUnformatted(T("Esperando a los demás jugadores..."));
             ImGui::End();
         }
         if (net_->state() == LockstepState::Failed) {
             ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
-            ImGui::Begin("Partida en red interrumpida", nullptr,
+            ImGui::Begin(T("Partida en red interrumpida"), nullptr,
                          ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
             ImGui::TextUnformatted(net_->error().c_str());
-            ImGui::TextUnformatted("La repetición se guarda hasta aquí.");
-            if (ImGui::Button("Volver al menú")) {
+            ImGui::TextUnformatted(T("La repetición se guarda hasta aquí."));
+            if (ImGui::Button(T("Volver al menú"))) {
                 back_to_menu_ = true;
             }
             ImGui::End();
@@ -1813,10 +1844,10 @@ private:
         const auto path = save_game_path(data_);
         if (auto ok = save_replay(path, recorder_->finish(*world_)); !ok) {
             spdlog::error("No se pudo guardar: {}", ok.error());
-            notice_ = "No se pudo guardar (detalles en rts.log)";
+            notice_ = T("No se pudo guardar (detalles en rts.log)");
         } else {
             spdlog::info("Partida guardada en {}", path.string());
-            notice_ = std::format("Partida guardada: {}", path.filename().string());
+            notice_ = TF("Partida guardada: {}", path.filename().string());
         }
         notice_tick_ = curr_.tick;
     }
@@ -1878,7 +1909,7 @@ private:
             return;
         }
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y - kPanelMarginPx}, ImGuiCond_FirstUseEver, {0.5f, 1.0f});
-        ImGui::Begin("Repetición", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Begin(T("Repetición"), nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         const auto clock_text = [](sim::Tick t) {
             const auto seconds = t / static_cast<sim::Tick>(sim::kTicksPerSecond);
             constexpr sim::Tick kSecondsPerMinute = 60;
@@ -1886,7 +1917,7 @@ private:
         };
         ImGui::Text("%s / %s", clock_text(world_->tick()).c_str(), clock_text(replay_end_).c_str());
         ImGui::SameLine();
-        if (ImGui::Button(paused_ ? "Reanudar" : "Pausa")) {
+        if (ImGui::Button(paused_ ? T("Reanudar") : T("Pausa"))) {
             paused_ = !paused_;
         }
         const auto& speeds = data_.engine.replay.speeds;
@@ -1898,26 +1929,26 @@ private:
             }
         }
         // Vista: todo, o lo que veía cada jugador (niebla de guerra).
-        ImGui::TextUnformatted("Vista:");
+        ImGui::TextUnformatted(T("Vista:"));
         ImGui::SameLine();
-        if (ImGui::RadioButton("todo", !view_player_)) {
+        if (ImGui::RadioButton(T("todo"), !view_player_)) {
             view_player_.reset();
         }
         for (std::size_t p = 0; p < curr_.players.size(); ++p) {
             ImGui::SameLine();
             const auto id = static_cast<sim::PlayerId>(p);
-            if (ImGui::RadioButton(std::format("jugador {}", p).c_str(), view_player_ == id)) {
+            if (ImGui::RadioButton(TF("jugador {}", p).c_str(), view_player_ == id)) {
                 view_player_ = id;
             }
         }
         if (player_->diverged()) {
-            ImGui::TextColored({1.0f, 0.35f, 0.3f, 1.0f}, "Divergencia en el tick %u: la partida ya no es la grabada",
+            ImGui::TextColored({1.0f, 0.35f, 0.3f, 1.0f}, T("Divergencia en el tick %u: la partida ya no es la grabada"),
                                player_->diverged_at());
         } else {
-            ImGui::TextDisabled("%zu comprobaciones de hash correctas%s", player_->checkpoints_checked(),
-                                player_->finished(*world_) ? " · fin" : "");
+            ImGui::TextDisabled(T("%zu comprobaciones de hash correctas%s"), player_->checkpoints_checked(),
+                                player_->finished(*world_) ? T(" · fin") : "");
         }
-        ImGui::TextDisabled("Espacio: pausa · 1-%zu: velocidad · sin órdenes", speeds.size());
+        ImGui::TextDisabled(T("Espacio: pausa · 1-%zu: velocidad · sin órdenes"), speeds.size());
         ImGui::End();
     }
 
@@ -1930,7 +1961,7 @@ private:
         constexpr float kMargin = 10.0f;
         constexpr float kTop = 40.0f;  // debajo de la barra de recursos
         ImGui::SetNextWindowPos({display.x - kMargin, kTop}, ImGuiCond_Always, {1.0f, 0.0f});
-        ImGui::Begin("Objetivos", nullptr,
+        ImGui::Begin(T("Objetivos"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing);
         for (std::size_t i = 0; i < objectives.size(); ++i) {
             const sim::Objective& o = objectives[i];
@@ -1946,7 +1977,7 @@ private:
                 const sim::Tick left = o.ticks > curr_.tick ? o.ticks - curr_.tick : 0;
                 const sim::Tick secs = left / static_cast<sim::Tick>(sim::kTicksPerSecond);
                 constexpr sim::Tick kSecondsPerMinute = 60;
-                ImGui::TextColored({1.0f, 0.8f, 0.3f, 1.0f}, "%s · quedan %u:%02u", text.c_str(), secs / kSecondsPerMinute,
+                ImGui::TextColored({1.0f, 0.8f, 0.3f, 1.0f}, T("%s · quedan %u:%02u"), text.c_str(), secs / kSecondsPerMinute,
                                    secs % kSecondsPerMinute);
             }
         }
@@ -1962,10 +1993,10 @@ private:
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::SetNextWindowSize({display.x * kWidthShare, 0.0f}, ImGuiCond_Always);
         ImGui::SetNextWindowFocus();
-        ImGui::Begin(data_.scenario_name.empty() ? "Informe" : data_.scenario_name.c_str(), nullptr,
+        ImGui::Begin(data_.scenario_name.empty() ? T("Informe") : data_.scenario_name.c_str(), nullptr,
                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
         ImGui::TextWrapped("%s", data_.scenario_briefing.c_str());
-        if (ImGui::Button("Empezar")) {
+        if (ImGui::Button(T("Empezar"))) {
             briefing_open_ = false;
         }
         ImGui::End();
@@ -2002,15 +2033,15 @@ private:
         }
         won_ = won && !lost;
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.35f}, ImGuiCond_Always, {0.5f, 0.5f});
-        ImGui::Begin("Resultado", nullptr,
+        ImGui::Begin(T("Resultado"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
         constexpr float kOutcomeScale = 3.0f;  // letra del cartel: tres veces la normal
         ImGui::SetWindowFontScale(kOutcomeScale);
         ImGui::TextColored(won ? ImVec4{0.4f, 1.0f, 0.4f, 1.0f} : ImVec4{1.0f, 0.35f, 0.3f, 1.0f}, "%s",
-                           won ? "¡Victoria!" : "Derrota");
+                           won ? T("¡Victoria!") : T("Derrota"));
         ImGui::SetWindowFontScale(1.0f);
         draw_stats_table();
-        if (ImGui::Button("Volver al menú")) {
+        if (ImGui::Button(T("Volver al menú"))) {
             back_to_menu_ = true;
         }
         ImGui::End();
@@ -2019,13 +2050,13 @@ private:
     // Estadísticas de la partida, por jugador.
     void draw_stats_table() const {
         const auto mins = curr_.tick / static_cast<sim::Tick>(sim::kTicksPerSecond * 60);
-        ImGui::Text("Duración: %u min", mins);
+        ImGui::Text(T("Duración: %u min"), mins);
         if (!ImGui::BeginTable("estadisticas", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit)) {
             return;
         }
-        for (const char* h : {"Jugador", "Recogido", "Entrenadas", "Perdidas", "Abatidos", "Edificios perdidos",
-                              "Población máx."}) {
-            ImGui::TableSetupColumn(h);
+        for (const char* h : {TK("Jugador"), TK("Recogido"), TK("Entrenadas"), TK("Perdidas"), TK("Abatidos"),
+                              TK("Edificios perdidos"), TK("Población máx.")}) {
+            ImGui::TableSetupColumn(T(h));
         }
         ImGui::TableHeadersRow();
         for (std::size_t p = 0; p < curr_.players.size(); ++p) {
@@ -2036,7 +2067,7 @@ private:
             }
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            ImGui::Text("%zu%s", p, p == local_ ? " (tú)" : "");
+            ImGui::Text("%zu%s", p, p == local_ ? T(" (tú)") : "");
             for (const std::int32_t v : {gathered, s.units_trained, s.units_lost, s.enemies_killed, s.buildings_lost,
                                          s.peak_population}) {
                 ImGui::TableNextColumn();
@@ -2053,7 +2084,7 @@ private:
         }
         const sim::PlayerState& ps = curr_.players[local_];
         ImGui::SetNextWindowPos({display.x * 0.5f, kPanelMarginPx}, ImGuiCond_Always, {0.5f, 0.0f});
-        ImGui::Begin("Recursos", nullptr,
+        ImGui::Begin(T("Recursos"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
         for (std::size_t r = 0; r < sim::kResourceCount; ++r) {
             const render::Rgba& c = data_.engine.view.resource_colors[r];
@@ -2061,10 +2092,10 @@ private:
             ImGui::TextColored({static_cast<float>(c[0]) / kChannelMax, static_cast<float>(c[1]) / kChannelMax,
                                 static_cast<float>(c[2]) / kChannelMax, 1.0f},
                                "%s %d",
-                               std::string(resource_key(static_cast<sim::Resource>(r))).c_str(), ps.stock[r]);
+                               T(resource_key(static_cast<sim::Resource>(r)).data()), ps.stock[r]);
             ImGui::SameLine();
         }
-        ImGui::Text("· población %d/%d", ps.population, ps.population_cap);
+        ImGui::Text(T("· población %d/%d"), ps.population, ps.population_cap);
         ImGui::End();
     }
 
@@ -2073,7 +2104,7 @@ private:
     void draw_selection_panel(const ImVec2& display) {
         // Anclado siempre por la esquina inferior izquierda: crece hacia arriba.
         ImGui::SetNextWindowPos({kPanelMarginPx, display.y - kPanelMarginPx}, ImGuiCond_Always, {0.0f, 1.0f});
-        ImGui::Begin("Selección", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Begin(T("Selección"), nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         const sim::Stock stock =
             curr_.players.size() > local_ ? curr_.players[local_].stock : sim::Stock{};
         if (selected_building_) {
@@ -2085,12 +2116,12 @@ private:
                 if (it != curr_.entities.end() && data_.units.types[it->type].type.worker) {
                     ++workers;
                     if (selection_.selected().size() == 1) {
-                        ImGui::Text("Aldeano: %s, lleva %d de %s", task_name(it->task), it->carried,
-                                    std::string(resource_key(it->carry_kind)).c_str());
+                        ImGui::Text(T("Aldeano: %s, lleva %d de %s"), task_name(it->task), it->carried,
+                                    T(resource_key(it->carry_kind).data()));
                     }
                 }
             }
-            ImGui::Text("%zu unidades seleccionadas (%d aldeanos)", selection_.selected().size(), workers);
+            ImGui::Text(T("%zu unidades seleccionadas (%d aldeanos)"), selection_.selected().size(), workers);
             std::int32_t hungry = 0;
             std::int32_t no_ammo = 0;
             for (const std::uint32_t id : selection_.selected()) {
@@ -2101,47 +2132,47 @@ private:
                 }
             }
             if (hungry > 0 || no_ammo > 0) {
-                ImGui::TextColored(kWarnColor, "%d con hambre · %d sin munición: llévalas junto a un edificio que abastezca",
+                ImGui::TextColored(kWarnColor, T("%d con hambre · %d sin munición: llévalas junto a un edificio que abastezca"),
                                    hungry, no_ammo);
             }
             if (selection_.selected().size() == 1) {
                 const auto it = std::ranges::find(curr_.entities, selection_.selected().front(), &sim::SnapshotEntity::id);
                 if (it != curr_.entities.end()) {
                     const UnitInfo& u = data_.units.types[it->type];
-                    ImGui::Text("%s · vida %d/%d · nivel %d (%d de experiencia)", u.name.c_str(), it->hp, it->max_hp,
+                    ImGui::Text(T("%s · vida %d/%d · nivel %d (%d de experiencia)"), N(u.name), it->hp, it->max_hp,
                                 it->level, it->xp);
                     draw_supply_text(*it);
                     draw_care_text(*it);
                     if (u.type.convoy_capacity > 0) {
-                        ImGui::Text("carga %s (de %d)", stock_text(it->load).c_str(), u.type.convoy_capacity);
+                        ImGui::Text(T("carga %s (de %d)"), stock_text(it->load).c_str(), u.type.convoy_capacity);
                         ImGui::TextDisabled("%s", convoy_text(it->convoy));
-                        ImGui::TextDisabled("Clic derecho en un campamento: ruta de convoy; en otro almacén: cargar");
+                        ImGui::TextDisabled("%s", T("Clic derecho en un campamento: ruta de convoy; en otro almacén: cargar"));
                     }
                     if (it->hero_name >= 0 && !data_.engine.hero_names.empty()) {
                         const auto n = static_cast<std::size_t>(it->hero_name) % data_.engine.hero_names.size();
-                        ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, "Héroe: %s", data_.engine.hero_names[n].c_str());
+                        ImGui::TextColored({1.0f, 0.8f, 0.2f, 1.0f}, T("Héroe: %s"), data_.engine.hero_names[n].c_str());
                     }
                 }
             }
-            if (ImGui::Button("Agresiva")) {
+            if (ImGui::Button(T("Agresiva"))) {
                 sim::Command c = local_command(sim::CommandType::SetStance);
                 c.kind = static_cast<std::uint8_t>(sim::Stance::Aggressive);
                 issue(std::move(c));
             }
             ImGui::SameLine();
-            if (ImGui::Button("Mantener posición")) {
+            if (ImGui::Button(T("Mantener posición"))) {
                 sim::Command c = local_command(sim::CommandType::SetStance);
                 c.kind = static_cast<std::uint8_t>(sim::Stance::HoldGround);
                 issue(std::move(c));
             }
             if (world_->fatigue().enabled()) {
-                if (ImGui::Button("Paso normal")) {
+                if (ImGui::Button(T("Paso normal"))) {
                     sim::Command c = local_command(sim::CommandType::SetStance);
                     c.kind = sim::kPaceNormal;
                     issue(std::move(c));
                 }
                 ImGui::SameLine();
-                if (ImGui::Button("Paso forzado")) {
+                if (ImGui::Button(T("Paso forzado"))) {
                     sim::Command c = local_command(sim::CommandType::SetStance);
                     c.kind = sim::kPaceForced;
                     issue(std::move(c));
@@ -2149,16 +2180,16 @@ private:
             }
             if (world_->formation().enabled()) {
                 constexpr std::array<std::pair<const char*, sim::FormationKind>, 4> kForms{{
-                    {"Sin formación", sim::FormationKind::None},
-                    {"Línea", sim::FormationKind::Line},
-                    {"Columna", sim::FormationKind::Column},
-                    {"Cuadro", sim::FormationKind::Square},
+                    {TK("Sin formación"), sim::FormationKind::None},
+                    {TK("Línea"), sim::FormationKind::Line},
+                    {TK("Columna"), sim::FormationKind::Column},
+                    {TK("Cuadro"), sim::FormationKind::Square},
                 }};
                 for (std::size_t i = 0; i < kForms.size(); ++i) {
                     if (i > 0) {
                         ImGui::SameLine();
                     }
-                    if (ImGui::Button(kForms[i].first)) {
+                    if (ImGui::Button(T(kForms[i].first))) {
                         sim::Command c = local_command(sim::CommandType::SetStance);
                         c.kind = static_cast<std::uint8_t>(sim::kFormationBase + static_cast<std::uint8_t>(kForms[i].second));
                         issue(std::move(c));
@@ -2166,7 +2197,7 @@ private:
                 }
             }
             if (workers > 0) {
-                ImGui::SeparatorText("Construir");
+                ImGui::SeparatorText(T("Construir"));
                 for (std::size_t b = 0; b < data_.buildings.types.size(); ++b) {
                     const BuildingInfo& info = data_.buildings.types[b];
                     const auto type = static_cast<sim::BuildingTypeId>(b);
@@ -2182,15 +2213,15 @@ private:
                             needs += (needs.empty() ? "" : ", ") + data_.buildings.types[r].name;
                         }
                         ImGui::SameLine();
-                        ImGui::TextDisabled("requiere %s", needs.c_str());
+                        ImGui::TextDisabled(T("requiere %s"), needs.c_str());
                     }
                 }
                 if (placing_) {
-                    ImGui::TextDisabled("Clic: colocar · Mayús+clic: varios · clic derecho o Esc: cancelar");
+                    ImGui::TextDisabled("%s", T("Clic: colocar · Mayús+clic: varios · clic derecho o Esc: cancelar"));
                 }
             }
         } else {
-            ImGui::TextDisabled("Nada seleccionado");
+            ImGui::TextDisabled("%s", T("Nada seleccionado"));
         }
         ImGui::End();
     }
@@ -2202,7 +2233,7 @@ private:
             return;
         }
         const BuildingInfo& info = data_.buildings.types[o->type];
-        ImGui::Text("%s · vida %d/%d", info.name.c_str(), o->hp, info.type.hp);
+        ImGui::Text(T("%s · vida %d/%d"), N(info.name), o->hp, info.type.hp);
         if (info.type.beds > 0) {
             std::int32_t patients = 0;
             std::int32_t nurses = 0;
@@ -2213,36 +2244,36 @@ private:
             for (const sim::SnapshotEntity& e : curr_.entities) {
                 nurses += e.owner == local_ && e.tending && e.work_building == id ? 1 : 0;
             }
-            ImGui::Text("camas %d/%d · personal %d/%d · cura hasta el %d %%", patients, info.type.beds, nurses,
+            ImGui::Text(T("camas %d/%d · personal %d/%d · cura hasta el %d %%"), patients, info.type.beds, nurses,
                         info.type.nurses, info.type.heal_to_percent);
-            ImGui::TextDisabled("Clic derecho con heridos: ingresan; con aldeanos o cirujanos: atienden");
+            ImGui::TextDisabled("%s", T("Clic derecho con heridos: ingresan; con aldeanos o cirujanos: atienden"));
         }
         if (info.type.store_capacity > 0) {
-            ImGui::Text("suministros %s (de %d)", stock_text(o->store).c_str(), info.type.store_capacity);
-            ImGui::TextDisabled("Se llena con acémilas o carretas: clic derecho sobre él con ellas");
+            ImGui::Text(T("suministros %s (de %d)"), stock_text(o->store).c_str(), info.type.store_capacity);
+            ImGui::TextDisabled("%s", T("Se llena con acémilas o carretas: clic derecho sobre él con ellas"));
         } else if (info.type.supplies) {
-            ImGui::TextDisabled("Abastece a las tropas cercanas con víveres y munición");
+            ImGui::TextDisabled("%s", T("Abastece a las tropas cercanas con víveres y munición"));
         }
         if (o->fire > 0) {
-            ImGui::TextColored({1.0f, 0.5f, 0.1f, 1.0f}, "En llamas (%d %%): clic derecho con unidades para apagarlo",
+            ImGui::TextColored({1.0f, 0.5f, 0.1f, 1.0f}, T("En llamas (%d %%): clic derecho con unidades para apagarlo"),
                                o->fire * kPercent / data_.engine.world.fire.max_intensity);
         } else if (o->burned) {
-            ImGui::TextColored({0.8f, 0.6f, 0.4f, 1.0f}, "Quemado: no funciona hasta que lo reparen aldeanos");
+            ImGui::TextColored({0.8f, 0.6f, 0.4f, 1.0f}, "%s", T("Quemado: no funciona hasta que lo reparen aldeanos"));
         } else if (o->complete && o->hp < info.type.hp) {
-            ImGui::TextDisabled("Dañado: clic derecho con aldeanos para repararlo (cuesta madera)");
+            ImGui::TextDisabled("%s", T("Dañado: clic derecho con aldeanos para repararlo (cuesta madera)"));
         }
-        ImGui::TextDisabled("Mayús + clic derecho con aldeanos: desmontarlo (deja escombros)");
+        ImGui::TextDisabled("%s", T("Mayús + clic derecho con aldeanos: desmontarlo (deja escombros)"));
         if (!o->complete) {
             ImGui::ProgressBar(static_cast<float>(o->progress) / static_cast<float>(info.type.build_ticks), {-1.0f, 0.0f},
-                               "en obra");
+                               T("en obra"));
             return;
         }
         draw_research(*o, id);
         draw_market(*o, id);
         if (info.type.garrison > 0) {
-            ImGui::Text("Guarnición: %d de %d", o->garrison, info.type.garrison);
-            ImGui::TextDisabled("Clic derecho con tropas: guarnecerla (dentro no se las puede atacar)");
-            if (o->garrison > 0 && ImGui::SmallButton("Vaciar la torre")) {
+            ImGui::Text(T("Guarnición: %d de %d"), o->garrison, info.type.garrison);
+            ImGui::TextDisabled("%s", T("Clic derecho con tropas: guarnecerla (dentro no se las puede atacar)"));
+            if (o->garrison > 0 && ImGui::SmallButton(T("Vaciar la torre"))) {
                 sim::Command c = local_command(sim::CommandType::Garrison);
                 c.units.clear();
                 c.object = id;
@@ -2254,9 +2285,9 @@ private:
             return;
         }
         if (o->rally.x >= 0) {
-            ImGui::Text("Punto de reunión: (%d, %d)", o->rally.x, o->rally.y);
+            ImGui::Text(T("Punto de reunión: (%d, %d)"), o->rally.x, o->rally.y);
             ImGui::SameLine();
-            if (ImGui::SmallButton("Quitar")) {
+            if (ImGui::SmallButton(T("Quitar"))) {
                 sim::Command c = local_command(sim::CommandType::SetRally);
                 c.units.clear();
                 c.object = id;
@@ -2264,23 +2295,23 @@ private:
                 issue(std::move(c));
             }
         } else {
-            ImGui::TextDisabled("Clic derecho en el mapa: punto de reunión");
+            ImGui::TextDisabled("%s", T("Clic derecho en el mapa: punto de reunión"));
         }
-        ImGui::SeparatorText("Producción");
+        ImGui::SeparatorText(T("Producción"));
         for (std::size_t i = 0; i < o->queue.size(); ++i) {
             const UnitInfo& u = data_.units.types[o->queue[i]];
             if (i == 0) {
                 ImGui::ProgressBar(static_cast<float>(o->queue_progress) / static_cast<float>(u.type.train_ticks),
-                                   {-1.0f, 0.0f}, u.name.c_str());
+                                   {-1.0f, 0.0f}, N(u.name));
             } else {
-                ImGui::BulletText("%s", u.name.c_str());
+                ImGui::BulletText("%s", N(u.name));
             }
         }
         const bool full = std::cmp_greater_equal(o->queue.size(), data_.engine.world.economy.queue_capacity);
         // Un campamento paga con su propio almacén (lo traído en convoy).
         const sim::Stock& pays = info.type.store_capacity > 0 ? o->store : stock;
         if (info.type.store_capacity > 0) {
-            ImGui::TextDisabled("Se paga con el almacén del campamento");
+            ImGui::TextDisabled("%s", T("Se paga con el almacén del campamento"));
         }
         for (const sim::UnitTypeId t : info.type.trains) {
             const UnitInfo& u = data_.units.types[t];
@@ -2295,7 +2326,7 @@ private:
             ImGui::EndDisabled();
         }
         ImGui::BeginDisabled(o->queue.empty());
-        if (ImGui::Button("Cancelar la última (reembolso íntegro)")) {
+        if (ImGui::Button(T("Cancelar la última (reembolso íntegro)"))) {
             sim::Command c = local_command(sim::CommandType::CancelTrain);
             c.units.clear();
             c.object = id;
@@ -2475,7 +2506,7 @@ private:
                 return;
         }
         if (!fits) {
-            edit_status_ = "No cabe ahí";
+            edit_status_ = T("No cabe ahí");
             return;
         }
         sp.placements.push_back(p);
@@ -2541,11 +2572,11 @@ private:
             std::ranges::copy(editor_->name.substr(0, edit_name_.size() - 1), edit_name_.begin());
         }
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx * 5.0f}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
-        ImGui::Begin("Editor de escenarios", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::InputText("Nombre", edit_name_.data(), edit_name_.size());
+        ImGui::Begin(T("Editor de escenarios"), nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::InputText(T("Nombre"), edit_name_.data(), edit_name_.size());
         int players = sp.players;
         const auto max_players = static_cast<int>(data_.engine.seat_starts.size());
-        if (ImGui::SliderInt("Jugadores", &players, 1, max_players)) {
+        if (ImGui::SliderInt(T("Jugadores"), &players, 1, max_players)) {
             sp.players = players;
             // Lo de jugadores que ya no están, fuera.
             std::erase_if(sp.placements, [&](const sim::ScenarioPlacement& p) {
@@ -2553,10 +2584,10 @@ private:
             });
             rebuild_world();
         }
-        ImGui::SeparatorText("Herramienta");
-        constexpr std::array<const char*, 6> kTools{"Terreno", "Altura", "Recurso", "Edificio", "Unidad", "Borrar"};
+        ImGui::SeparatorText(T("Herramienta"));
+        constexpr std::array<const char*, 6> kTools{TK("Terreno"), TK("Altura"), TK("Recurso"), TK("Edificio"), TK("Unidad"), TK("Borrar")};
         for (std::size_t i = 0; i < kTools.size(); ++i) {
-            if (ImGui::RadioButton(kTools[i], edit_tool_ == static_cast<EditTool>(i))) {
+            if (ImGui::RadioButton(T(kTools[i]), edit_tool_ == static_cast<EditTool>(i))) {
                 edit_tool_ = static_cast<EditTool>(i);
                 edit_type_ = 0;
             }
@@ -2566,9 +2597,9 @@ private:
         }
         const auto type_list = [&](const auto& types) {
             const std::size_t current = std::min<std::size_t>(static_cast<std::size_t>(edit_type_), types.size() - 1);
-            if (ImGui::BeginCombo("Tipo", types[current].name.c_str())) {
+            if (ImGui::BeginCombo(T("Tipo"), N(types[current].name))) {
                 for (std::size_t i = 0; i < types.size(); ++i) {
-                    if (ImGui::Selectable(types[i].name.c_str(), i == current)) {
+                    if (ImGui::Selectable(N(types[i].name), i == current)) {
                         edit_type_ = static_cast<int>(i);
                     }
                 }
@@ -2578,12 +2609,12 @@ private:
         switch (edit_tool_) {
             case EditTool::Terrain:
                 type_list(data_.terrain.types);
-                ImGui::SliderInt("Pincel", &edit_radius_, 1, kMaxBrush);
-                ImGui::TextDisabled("Arrastrar: pintar");
+                ImGui::SliderInt(T("Pincel"), &edit_radius_, 1, kMaxBrush);
+                ImGui::TextDisabled("%s", T("Arrastrar: pintar"));
                 break;
             case EditTool::Height:
-                ImGui::SliderInt("Pincel", &edit_radius_, 1, kMaxBrush);
-                ImGui::TextDisabled("Izquierdo: subir; derecho: bajar");
+                ImGui::SliderInt(T("Pincel"), &edit_radius_, 1, kMaxBrush);
+                ImGui::TextDisabled("%s", T("Izquierdo: subir; derecho: bajar"));
                 break;
             case EditTool::Node:
                 type_list(data_.nodes.types);
@@ -2596,32 +2627,32 @@ private:
                     type_list(data_.units.types);
                 }
                 edit_player_ = std::min(edit_player_, sp.players - 1);
-                ImGui::SliderInt("Jugador", &edit_player_, 0, sp.players - 1);
+                ImGui::SliderInt(T("Jugador"), &edit_player_, 0, sp.players - 1);
                 break;
             case EditTool::Erase:
-                ImGui::TextDisabled("Clic: quitar lo que hay");
+                ImGui::TextDisabled("%s", T("Clic: quitar lo que hay"));
                 break;
         }
-        ImGui::TextDisabled("Derecho (salvo altura): quitar");
+        ImGui::TextDisabled("%s", T("Derecho (salvo altura): quitar"));
         // Siempre la misma línea: que los botones no se muevan al pasar sobre el panel.
         if (hover) {
-            ImGui::Text("Casilla %d, %d", hover->x, hover->y);
+            ImGui::Text(T("Casilla %d, %d"), hover->x, hover->y);
         } else {
-            ImGui::TextDisabled("Casilla -");
+            ImGui::TextDisabled("%s", T("Casilla -"));
         }
         ImGui::Separator();
-        if (ImGui::Button("Guardar")) {
+        if (ImGui::Button(T("Guardar"))) {
             editor_->name = edit_name_.data();
             edit_status_ = save_scenario();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Probar")) {
+        if (ImGui::Button(T("Probar"))) {
             editor_->name = edit_name_.data();
             play_requested_ = true;
             back_to_menu_ = true;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Salir")) {
+        if (ImGui::Button(T("Salir"))) {
             back_to_menu_ = true;
         }
         if (!edit_status_.empty()) {
@@ -2661,10 +2692,10 @@ private:
         std::ofstream out(path, std::ios::binary);
         out << scenario_doc_toml(*editor_, data_);
         if (!out) {
-            return "No se pudo guardar (detalles en rts.log)";
+            return T("No se pudo guardar (detalles en rts.log)");
         }
         spdlog::info("Escenario guardado en {}", path.string());
-        return std::format("Guardado: {}", path.filename().string());
+        return TF("Guardado: {}", path.filename().string());
     }
 
     // Pose de la figura: andando, el ciclo de pasos; combatiendo, según cuánto falta para
@@ -3084,9 +3115,12 @@ struct Display {
     }
 };
 
-std::optional<Display> open_display(const GameData& data) {
+// Con opciones del jugador (F5), la ventana sale de su tamaño (o a pantalla completa).
+std::optional<Display> open_display(const GameData& data, const Options* options = nullptr) {
     const WindowConfig& wc = data.engine.window;
-    auto window = platform::Window::create({wc.title, wc.width, wc.height});
+    auto window = platform::Window::create({wc.title, options != nullptr ? options->width : wc.width,
+                                            options != nullptr ? options->height : wc.height,
+                                            options != nullptr && options->fullscreen});
     if (!window) {
         spdlog::error("{}", window.error());
         return std::nullopt;
@@ -3121,7 +3155,7 @@ std::optional<Display> open_display(const GameData& data) {
 }
 
 struct MenuChoice {
-    enum class Kind : std::uint8_t { New, Load, Replay, Host, Join, EditNew, Edit, PlayScenario, Campaign, Quit };
+    enum class Kind : std::uint8_t { New, Load, Replay, Host, Join, EditNew, Edit, PlayScenario, Campaign, Options, Quit };
     Kind kind = Kind::Quit;
     std::filesystem::path path;
     std::size_t campaign = 0;  // Campaign: cuál
@@ -3192,7 +3226,7 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
         d.renderer->begin_frame();
         const ImVec2 display = ImGui::GetIO().DisplaySize;
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
-        ImGui::Begin("Menú", nullptr,
+        ImGui::Begin(T("Menú"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
         constexpr float kTitleScale = 2.0f;
         ImGui::SetWindowFontScale(kTitleScale);
@@ -3200,14 +3234,14 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
         ImGui::SetWindowFontScale(1.0f);
         MenuChoice choice;
         bool chosen = false;
-        ImGui::SeparatorText("Nueva partida");
+        ImGui::SeparatorText(T("Nueva partida"));
         int seed = static_cast<int>(settings.seed);
-        if (ImGui::InputInt("Semilla del mapa", &seed)) {
+        if (ImGui::InputInt(T("Semilla del mapa"), &seed)) {
             settings.seed = static_cast<std::uint64_t>(std::max(seed, 0));
         }
-        if (ImGui::BeginCombo("Rival (IA)", settings.rival.c_str())) {
+        if (ImGui::BeginCombo(T("Rival (IA)"), N(settings.rival))) {
             for (const std::string& p : profiles) {
-                if (ImGui::Selectable(p.c_str(), p == settings.rival)) {
+                if (ImGui::Selectable(N(p), p == settings.rival)) {
                     settings.rival = p;
                 }
             }
@@ -3217,22 +3251,22 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
         const auto& presets = base.engine.map_presets;
         if (!presets.empty()) {
             const std::string shown = settings.map.empty() ? presets.front().name : settings.map;
-            if (ImGui::BeginCombo("Mapa", shown.c_str())) {
+            if (ImGui::BeginCombo(T("Mapa"), N(shown))) {
                 for (const MapPreset& p : presets) {
-                    if (ImGui::Selectable(p.name.c_str(), p.name == shown)) {
+                    if (ImGui::Selectable(N(p.name), p.name == shown)) {
                         settings.map = p.name;
                     }
                 }
                 ImGui::EndCombo();
             }
         }
-        ImGui::Checkbox("Niebla de guerra", &settings.fog);
-        if (ImGui::Button("Empezar")) {
+        ImGui::Checkbox(T("Niebla de guerra"), &settings.fog);
+        if (ImGui::Button(T("Empezar"))) {
             choice.kind = MenuChoice::Kind::New;
             chosen = true;
         }
         if (!campaigns.empty()) {
-            ImGui::SeparatorText("Campaña");
+            ImGui::SeparatorText(T("Campaña"));
             for (std::size_t i = 0; i < campaigns.size(); ++i) {
                 ImGui::PushID(static_cast<int>(i));
                 if (ImGui::Button(campaigns[i].name.c_str())) {
@@ -3243,10 +3277,10 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
                 ImGui::PopID();
             }
         }
-        ImGui::SeparatorText("En red (de 2 a 4 jugadores; los puestos libres, para la IA)");
-        ImGui::InputInt("Puerto", &net.port);
+        ImGui::SeparatorText(T("En red (de 2 a 4 jugadores; los puestos libres, para la IA)"));
+        ImGui::InputInt(T("Puerto"), &net.port);
         net.port = std::clamp(net.port, 1, static_cast<int>(std::numeric_limits<std::uint16_t>::max()));
-        if (ImGui::Button("Crear sala")) {
+        if (ImGui::Button(T("Crear sala"))) {
             choice.kind = MenuChoice::Kind::Host;
             chosen = true;
         }
@@ -3254,23 +3288,23 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10.0f);
         ImGui::InputText("##direccion", net.address.data(), net.address.size());
         ImGui::SameLine();
-        if (ImGui::Button("Unirse")) {
+        if (ImGui::Button(T("Unirse"))) {
             choice.kind = MenuChoice::Kind::Join;
             chosen = true;
         }
-        ImGui::SeparatorText("Escenarios (F3)");
-        if (ImGui::Button("Nuevo escenario con este mapa")) {
+        ImGui::SeparatorText(T("Escenarios (F3)"));
+        if (ImGui::Button(T("Nuevo escenario con este mapa"))) {
             choice.kind = MenuChoice::Kind::EditNew;
             chosen = true;
         }
         for (const auto& p : scenario_files()) {
             ImGui::PushID(p.string().c_str());
-            if (ImGui::SmallButton("Jugar")) {
+            if (ImGui::SmallButton(T("Jugar"))) {
                 choice = {MenuChoice::Kind::PlayScenario, p};
                 chosen = true;
             }
             ImGui::SameLine();
-            if (ImGui::SmallButton("Editar")) {
+            if (ImGui::SmallButton(T("Editar"))) {
                 choice = {MenuChoice::Kind::Edit, p};
                 chosen = true;
             }
@@ -3278,9 +3312,9 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
             ImGui::TextUnformatted(p.stem().string().c_str());
             ImGui::PopID();
         }
-        ImGui::SeparatorText("Cargar partida guardada (F5 durante la partida)");
+        ImGui::SeparatorText(TF("Cargar partida guardada ({} durante la partida)", key_label(KeyAction::QuickSave)).c_str());
         if (saves.empty()) {
-            ImGui::TextDisabled("Ninguna todavía");
+            ImGui::TextDisabled("%s", T("Ninguna todavía"));
         }
         for (const auto& p : saves) {
             if (ImGui::Selectable(p.filename().string().c_str())) {
@@ -3288,9 +3322,9 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
                 chosen = true;
             }
         }
-        ImGui::SeparatorText("Ver una repetición");
+        ImGui::SeparatorText(T("Ver una repetición"));
         if (replays.empty()) {
-            ImGui::TextDisabled("Ninguna todavía");
+            ImGui::TextDisabled("%s", T("Ninguna todavía"));
         }
         for (const auto& p : replays) {
             if (ImGui::Selectable(p.filename().string().c_str())) {
@@ -3299,7 +3333,12 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
             }
         }
         ImGui::Separator();
-        if (ImGui::Button("Salir")) {
+        if (ImGui::Button(T("Opciones"))) {
+            choice.kind = MenuChoice::Kind::Options;
+            chosen = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(T("Salir"))) {
             choice.kind = MenuChoice::Kind::Quit;
             chosen = true;
         }
@@ -3342,24 +3381,25 @@ std::optional<GameData> run_lobby(Display& d, const GameData& base, MatchSetting
         const ImVec2 display = ImGui::GetIO().DisplaySize;
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::SetNextWindowSize({display.x * 0.5f, display.y * 0.6f}, ImGuiCond_Always);
-        ImGui::Begin("Sala", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
+        ImGui::Begin(T("Sala"), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
         bool leave = false;
         std::optional<GameData> started;
         if (net.state() == LockstepState::Failed) {
             ImGui::TextColored(kWarnColor, "%s", net.error().c_str());
         } else if (net.is_host()) {
-            ImGui::Text("Sala abierta en el puerto %u. Los demás se unen con la IP de este equipo y ese puerto.",
+            ImGui::Text(T("Sala abierta en el puerto %u. Los demás se unen con la IP de este equipo y ese puerto."),
                         static_cast<unsigned>(net.port()));
-            ImGui::Text("Jugadores conectados: %u (tú incluido)", static_cast<unsigned>(net.connected()));
+            ImGui::Text(T("Jugadores conectados: %u (tú incluido)"), static_cast<unsigned>(net.connected()));
             seats = std::clamp(seats, std::max<int>(2, net.connected()), max_seats);
-            ImGui::SliderInt("Puestos", &seats, std::max<int>(2, net.connected()), max_seats);
+            ImGui::SliderInt(T("Puestos"), &seats, std::max<int>(2, net.connected()), max_seats);
             for (int i = 0; i < seats; ++i) {
-                ImGui::BulletText("Puesto %d: %s", i, i < net.connected() ? "humano" : ("IA " + settings.rival).c_str());
+                ImGui::BulletText(T("Puesto %d: %s"), i,
+                                  i < net.connected() ? T("humano") : TF("IA {}", N(settings.rival)).c_str());
             }
-            ImGui::Text("Semilla %llu, mapa %s, niebla %s", static_cast<unsigned long long>(settings.seed),
-                        settings.map.empty() ? "por defecto" : settings.map.c_str(), settings.fog ? "sí" : "no");
+            ImGui::Text(T("Semilla %llu, mapa %s, niebla %s"), static_cast<unsigned long long>(settings.seed),
+                        settings.map.empty() ? T("por defecto") : N(settings.map), settings.fog ? T("sí") : T("no"));
             ImGui::BeginDisabled(net.connected() < 2);
-            if (ImGui::Button("Empezar")) {
+            if (ImGui::Button(T("Empezar"))) {
                 settings.seats.assign(static_cast<std::size_t>(seats), "ia");
                 for (std::size_t i = 0; i < net.connected(); ++i) {
                     settings.seats[i] = "humano";
@@ -3378,15 +3418,15 @@ std::optional<GameData> run_lobby(Display& d, const GameData& base, MatchSetting
             if (net.joining()) {
                 ImGui::TextUnformatted("Conectando con el anfitrión...");
             } else {
-                ImGui::Text("Conectado. Jugadores en la sala: %u. Empieza el anfitrión.",
+                ImGui::Text(T("Conectado. Jugadores en la sala: %u. Empieza el anfitrión."),
                             static_cast<unsigned>(net.connected()));
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Salir de la sala")) {
+        if (ImGui::Button(T("Salir de la sala"))) {
             leave = true;
         }
-        ImGui::SeparatorText("Charla");
+        ImGui::SeparatorText(T("Charla"));
         ImGui::BeginChild("charla");
         draw_chat(net, base, chat_input);
         ImGui::EndChild();
@@ -3454,6 +3494,167 @@ int run_net_windowed(const GameData& base, const LaunchOptions& options) {
     // Que el otro cierre antes es lo normal al acabar una prueba de humo; una
     // desincronización, no.
     return session->desync() ? 1 : code;
+}
+
+// --- Opciones (F5) -------------------------------------------------------------------
+
+std::string read_text(const std::filesystem::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+}
+
+std::filesystem::path options_path() {
+    return std::filesystem::path(platform::executable_dir()) / kOptionsFile;
+}
+
+// Las de data/ y, encima, las del jugador. Si las del jugador no se leen, se avisa y
+// se juega con las de data/.
+std::optional<Options> load_options(const std::filesystem::path& data_dir) {
+    const auto defaults_path = data_dir / kOptionsFile;
+    auto defaults = parse_options(read_text(defaults_path), nullptr, defaults_path.string());
+    if (!defaults) {
+        spdlog::error("Opciones: {}", defaults.error());
+        return std::nullopt;
+    }
+    if (!std::filesystem::exists(options_path())) {
+        return std::move(*defaults);
+    }
+    auto mine = parse_options(read_text(options_path()), &*defaults, options_path().string());
+    if (!mine) {
+        spdlog::warn("Opciones del jugador: {}; se usan las de partida", mine.error());
+        return std::move(*defaults);
+    }
+    return std::move(*mine);
+}
+
+void save_options(const Options& o) {
+    std::ofstream out(options_path(), std::ios::binary);
+    out << options_toml(o);
+    if (!out) {
+        spdlog::warn("No se pudieron guardar las opciones en {}", options_path().string());
+    }
+}
+
+// Aplica idioma, teclas, volumen y pantalla.
+void apply_options(const Options& o, Display& d, const std::filesystem::path& data_dir) {
+    if (auto r = set_language(data_dir, o.language); !r) {
+        spdlog::warn("Idioma: {}", r.error());
+    }
+    for (std::size_t i = 0; i < kKeyActionCount; ++i) {
+        const std::int32_t code = platform::scancode_from_name(o.keys[i]);
+        if (code < 0) {
+            spdlog::warn("Opciones: la tecla \"{}\" de {} no existe; se queda la anterior", o.keys[i], kKeyActionIds[i]);
+            continue;
+        }
+        key_codes()[i] = code;
+    }
+    std::array<std::int32_t, 8> scroll{};
+    std::copy_n(key_codes().begin(), scroll.size(), scroll.begin());
+    d.window->set_scroll_keys(scroll);
+    if (d.audio) {
+        constexpr float kPercentF = 100.0f;
+        d.audio->mixer.set_gains(static_cast<float>(o.master_percent) / kPercentF,
+                                 static_cast<float>(o.effects_percent) / kPercentF,
+                                 static_cast<float>(o.music_percent) / kPercentF);
+    }
+    d.window->set_fullscreen(o.fullscreen);
+    if (!o.fullscreen) {
+        d.window->set_size(o.width, o.height);
+    }
+}
+
+// Pantalla de opciones. Devuelve las nuevas si se guardan; nada si se vuelve sin guardar.
+std::optional<Options> run_options_menu(Display& d, const GameData& base, Options o,
+                                        const std::filesystem::path& data_dir) {
+    const auto languages = available_languages(data_dir);
+    static constexpr std::array<const char*, kKeyActionCount> kLabels{
+        TK("Cámara: izquierda"), TK("Cámara: derecha"), TK("Cámara: arriba"), TK("Cámara: abajo"),
+        TK("Cámara: izquierda (otra)"), TK("Cámara: derecha (otra)"), TK("Cámara: arriba (otra)"),
+        TK("Cámara: abajo (otra)"), TK("Ir al último aviso"), TK("Guardar la partida"), TK("Volver al menú"),
+        TK("Datos de depuración"), TK("Ayuda"),
+    };
+    std::optional<std::size_t> capturing;  // acción que espera su tecla nueva
+    while (true) {
+        d.pump_audio(base.sound.peace_music);
+        SDL_Event event;
+        while (d.window->poll_event(event)) {
+            d.renderer->process_event(event);
+            if (d.window->is_close_request(event)) {
+                return std::nullopt;
+            }
+            if (capturing && event.type == SDL_EVENT_KEY_DOWN) {
+                if (event.key.scancode != SDL_SCANCODE_ESCAPE) {
+                    o.keys[*capturing] = platform::scancode_name(static_cast<std::int32_t>(event.key.scancode));
+                }
+                capturing.reset();
+            }
+        }
+        d.renderer->begin_frame();
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::Begin(T("Opciones"), nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+        std::optional<Options> result;
+        bool back = false;
+        ImGui::SeparatorText(T("Idioma"));
+        const auto current = std::ranges::find(languages, o.language, &LanguageInfo::code);
+        if (ImGui::BeginCombo(T("Idioma"), current != languages.end() ? current->name.c_str() : o.language.c_str())) {
+            for (const LanguageInfo& l : languages) {
+                if (ImGui::Selectable(l.name.c_str(), l.code == o.language)) {
+                    o.language = l.code;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SeparatorText(T("Pantalla"));
+        ImGui::Checkbox(T("Pantalla completa"), &o.fullscreen);
+        const std::string size = std::format("{} x {}", o.width, o.height);
+        ImGui::BeginDisabled(o.fullscreen);
+        if (ImGui::BeginCombo(T("Tamaño de la ventana"), size.c_str())) {
+            for (const auto& [w, h] : o.resolutions) {
+                if (ImGui::Selectable(std::format("{} x {}", w, h).c_str(), w == o.width && h == o.height)) {
+                    o.width = w;
+                    o.height = h;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::EndDisabled();
+        ImGui::SeparatorText(T("Volumen"));
+        constexpr int kMaxPercent = 100;
+        ImGui::SliderInt(T("General"), &o.master_percent, 0, kMaxPercent, "%d %%");
+        ImGui::SliderInt(T("Efectos"), &o.effects_percent, 0, kMaxPercent, "%d %%");
+        ImGui::SliderInt(T("Música"), &o.music_percent, 0, kMaxPercent, "%d %%");
+        ImGui::SeparatorText(T("Teclas"));
+        if (ImGui::BeginTable("teclas", 2, ImGuiTableFlags_SizingFixedFit)) {
+            for (std::size_t i = 0; i < kKeyActionCount; ++i) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(T(kLabels[i]));
+                ImGui::TableNextColumn();
+                ImGui::PushID(static_cast<int>(i));
+                const std::string label = capturing == i ? std::string(T("Pulsa una tecla (Esc: dejarla)")) : o.keys[i];
+                if (ImGui::Button(label.c_str())) {
+                    capturing = i;
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
+        ImGui::Separator();
+        if (ImGui::Button(T("Guardar"))) {
+            result = o;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(T("Volver sin guardar"))) {
+            back = true;
+        }
+        ImGui::End();
+        d.renderer->end_frame();
+        if (result || back) {
+            return result;
+        }
+    }
 }
 
 // Progreso de las campañas: junto al ejecutable, como las repeticiones.
@@ -3527,7 +3728,7 @@ std::optional<ChapterPick> run_campaign_menu(Display& d, const GameData& base, c
             ImGui::EndDisabled();
         }
         ImGui::Separator();
-        if (ImGui::Button("Volver al menú")) {
+        if (ImGui::Button(T("Volver al menú"))) {
             back = true;
         }
         ImGui::EndChild();
@@ -3543,28 +3744,28 @@ std::optional<ChapterPick> run_campaign_menu(Display& d, const GameData& base, c
         if (!doc) {
             ImGui::TextColored({1.0f, 0.35f, 0.3f, 1.0f}, "%s", doc.error().c_str());
         } else {
-            ImGui::SeparatorText("Informe");
+            ImGui::SeparatorText(T("Informe"));
             ImGui::TextWrapped("%s", doc->briefing.c_str());
         }
-        ImGui::SeparatorText("Nota histórica");
+        ImGui::SeparatorText(T("Nota histórica"));
         ImGui::TextWrapped("%s", ch.history.c_str());
-        ImGui::SeparatorText("Fuentes (citas literales)");
+        ImGui::SeparatorText(T("Fuentes (citas literales)"));
         for (const CampaignSource& s : ch.sources) {
             ImGui::TextWrapped("«%s»", s.quote.c_str());
             ImGui::TextDisabled("%s · %s", s.work.c_str(), s.url.c_str());
             ImGui::Spacing();
         }
         ImGui::Separator();
-        if (ImGui::BeginCombo("Rival (IA)", rivals[selected].c_str())) {
+        if (ImGui::BeginCombo(T("Rival (IA)"), N(rivals[selected]))) {
             for (const std::string& p : profiles) {
-                if (ImGui::Selectable(p.c_str(), p == rivals[selected])) {
+                if (ImGui::Selectable(N(p), p == rivals[selected])) {
                     rivals[selected] = p;
                 }
             }
             ImGui::EndCombo();
         }
         ImGui::BeginDisabled(!doc || !progress.unlocked(c, selected));
-        if (ImGui::Button("Jugar este capítulo")) {
+        if (ImGui::Button(T("Jugar este capítulo"))) {
             pick = ChapterPick{selected, *doc, rivals[selected]};
         }
         ImGui::EndDisabled();
@@ -3581,9 +3782,13 @@ std::optional<ChapterPick> run_campaign_menu(Display& d, const GameData& base, c
 }
 
 int run_interactive(const GameData& base, const std::filesystem::path& data_dir) {
-    auto display = open_display(base);
+    std::optional<Options> options = load_options(data_dir);
+    auto display = open_display(base, options ? &*options : nullptr);
     if (!display) {
         return 1;
+    }
+    if (options) {
+        apply_options(*options, *display, data_dir);
     }
     MatchSettings settings;
     settings.seed = base.engine.world.map.seed;
@@ -3611,6 +3816,16 @@ int run_interactive(const GameData& base, const std::filesystem::path& data_dir)
         switch (choice.kind) {
             case MenuChoice::Kind::Quit:
                 return 0;
+            case MenuChoice::Kind::Options:
+                if (!options) {
+                    continue;  // sin data/opciones.toml no hay de dónde partir (ya se avisó)
+                }
+                if (auto changed = run_options_menu(*display, base, *options, data_dir)) {
+                    options = std::move(changed);
+                    save_options(*options);
+                    apply_options(*options, *display, data_dir);
+                }
+                continue;
             case MenuChoice::Kind::Campaign: {
                 // Capítulo a capítulo hasta volver al menú; ganar uno desbloquea el siguiente.
                 const Campaign& c = campaigns[choice.campaign];

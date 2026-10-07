@@ -199,7 +199,12 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   Calatrava, Las Navas) con informe, nota histórica y citas literales verificadas;
   progreso guardado. De paso, la brecha de un muro derribado ya se puede cruzar.
   Falta: probarla con personas y más campañas.
-- [ ] **F5. Idiomas y opciones.** Español e inglés; resolución, volumen y teclas.
+- [x] **F5. Idiomas y opciones.** Español e inglés; resolución, volumen y teclas.
+  Hecho: toda la interfaz en español e inglés (el texto español es la clave; una prueba
+  exige traducción, con los mismos especificadores, de cada texto marcado y nombre a la
+  vista de cada tipo de los datos) y menú de opciones (idioma, pantalla completa,
+  tamaño de ventana, tres volúmenes y 13 teclas), guardadas aparte de los datos de
+  partida. Falta: los textos de la campaña (informes, notas) solo están en español.
 
 ### Fase G — Calidad continua
 

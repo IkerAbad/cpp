@@ -1,0 +1,31 @@
+# Opciones del jugador por omisión (F5). Formato en src/game/options.hpp. No son datos
+# de la partida: no van en las repeticiones ni por la red. Lo que cambia el jugador se
+# guarda en opciones.toml, junto al ejecutable.
+language = "es"
+fullscreen = false
+width = 1600
+height = 900
+# Tamaños de ventana que ofrece el menú de opciones.
+resolutions = [[1280, 720], [1366, 768], [1600, 900], [1920, 1080], [2560, 1440]]
+
+[volume]
+# Por ciento (los mismos que [audio] de sound.toml).
+master = 80
+effects = 80
+music = 40
+
+[keys]
+# Nombres de tecla de SDL.
+camera_left = "Left"
+camera_right = "Right"
+camera_up = "Up"
+camera_down = "Down"
+camera_left_alt = "A"
+camera_right_alt = "D"
+camera_up_alt = "W"
+camera_down_alt = "S"
+last_alert = "Space"
+quick_save = "F5"
+menu = "F10"
+debug = "F1"
+help = "F2"
