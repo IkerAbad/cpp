@@ -193,7 +193,12 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   corta el paso (comprobado en 270 combinaciones), y editor de escenarios (terreno,
   altura, recursos, edificios, unidades, jugadores; guardar, jugar, editar). Falta:
   deshacer en el editor.
-- [ ] **F4. Campaña.** Escenarios históricos con datos propios.
+- [x] **F4. Campaña.** Escenarios históricos con datos propios. Hecho: objetivos en la
+  simulación (destruir, conservar, sobrevivir, llegar, reunir, derrotar), escenarios
+  escritos a mano con pinceladas, y la campaña de Las Navas de Tolosa (Toledo,
+  Calatrava, Las Navas) con informe, nota histórica y citas literales verificadas;
+  progreso guardado. De paso, la brecha de un muro derribado ya se puede cruzar.
+  Falta: probarla con personas y más campañas.
 - [ ] **F5. Idiomas y opciones.** Español e inglés; resolución, volumen y teclas.
 
 ### Fase G — Calidad continua

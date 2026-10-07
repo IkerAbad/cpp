@@ -708,6 +708,23 @@ accent = [128, 92, 58]
 height_px = 8
 variants = 1
 
+# Brecha: escombros más bajos y desparramados (se pasa por encima).
+[[node]]
+name = "brecha_piedra"
+shape = "escombros"
+main = [140, 134, 126]
+accent = [140, 134, 126]
+height_px = 4
+variants = 1
+
+[[node]]
+name = "brecha_madera"
+shape = "escombros"
+main = [112, 104, 96]
+accent = [120, 88, 56]
+height_px = 4
+variants = 1
+
 # --- Terreno ----------------------------------------------------------------------
 # texture: hierba, agua, arena, roca, tierra. grain_percent: amplitud del grano sobre
 # el color de terrain.toml (que ya lleva el sombreado por altura).

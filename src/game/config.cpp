@@ -1289,9 +1289,14 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     eco.salvage_percent = r.get_i32("economy.salvage_percent", 0, 100);
     eco.rubble_stone = r.get_named("economy.rubble_stone", catalogs.nodes, "resources.toml");
     eco.rubble_wood = r.get_named("economy.rubble_wood", catalogs.nodes, "resources.toml");
+    eco.breach_stone = r.get_named("economy.breach_stone", catalogs.nodes, "resources.toml");
+    eco.breach_wood = r.get_named("economy.breach_wood", catalogs.nodes, "resources.toml");
     if (!error && (catalogs.nodes.types[eco.rubble_stone].type.kind != sim::Resource::Stone ||
-                   catalogs.nodes.types[eco.rubble_wood].type.kind != sim::Resource::Wood)) {
-        r.fail("'economy.rubble_stone' debe ser un nodo de piedra y 'economy.rubble_wood', uno de madera");
+                   catalogs.nodes.types[eco.rubble_wood].type.kind != sim::Resource::Wood ||
+                   catalogs.nodes.types[eco.breach_stone].type.kind != sim::Resource::Stone ||
+                   catalogs.nodes.types[eco.breach_wood].type.kind != sim::Resource::Wood)) {
+        r.fail("'economy.rubble_stone' y 'economy.breach_stone' deben ser nodos de piedra; 'economy.rubble_wood' y "
+               "'economy.breach_wood', de madera");
     }
 
     sim::FireParams& fp = cfg.world.fire;
@@ -1396,6 +1401,8 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     fo.line = effect("line");
     fo.column = effect("column");
     fo.square = effect("square");
+
+    cfg.world.objectives.check_every_ticks = r.get_i32("objectives.check_every_ticks", 1, kMaxTicks);
 
     sim::MarketParams& mk = cfg.world.market;
     mk.enabled = r.get_bool("market.enabled");
@@ -1955,6 +1962,8 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         }
         data.engine.world.scenario = std::move(doc->params);
         data.scenario_name = std::move(doc->name);
+        data.scenario_briefing = std::move(doc->briefing);
+        data.objective_texts = std::move(doc->objective_texts);
     }
     return data;
 }

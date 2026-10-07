@@ -62,3 +62,20 @@ amount = 1
 size_tiles = 1
 blocks_sight = false
 color = [110, 85, 60]
+
+# Brecha: escombros de un muro o una puerta derribados. Se cruzan (economy.breach_*).
+[[node]]
+name = "brecha_piedra"
+resource = "piedra"
+amount = 1
+size_tiles = 1
+blocks_sight = false
+color = [140, 132, 124]
+
+[[node]]
+name = "brecha_madera"
+resource = "madera"
+amount = 1
+size_tiles = 1
+blocks_sight = false
+color = [104, 82, 60]

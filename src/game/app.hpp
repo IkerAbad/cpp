@@ -53,7 +53,8 @@ int run_windowed(const GameData& data, std::int64_t max_frames, const Replay* re
 
 // Menú inicial (nueva partida con semilla, rival y niebla; cargar; repeticiones) y,
 // al terminar cada partida, vuelta a él. Es lo que se abre sin argumentos.
-int run_interactive(const GameData& base);
+// data_dir: de donde salen también las campañas (F4).
+int run_interactive(const GameData& base, const std::filesystem::path& data_dir);
 
 // Carga una partida guardada con los datos que lleva dentro y la sigue con ventana.
 int run_load(const std::filesystem::path& path, std::int64_t max_frames);

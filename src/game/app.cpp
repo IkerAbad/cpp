@@ -24,6 +24,7 @@
 #include <spdlog/spdlog.h>
 
 #include "game/camera_control.hpp"
+#include "game/campaign.hpp"
 #include "game/alerts.hpp"
 #include "game/fixed_step.hpp"
 #include "game/lockstep.hpp"
@@ -430,6 +431,12 @@ public:
         if (audio_ != nullptr && !data_.sound.recipes.empty()) {
             sounds_.emplace(data_.sound, data_);
         }
+        // Partida nueva de un escenario con informe: se lee antes de empezar.
+        briefing_open_ = editor_ == nullptr && replay == nullptr && resume == nullptr && net_ == nullptr &&
+                         !data_.scenario_briefing.empty();
+        if (!data_.engine.world.scenario.objectives.empty()) {
+            show_help_ = false;  // con objetivos a la vista; F2 la abre
+        }
         if (replay != nullptr) {
             player_.emplace(*replay);
             replay_end_ = replay->end_tick;
@@ -468,6 +475,8 @@ public:
 
     // Al salir de run(): ¿se pidió volver al menú (F10 o el botón del final)?
     [[nodiscard]] bool back_to_menu() const noexcept { return back_to_menu_; }
+    // El jugador local ha ganado (campaña: el capítulo cuenta como superado).
+    [[nodiscard]] bool won() const noexcept { return won_; }
 
     int run(std::int64_t max_frames) {
         std::uint64_t last_ns = platform::now_ns();
@@ -1102,8 +1111,8 @@ private:
     }
 
     void simulate(std::int64_t frame_ns) {
-        if (editor_ != nullptr) {
-            return;  // el editor no simula: el mundo es lo que se está dibujando
+        if (editor_ != nullptr || briefing_open_) {
+            return;  // el editor no simula; con el informe abierto, la partida aún no empieza
         }
         std::int64_t sim_ns = frame_ns;
         if (player_) {
@@ -1264,6 +1273,8 @@ private:
         draw_resource_bar(display);
         draw_selection_panel(display);
         draw_outcome(display);
+        draw_objectives(display);
+        draw_briefing(display);
         draw_replay_panel(display);
         draw_help(display);
         draw_alerts(display);
@@ -1910,15 +1921,71 @@ private:
         ImGui::End();
     }
 
+    // Objetivos del escenario (F4): los propios, con su estado, y los plazos de los demás.
+    void draw_objectives(const ImVec2& display) {
+        const auto& objectives = data_.engine.world.scenario.objectives;
+        if (objectives.empty() || curr_.objectives.size() != objectives.size()) {
+            return;
+        }
+        constexpr float kMargin = 10.0f;
+        constexpr float kTop = 40.0f;  // debajo de la barra de recursos
+        ImGui::SetNextWindowPos({display.x - kMargin, kTop}, ImGuiCond_Always, {1.0f, 0.0f});
+        ImGui::Begin("Objetivos", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing);
+        for (std::size_t i = 0; i < objectives.size(); ++i) {
+            const sim::Objective& o = objectives[i];
+            const std::string text = i < data_.objective_texts.size() ? data_.objective_texts[i] : std::string();
+            if (o.player == local_) {
+                const sim::ObjectiveStatus s = curr_.objectives[i];
+                const ImVec4 color = s == sim::ObjectiveStatus::Done     ? ImVec4{0.4f, 1.0f, 0.4f, 1.0f}
+                                     : s == sim::ObjectiveStatus::Failed ? ImVec4{1.0f, 0.35f, 0.3f, 1.0f}
+                                                                        : ImVec4{1.0f, 1.0f, 1.0f, 1.0f};
+                const char* mark = s == sim::ObjectiveStatus::Done ? "[x]" : s == sim::ObjectiveStatus::Failed ? "[!]" : "[ ]";
+                ImGui::TextColored(color, "%s %s", mark, text.c_str());
+            } else if (o.kind == sim::ObjectiveKind::Survive && curr_.objectives[i] == sim::ObjectiveStatus::Pending) {
+                const sim::Tick left = o.ticks > curr_.tick ? o.ticks - curr_.tick : 0;
+                const sim::Tick secs = left / static_cast<sim::Tick>(sim::kTicksPerSecond);
+                constexpr sim::Tick kSecondsPerMinute = 60;
+                ImGui::TextColored({1.0f, 0.8f, 0.3f, 1.0f}, "%s · quedan %u:%02u", text.c_str(), secs / kSecondsPerMinute,
+                                   secs % kSecondsPerMinute);
+            }
+        }
+        ImGui::End();
+    }
+
+    // Informe del escenario (F4) antes de empezar.
+    void draw_briefing(const ImVec2& display) {
+        if (!briefing_open_) {
+            return;
+        }
+        constexpr float kWidthShare = 0.5f;
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::SetNextWindowSize({display.x * kWidthShare, 0.0f}, ImGuiCond_Always);
+        ImGui::SetNextWindowFocus();
+        ImGui::Begin(data_.scenario_name.empty() ? "Informe" : data_.scenario_name.c_str(), nullptr,
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
+        ImGui::TextWrapped("%s", data_.scenario_briefing.c_str());
+        if (ImGui::Button("Empezar")) {
+            briefing_open_ = false;
+        }
+        ImGui::End();
+    }
+
     // Victoria o derrota: el jugador local sin unidades ni edificios pierde; si todos los
     // demás que llegaron a tener algo lo han perdido todo, gana.
+    // Con objetivos (F4), además: gana quien los cumple todos; pierde quien falla uno de
+    // conservar o ve ganar a otro.
     void draw_outcome(const ImVec2& display) {
         if (curr_.players.size() <= local_) {
             return;
         }
-        bool won = false;
-        const bool lost = curr_.players[local_].defeated;
-        if (!lost) {
+        bool won = curr_.winner >= 0 && std::cmp_equal(curr_.winner, local_);
+        bool lost = curr_.players[local_].defeated || (curr_.winner >= 0 && !won);
+        const auto& objectives = data_.engine.world.scenario.objectives;
+        for (std::size_t i = 0; i < objectives.size() && i < curr_.objectives.size(); ++i) {
+            lost = lost || (objectives[i].player == local_ && curr_.objectives[i] == sim::ObjectiveStatus::Failed);
+        }
+        if (!lost && !won) {
             bool any_rival = false;
             bool all_defeated = true;
             for (std::size_t p = 0; p < curr_.players.size(); ++p) {
@@ -1933,6 +2000,7 @@ private:
         if (!won && !lost) {
             return;
         }
+        won_ = won && !lost;
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.35f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::Begin("Resultado", nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
@@ -2758,6 +2826,8 @@ private:
     std::vector<sim::SnapshotObject> remembered_objects_;  // edificios recordados, no vistos ahora
     std::array<std::vector<std::uint32_t>, 9> groups_;  // grupos de control 1…9
     AlertTracker alerts_{data_.engine.alerts};
+    bool won_ = false;
+    bool briefing_open_ = false;  // F4: informe del escenario al empezar (la partida espera)
     bool back_to_menu_ = false;   // F10 o el botón del final: volver al menú
     std::string notice_;          // mensaje breve en pantalla
     sim::Tick notice_tick_ = 0;
@@ -3051,9 +3121,10 @@ std::optional<Display> open_display(const GameData& data) {
 }
 
 struct MenuChoice {
-    enum class Kind : std::uint8_t { New, Load, Replay, Host, Join, EditNew, Edit, PlayScenario, Quit };
+    enum class Kind : std::uint8_t { New, Load, Replay, Host, Join, EditNew, Edit, PlayScenario, Campaign, Quit };
     Kind kind = Kind::Quit;
     std::filesystem::path path;
+    std::size_t campaign = 0;  // Campaign: cuál
 };
 
 // Lo que se escribe en el menú para jugar en red (E2).
@@ -3103,7 +3174,8 @@ std::expected<ScenarioDoc, std::string> read_scenario(const std::filesystem::pat
 }
 
 // Menú inicial: nueva partida (semilla, rival, niebla), cargar, repeticiones, salir.
-MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, NetMenu& net) {
+MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, NetMenu& net,
+                    const std::vector<Campaign>& campaigns) {
     constexpr std::size_t kListed = 8;
     const auto saves = saved_files(base, ".rtssav", kListed);
     const auto replays = saved_files(base, ".rtsrep", kListed);
@@ -3158,6 +3230,18 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
         if (ImGui::Button("Empezar")) {
             choice.kind = MenuChoice::Kind::New;
             chosen = true;
+        }
+        if (!campaigns.empty()) {
+            ImGui::SeparatorText("Campaña");
+            for (std::size_t i = 0; i < campaigns.size(); ++i) {
+                ImGui::PushID(static_cast<int>(i));
+                if (ImGui::Button(campaigns[i].name.c_str())) {
+                    choice.kind = MenuChoice::Kind::Campaign;
+                    choice.campaign = i;
+                    chosen = true;
+                }
+                ImGui::PopID();
+            }
         }
         ImGui::SeparatorText("En red (de 2 a 4 jugadores; los puestos libres, para la IA)");
         ImGui::InputInt("Puerto", &net.port);
@@ -3372,7 +3456,131 @@ int run_net_windowed(const GameData& base, const LaunchOptions& options) {
     return session->desync() ? 1 : code;
 }
 
-int run_interactive(const GameData& base) {
+// Progreso de las campañas: junto al ejecutable, como las repeticiones.
+std::filesystem::path progress_path() {
+    return std::filesystem::path(platform::executable_dir()) / kCampaignFile;
+}
+
+CampaignProgress load_progress() {
+    std::ifstream in(progress_path(), std::ios::binary);
+    return parse_progress(std::string{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()});
+}
+
+void save_progress(const CampaignProgress& p) {
+    std::ofstream out(progress_path(), std::ios::binary);
+    out << progress_toml(p);
+    if (!out) {
+        spdlog::warn("No se pudo guardar el progreso de la campaña en {}", progress_path().string());
+    }
+}
+
+// Capítulo elegido en la pantalla de una campaña, con su escenario y su rival.
+struct ChapterPick {
+    std::size_t chapter = 0;
+    ScenarioDoc doc;
+    std::string rival;
+};
+
+// Pantalla de una campaña (F4): capítulos (los bloqueados, en gris), y del elegido su
+// fecha, informe, nota histórica y fuentes; rival y «Jugar». Nada si se vuelve al menú.
+std::optional<ChapterPick> run_campaign_menu(Display& d, const GameData& base, const Campaign& c,
+                                             const CampaignProgress& progress, std::size_t& selected) {
+    // Escenarios leídos una vez: el informe sale de ellos.
+    std::vector<std::expected<ScenarioDoc, std::string>> docs;
+    for (const CampaignChapter& ch : c.chapters) {
+        docs.push_back(read_scenario(c.dir / ch.scenario, base));
+    }
+    std::vector<std::string> rivals;
+    for (const CampaignChapter& ch : c.chapters) {
+        rivals.push_back(ch.rival.empty() ? base.engine.ai_profile_names.front() : ch.rival);
+    }
+    const auto& profiles = base.engine.ai_profile_names;
+    while (true) {
+        d.pump_audio(base.sound.peace_music);
+        SDL_Event event;
+        while (d.window->poll_event(event)) {
+            d.renderer->process_event(event);
+            if (d.window->is_close_request(event)) {
+                return std::nullopt;
+            }
+        }
+        d.renderer->begin_frame();
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        constexpr float kShare = 0.85f;
+        ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
+        ImGui::SetNextWindowSize({display.x * kShare, display.y * kShare}, ImGuiCond_Always);
+        ImGui::Begin(c.name.c_str(), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
+        std::optional<ChapterPick> pick;
+        bool back = false;
+        constexpr float kListShare = 0.28f;
+        ImGui::BeginChild("capitulos", {ImGui::GetContentRegionAvail().x * kListShare, 0.0f}, ImGuiChildFlags_Borders);
+        ImGui::TextWrapped("%s", c.intro.c_str());
+        ImGui::Separator();
+        for (std::size_t i = 0; i < c.chapters.size(); ++i) {
+            const bool open = progress.unlocked(c, i);
+            const bool done = progress.has_won(c.id, c.chapters[i].id);
+            const std::string label = std::format("{}. {}{}", i + 1, c.chapters[i].title, done ? " (superado)" : "");
+            ImGui::BeginDisabled(!open);
+            if (ImGui::Selectable(label.c_str(), selected == i)) {
+                selected = i;
+            }
+            ImGui::EndDisabled();
+        }
+        ImGui::Separator();
+        if (ImGui::Button("Volver al menú")) {
+            back = true;
+        }
+        ImGui::EndChild();
+        ImGui::SameLine();
+        ImGui::BeginChild("detalle", {0.0f, 0.0f}, ImGuiChildFlags_Borders);
+        const CampaignChapter& ch = c.chapters[selected];
+        constexpr float kTitleScale = 1.5f;
+        ImGui::SetWindowFontScale(kTitleScale);
+        ImGui::TextUnformatted(ch.title.c_str());
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::TextDisabled("%s", ch.date.c_str());
+        const auto& doc = docs[selected];
+        if (!doc) {
+            ImGui::TextColored({1.0f, 0.35f, 0.3f, 1.0f}, "%s", doc.error().c_str());
+        } else {
+            ImGui::SeparatorText("Informe");
+            ImGui::TextWrapped("%s", doc->briefing.c_str());
+        }
+        ImGui::SeparatorText("Nota histórica");
+        ImGui::TextWrapped("%s", ch.history.c_str());
+        ImGui::SeparatorText("Fuentes (citas literales)");
+        for (const CampaignSource& s : ch.sources) {
+            ImGui::TextWrapped("«%s»", s.quote.c_str());
+            ImGui::TextDisabled("%s · %s", s.work.c_str(), s.url.c_str());
+            ImGui::Spacing();
+        }
+        ImGui::Separator();
+        if (ImGui::BeginCombo("Rival (IA)", rivals[selected].c_str())) {
+            for (const std::string& p : profiles) {
+                if (ImGui::Selectable(p.c_str(), p == rivals[selected])) {
+                    rivals[selected] = p;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::BeginDisabled(!doc || !progress.unlocked(c, selected));
+        if (ImGui::Button("Jugar este capítulo")) {
+            pick = ChapterPick{selected, *doc, rivals[selected]};
+        }
+        ImGui::EndDisabled();
+        ImGui::EndChild();
+        ImGui::End();
+        d.renderer->end_frame();
+        if (back) {
+            return std::nullopt;
+        }
+        if (pick) {
+            return pick;
+        }
+    }
+}
+
+int run_interactive(const GameData& base, const std::filesystem::path& data_dir) {
     auto display = open_display(base);
     if (!display) {
         return 1;
@@ -3387,8 +3595,15 @@ int run_interactive(const GameData& base) {
     net_menu.port = base.engine.net.default_port;
     std::ranges::copy(base.engine.net.default_address.substr(0, net_menu.address.size() - 1),
                       net_menu.address.begin());
+    std::vector<std::string> campaign_errors;
+    const std::vector<Campaign> campaigns = load_campaigns(data_dir, campaign_errors);
+    for (const std::string& e : campaign_errors) {
+        spdlog::error("Campaña: {}", e);
+    }
+    CampaignProgress progress = load_progress();
+    std::size_t chapter_selected = 0;
     while (true) {
-        const MenuChoice choice = run_menu(*display, base, settings, net_menu);
+        const MenuChoice choice = run_menu(*display, base, settings, net_menu, campaigns);
         std::optional<GameData> data;
         std::optional<Replay> recorded;
         std::optional<LockstepSession> net;
@@ -3396,6 +3611,34 @@ int run_interactive(const GameData& base) {
         switch (choice.kind) {
             case MenuChoice::Kind::Quit:
                 return 0;
+            case MenuChoice::Kind::Campaign: {
+                // Capítulo a capítulo hasta volver al menú; ganar uno desbloquea el siguiente.
+                const Campaign& c = campaigns[choice.campaign];
+                chapter_selected = std::min(chapter_selected, c.chapters.size() - 1);
+                while (auto pick = run_campaign_menu(*display, base, c, progress, chapter_selected)) {
+                    const CampaignChapter& ch = c.chapters[pick->chapter];
+                    MatchSettings chapter_settings = settings;
+                    chapter_settings.rival = pick->rival;
+                    chapter_settings.fog = ch.fog;
+                    auto d = with_scenario(base, pick->doc, chapter_settings);
+                    if (!d) {
+                        spdlog::error("Capítulo {}: {}", ch.id, d.error());
+                        continue;
+                    }
+                    WindowedGame game(*d, *display->window, *display->renderer, nullptr, nullptr, nullptr,
+                                      display->audio.get());
+                    game.run(0);
+                    if (game.won()) {
+                        progress.mark_won(c.id, ch.id);
+                        save_progress(progress);
+                        chapter_selected = std::min(pick->chapter + 1, c.chapters.size() - 1);
+                    }
+                    if (!game.back_to_menu()) {
+                        return 0;  // ventana cerrada
+                    }
+                }
+                continue;
+            }
             case MenuChoice::Kind::EditNew:
             case MenuChoice::Kind::Edit:
             case MenuChoice::Kind::PlayScenario: {

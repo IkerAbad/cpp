@@ -1,0 +1,597 @@
+# Campaña de Las Navas de Tolosa, capítulo 2 (F4). Calatrava la Vieja: cerro amesetado
+# en la margen izquierda (sur) del Guadiana, con foso de agua del río. La puerta mira al
+# oeste; delante del foso, una calzada. El recinto de muralla y torres se genera aparte
+# (lista de [[building]] al final).
+name = "Calatrava la Vieja, 1212: el asedio"
+players = 2
+width = 128
+height = 96
+base = "pradera"
+base_level = 2
+briefing = """
+Junio de 1212. La hueste ha bajado de Toledo y ha tomado Malagón. Delante está Calatrava, que los almohades ganaron tras Alarcos y guardan desde entonces: una ciudad amurallada sobre un cerro, con el Guadiana al norte y un foso alrededor.
+
+Objetivos: toma el alcázar de Calatrava (su centro) antes de que acabe el plazo y conserva tu campamento, que da de comer al ejército. Su almacén no dura mucho: las carretas tienen que traer víveres desde Malagón, al oeste. Los arietes abren la puerta; los zapadores, las murallas; la tropa a pie puede escalar con escalas.
+"""
+
+# El Guadiana, de oeste a este, al norte del cerro.
+[[paint]]
+at = [0, 58]
+to = [[30, 60], [60, 56], [90, 58], [127, 54]]
+radius = 2
+terrain = "agua"
+level = 1
+
+# Vado aguas arriba, lejos del castillo.
+[[paint]]
+at = [30, 60]
+radius = 2
+terrain = "vado"
+level = 1
+
+# El cerro amesetado.
+[[paint]]
+at = [89, 72]
+radius = 17
+terrain = "colinas"
+level = 3
+
+[[paint]]
+at = [89, 72]
+radius = 13
+terrain = "pradera"
+level = 5
+
+# El foso: oeste, sur y este del recinto, a dos casillas del muro.
+[[paint]]
+at = [77, 62]
+to = [[77, 83], [101, 83], [101, 62]]
+radius = 0
+terrain = "agua"
+level = 4
+
+# Calzada sobre el foso, delante de la puerta.
+[[paint]]
+at = [77, 72]
+radius = 0
+terrain = "pradera"
+level = 5
+
+[[forest]]
+at = [36, 86]
+radius = 8
+density = 400
+
+[[forest]]
+at = [110, 18]
+radius = 12
+density = 450
+
+[[forest]]
+at = [18, 18]
+radius = 11
+density = 450
+
+[[forest]]
+at = [118, 88]
+radius = 8
+density = 350
+
+[[node]]
+type = "arbusto_bayas"
+at = [94, 70]
+
+[[node]]
+type = "arbusto_bayas"
+at = [95, 68]
+
+[[node]]
+type = "mina_piedra"
+at = [108, 74]
+
+[[node]]
+type = "mina_hierro"
+at = [60, 86]
+
+# Dentro del recinto (player 1).
+[[building]]
+player = 1
+type = "centro_urbano"
+at = [87, 70]
+
+[[building]]
+player = 1
+type = "casa"
+at = [83, 66]
+
+[[building]]
+player = 1
+type = "casa"
+at = [92, 66]
+
+[[building]]
+player = 1
+type = "casa"
+at = [83, 76]
+
+[[building]]
+player = 1
+type = "cuartel"
+at = [92, 75]
+
+# El real castellano (player 0), a tiro de piedra del foso: los asedios se hacen
+# acampando delante.
+[[building]]
+player = 0
+type = "campamento"
+at = [56, 76]
+store = { comida = 240, madera = 30, hierro = 30 }
+
+# Malagón, tomada días antes: la retaguardia de donde salen los convoyes.
+[[building]]
+player = 0
+type = "centro_urbano"
+at = [6, 70]
+
+[[unit]]
+player = 1
+type = "aldeano"
+at = [84, 73]
+count = 6
+cols = 3
+
+[[unit]]
+player = 1
+type = "arquero"
+at = [82, 69]
+count = 4
+cols = 4
+
+[[unit]]
+player = 1
+type = "ballestero"
+at = [91, 69]
+count = 6
+cols = 6
+
+[[unit]]
+player = 1
+type = "leva"
+at = [86, 78]
+count = 8
+cols = 4
+
+[[unit]]
+player = 1
+type = "hombre_armas"
+at = [86, 74]
+count = 4
+cols = 2
+
+[[unit]]
+player = 1
+type = "arquero"
+at = [96, 66]
+count = 4
+cols = 1
+
+[[unit]]
+player = 0
+type = "hombre_armas"
+at = [60, 70]
+count = 12
+cols = 4
+
+[[unit]]
+player = 0
+type = "caballero"
+at = [52, 68]
+count = 8
+cols = 4
+
+[[unit]]
+player = 0
+type = "ballestero"
+at = [60, 80]
+count = 8
+cols = 4
+
+[[unit]]
+player = 0
+type = "arquero"
+at = [52, 82]
+count = 6
+cols = 3
+
+[[unit]]
+player = 0
+type = "ariete"
+at = [66, 74]
+count = 3
+cols = 1
+
+[[unit]]
+player = 0
+type = "zapador"
+at = [66, 79]
+count = 4
+cols = 2
+
+[[unit]]
+player = 0
+type = "carreta"
+at = [50, 76]
+count = 3
+cols = 1
+
+[[unit]]
+player = 0
+type = "aldeano"
+at = [48, 88]
+count = 5
+cols = 5
+
+[[player]]
+stock = { comida = 900, madera = 400, piedra = 0, oro = 150, hierro = 250 }
+
+[[player]]
+stock = { comida = 600, madera = 300, piedra = 200, oro = 100, hierro = 100 }
+
+[[objective]]
+player = 0
+kind = "destruir"
+text = "Toma el alcázar de Calatrava"
+target = 1
+building = "centro_urbano"
+
+[[objective]]
+player = 0
+kind = "conservar"
+text = "Conserva el campamento: sin él, la hueste pasa hambre"
+building = "campamento"
+
+[[objective]]
+player = 1
+kind = "sobrevivir"
+text = "Plazo: el califa no esperará (30 minutos)"
+seconds = 1800
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [80, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 65]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 66]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 67]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 68]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 69]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [80, 70]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 71]
+
+[[building]]
+player = 1
+type = "puerta_muralla"
+at = [80, 72]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 73]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [80, 74]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 75]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 76]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 77]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 78]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [80, 79]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [80, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [81, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [81, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [82, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [82, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [83, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [83, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [84, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [84, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [85, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [85, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [86, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [86, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [87, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [87, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [88, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [88, 80]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [89, 64]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [89, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [90, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [90, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [91, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [91, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [92, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [92, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [93, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [93, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [94, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [94, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [95, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [95, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [96, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [96, 80]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [97, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [97, 80]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [98, 64]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 65]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 66]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 67]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 68]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 69]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 70]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 71]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [98, 72]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 73]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 74]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 75]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 76]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 77]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 78]
+
+[[building]]
+player = 1
+type = "muralla"
+at = [98, 79]
+
+[[building]]
+player = 1
+type = "torre_piedra"
+at = [98, 80]

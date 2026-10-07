@@ -349,6 +349,20 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
   - El editor no tiene deshacer.
   - Un escenario no lleva aún objetivos ni sucesos (eso es la campaña, F4).
 
+### Campaña: Las Navas de Tolosa, 1212 (F4)
+
+Menú → «Campaña». Tres capítulos en orden; ganar uno desbloquea el siguiente (el progreso se guarda en `campana.toml`, junto al ejecutable). De cada capítulo se ve la fecha, el informe, una nota histórica propia y sus fuentes: citas literales, comprobadas palabra por palabra contra el texto de cada artículo, con su enlace.
+
+1. **La reunión de Toledo** (mayo y junio de 1212). Toledo en su cerro, ceñido por el Tajo; dos puentes. Juntar 1500 de comida y llevar 30 tropas al campo de la reunión, al otro lado del río, en 40 minutos, sin perder la ciudad. Fuente: «Comenzó los preparativos en 1211, año en que empezó a movilizar tropas y congregarlas en Toledo, que era el punto de reunión de todo el contingente» ([Wikipedia](https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa)).
+2. **El asedio de Calatrava** (finales de junio). La ciudad sobre su cerro, en la margen izquierda del Guadiana, con muralla, torres y foso; el real castellano delante y Malagón, recién tomada, como retaguardia de donde salen los convoyes. Tomar el alcázar en 30 minutos sin perder el campamento. Fuente: «Calatrava ocupa un cerro amesetado de planta ovoide, con 5 ha de extensión, en la margen izquierda del río Guadiana» ([Wikipedia](https://es.wikipedia.org/wiki/Calatrava_la_Vieja)).
+3. **La batalla de Las Navas** (16 de julio). Sierra Morena de lado a lado; el puerto del centro, estrecho y guardado; al oeste, una senda que nadie vigila; en el llano, el ejército del califa y su palenque. Con niebla. Cruzar con 25 tropas y destruir la tienda del califa en 45 minutos. Fuente: «harían el movimiento de aproximación al enemigo por el oeste, a través de un paso llamado Puerto del Rey, que les permitió cruzar la sierra para luego, ya en terreno llano, marchar contra el rival» ([Wikipedia](https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa)).
+
+Los mapas, las cifras de cada ejército y los plazos son del juego, no datos históricos; las notas lo dicen.
+
+- **Objetivos** (`sim/objectives.hpp`): destruir, conservar, sobrevivir, llegar a una zona, reunir recursos y derrotar a un jugador. Son reglas de la simulación: deterministas, en el hash solo si el escenario los tiene (las partidas normales no cambian). Gana quien cumple todos los suyos (los de conservar cuentan mientras no fallen); pierde quien falla uno de conservar o ve ganar a otro. Un plazo es un «sobrevivir» del rival. En partida, a la derecha: cada objetivo con su estado y lo que queda de plazo.
+- **Escenarios escritos a mano.** Además del formato del editor, `base` + pinceladas (`[[paint]]`: terreno y altura a lo largo de un trazo), bosques (`[[forest]]`: densidad por mil, siempre los mismos árboles), bloques de unidades (`count`, `cols`), almacén inicial por jugador (`[[player]] stock`) y campamentos ya abastecidos (`store`). Formato completo en `src/game/scenario.hpp`.
+- **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 50 de 66 tropas) y se pierde el ejército forzando el puerto (12 de 66 a los 8 min); Calatrava cae en 4 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 16. Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
+
 ### Repeticiones (M5)
 
 - **Qué se graba.** Una copia de los ficheros de `data/` (unos 20 KB) y las órdenes humanas, cada una con el tick en que se emitió. La IA vive dentro de la simulación y es determinista: sus órdenes no se graban, se regeneran. Una repetición se reproduce con los datos con que se jugó aunque luego cambien los de `data/`.
@@ -430,6 +444,7 @@ Una incursión quema y empobrece; solo un asedio conquista.
 ### Escombros, demolición y minado (fase 2)
 
 - **Escombros.** Lo derribado por asedio deja en su solar un nodo con el 50 % del coste de su material (`salvage_percent`): piedra si era de piedra, madera si era de madera. Bloquea el solar hasta que los aldeanos lo recogen y lo llevan a un almacén, como cualquier recurso (también el enemigo puede saquearlo). Lo que arde no deja nada aprovechable.
+- **Brecha (F4).** Lo que queda de un tramo de muro o de una puerta derribados (`breach_stone`, `breach_wood`) no cierra el paso: se asalta la brecha por encima de los escombros, que se pueden seguir recogiendo. Antes, una puerta derribada quedaba tapiada por sus propios escombros y el asedio no servía de nada sin aldeanos que los retiraran.
 - **Demolición controlada.** Mayús + clic derecho con aldeanos sobre un edificio propio: lo desmontan al ritmo de construir y queda en escombros para transportar, no como reembolso instantáneo.
 - **Zapador** (taller de asedio). Mina bajo la piedra: su ataque ignora la armadura de los muros, y bajo tierra las flechas apenas le alcanzan. Es más lento que el ariete. Contra la madera solo prende fuego, como cualquiera.
 

@@ -33,6 +33,7 @@ add_executable(rts_tests
     test_lockstep.cpp
     test_art.cpp
     test_audio.cpp
+    test_campaign.cpp
     test_scenario.cpp
     test_rng.cpp
     test_scene.cpp

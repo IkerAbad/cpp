@@ -1,0 +1,95 @@
+# Campaña de Las Navas de Tolosa (F4). Textos propios; las fuentes son citas literales,
+# comprobadas sobre el texto de cada artículo (tests/test_campaign.cpp comprueba que cada
+# capítulo tiene alguna y que su escenario se carga).
+name = "Las Navas de Tolosa, 1212"
+intro = """
+En 1195 el califa almohade derrotó a Alfonso VIII de Castilla en Alarcos. Diecisiete años después, Castilla, Aragón y Navarra, con voluntarios de otros reinos y cruzados de más allá de los Pirineos, salen de Toledo hacia el sur. Tres capítulos: la reunión, el asedio y la batalla.
+"""
+
+[[chapter]]
+id = "toledo"
+title = "La reunión de Toledo"
+date = "mayo y junio de 1212"
+scenario = "1_toledo.toml"
+rival = "normal"
+fog = false
+history = """
+Toledo fue el punto de reunión de la campaña. La ciudad se alza en un cerro que el Tajo ciñe con un meandro; el lado que el río no cierra es su única entrada natural. En el juego, el reto es la logística: juntar víveres y tropa antes de partir. Los detalles del mapa (sotos, minas, el sitio exacto del campo de la reunión) son inventados.
+"""
+
+[[chapter.source]]
+quote = "Comenzó los preparativos en 1211, año en que empezó a movilizar tropas y congregarlas en Toledo, que era el punto de reunión de todo el contingente."
+work = "Wikipedia en español, «Batalla de las Navas de Tolosa»"
+url = "https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa"
+
+[[chapter.source]]
+quote = "The final gathering took place in Toledo in May 1212."
+work = "Wikipedia en inglés, «Battle of Las Navas de Tolosa»"
+url = "https://en.wikipedia.org/wiki/Battle_of_Las_Navas_de_Tolosa"
+
+[[chapter.source]]
+quote = "El casco urbano antiguo está recostado en la margen derecha del río Tajo, en una colina de cien metros de altura sobre el mismo, el cual la ciñe por su base, formando un pronunciado meandro conocido como torno del Tajo."
+work = "Wikipedia en español, «Toledo»"
+url = "https://es.wikipedia.org/wiki/Toledo"
+
+[[chapter]]
+id = "calatrava"
+title = "El asedio de Calatrava"
+date = "finales de junio de 1212"
+scenario = "2_calatrava.toml"
+rival = "normal"
+fog = false
+history = """
+Camino del sur, la hueste tomó Malagón y después Calatrava la Vieja, en manos almohades desde Alarcos. Alfonso VIII pactó con la guarnición que no la matarían; tras estas tomas, casi todos los cruzados de más allá de los Pirineos se volvieron a casa. En el juego, el recinto (muralla, torres, foso) está simplificado; el plazo es una regla del juego, no un dato histórico.
+"""
+
+[[chapter.source]]
+quote = "Calatrava ocupa un cerro amesetado de planta ovoide, con 5 ha de extensión, en la margen izquierda del río Guadiana."
+work = "Wikipedia en español, «Calatrava la Vieja»"
+url = "https://es.wikipedia.org/wiki/Calatrava_la_Vieja"
+
+[[chapter.source]]
+quote = "El recinto comprende un total de 44 torres con un foso que lo rodea, de época árabe, alimentado por las aguas del río Guadiana."
+work = "Wikipedia en español, «Calatrava la Vieja»"
+url = "https://es.wikipedia.org/wiki/Calatrava_la_Vieja"
+
+[[chapter.source]]
+quote = "La ciudad fue recuperada por los almohades en 1195, tras su victoria sobre Alfonso VIII en la batalla de Alarcos."
+work = "Wikipedia en español, «Calatrava la Vieja»"
+url = "https://es.wikipedia.org/wiki/Calatrava_la_Vieja"
+
+[[chapter.source]]
+quote = "Durante la marcha inicial, tras las tomas del castillo de Malagón y el de Calatrava, se produjo la deserción de casi todos los ultramontanos, y las causas aún están por esclarecerse."
+work = "Wikipedia en español, «Batalla de las Navas de Tolosa»"
+url = "https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa"
+
+[[chapter]]
+id = "navas"
+title = "La batalla de Las Navas"
+date = "16 de julio de 1212"
+scenario = "3_navas.toml"
+rival = "normal"
+fog = true
+history = """
+El califa an-Nasir cerró los pasos de Sierra Morena. Las crónicas castellanas cuentan que un pastor (algunos autores lo llaman Martín Alhaja; otros relatos hablan de san Isidro) enseñó a la hueste una senda por el oeste. Ya en el llano, el lunes 16 de julio los cristianos atacaron el campamento almohade, cuyo último reducto era el palenque del califa. El mapa simplifica el terreno; la senda está, como en el relato, al oeste.
+"""
+
+[[chapter.source]]
+quote = "Sin embargo, An-Nasir decidió cortar el acceso del enemigo al valle, y para ello situó hombres en puntos clave, de forma tal que los cristianos quedaron rodeados por montañas y, por tanto, con una muy limitada capacidad de maniobra."
+work = "Wikipedia en español, «Batalla de las Navas de Tolosa»"
+url = "https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa"
+
+[[chapter.source]]
+quote = "A pesar de todo, los cristianos consiguieron superar la adversidad: harían el movimiento de aproximación al enemigo por el oeste, a través de un paso llamado Puerto del Rey, que les permitió cruzar la sierra para luego, ya en terreno llano, marchar contra el rival."
+work = "Wikipedia en español, «Batalla de las Navas de Tolosa»"
+url = "https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa"
+
+[[chapter.source]]
+quote = "El lunes, 16 de julio, atacan a las huestes almohades."
+work = "Wikipedia en español, «Batalla de las Navas de Tolosa»"
+url = "https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa"
+
+[[chapter.source]]
+quote = "Finalmente, los cuerpos de élite en la retaguardia, y por último, el palenque de An-Nasir, una estructura fortificada con cestos de flechas e incluso animales (camellos, bestias de carga) y otros elementos defensivos; todo el recinto estaba protegido por filas de arqueros, lanceros y ballesteros."
+work = "Wikipedia en español, «Batalla de las Navas de Tolosa»"
+url = "https://es.wikipedia.org/wiki/Batalla_de_las_Navas_de_Tolosa"

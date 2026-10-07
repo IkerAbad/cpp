@@ -116,11 +116,11 @@ entt::entity EconomySystem::occupant(TileCoord c) const noexcept {
     return occupant_[tile_index(c)];
 }
 
-void EconomySystem::occupy(MovementSystem& movement, const Footprint& f, entt::entity e) {
+void EconomySystem::occupy(MovementSystem& movement, const Footprint& f, entt::entity e, bool block) {
     for (std::int32_t y = f.origin.y; y < f.origin.y + f.size; ++y) {
         for (std::int32_t x = f.origin.x; x < f.origin.x + f.size; ++x) {
             occupant_[tile_index({x, y})] = e;
-            movement.set_blocked({x, y}, true);
+            movement.set_blocked({x, y}, block);
         }
     }
 }
@@ -1045,11 +1045,15 @@ void EconomySystem::remove_building(entt::registry& registry, MovementSystem& mo
     if (amount <= 0) {
         return;
     }
-    // Escombros del tamaño del solar, con la cantidad que dio el edificio.
+    // Escombros del tamaño del solar, con la cantidad que dio el edificio. Los de un muro
+    // o una puerta son una brecha: no cierran el paso.
+    const bool breach = bt.climbable || bt.gate;
+    const NodeTypeId type = breach ? (stone ? params_.breach_stone : params_.breach_wood)
+                                   : (stone ? params_.rubble_stone : params_.rubble_wood);
     const auto e = registry.create();
     registry.emplace<Footprint>(e, f);
-    registry.emplace<ResourceNode>(e, stone ? params_.rubble_stone : params_.rubble_wood, kind, amount);
-    occupy(movement, f, e);
+    registry.emplace<ResourceNode>(e, type, kind, amount);
+    occupy(movement, f, e, !breach);
 }
 
 void EconomySystem::step_demolish(entt::registry& registry, MovementSystem& movement, entt::entity e, Worker& w,

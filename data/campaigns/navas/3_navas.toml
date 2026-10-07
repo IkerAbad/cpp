@@ -1,0 +1,577 @@
+# Campaña de Las Navas de Tolosa, capítulo 3 (F4). Sierra Morena de este a oeste; el
+# puerto del centro lo guardan los almohades; al oeste, una senda estrecha y revuelta
+# (el Puerto del Rey) que nadie vigila. Al sur, el llano y el campamento del califa con
+# su palenque (cerco de empalizada, lista de [[building]] al final). Con niebla: la senda
+# hay que encontrarla.
+name = "Las Navas de Tolosa, 16 de julio de 1212"
+players = 2
+width = 128
+height = 112
+base = "pradera"
+base_level = 2
+briefing = """
+Julio de 1212. La hueste de Castilla, Aragón y Navarra ha llegado a Sierra Morena, pero el califa an-Nasir ha cerrado el puerto con sus hombres y espera en el llano, al otro lado. Forzar el paso es una matanza.
+
+Un pastor dice conocer una senda por el oeste. Objetivos: cruza la sierra con 25 tropas y destruye la tienda del califa, dentro de su palenque, antes de que acabe el plazo.
+"""
+
+# Sierra Morena: faldas de colinas y la cresta de roca.
+[[paint]]
+at = [0, 47]
+to = [[127, 47]]
+radius = 11
+terrain = "colinas"
+level = 4
+
+[[paint]]
+at = [0, 47]
+to = [[127, 47]]
+radius = 7
+terrain = "roca"
+level = 6
+
+# El puerto del centro (guardado), estrecho.
+[[paint]]
+at = [64, 36]
+to = [[64, 58]]
+radius = 1
+terrain = "colinas"
+level = 5
+
+# La senda del oeste (Puerto del Rey), estrecha y revuelta.
+[[paint]]
+at = [14, 36]
+to = [[18, 41], [11, 46], [19, 51], [15, 58]]
+radius = 1
+terrain = "colinas"
+level = 5
+
+[[forest]]
+at = [20, 12]
+radius = 10
+density = 400
+
+[[forest]]
+at = [104, 14]
+radius = 12
+density = 400
+
+[[forest]]
+at = [18, 94]
+radius = 12
+density = 350
+
+[[forest]]
+at = [110, 96]
+radius = 12
+density = 350
+
+[[forest]]
+at = [34, 72]
+radius = 5
+density = 300
+
+[[node]]
+type = "arbusto_bayas"
+at = [44, 16]
+
+[[node]]
+type = "arbusto_bayas"
+at = [46, 17]
+
+# El real cristiano, al norte.
+[[building]]
+player = 0
+type = "campamento"
+at = [62, 12]
+
+# Campamento almohade del puerto y la tienda del califa.
+[[building]]
+player = 1
+type = "campamento"
+at = [63, 64]
+
+[[building]]
+player = 1
+type = "campamento"
+at = [63, 92]
+
+[[building]]
+player = 1
+type = "torre_madera"
+at = [60, 58]
+
+[[building]]
+player = 1
+type = "torre_madera"
+at = [68, 58]
+
+[[unit]]
+player = 0
+type = "hombre_armas"
+at = [48, 18]
+count = 16
+cols = 8
+
+[[unit]]
+player = 0
+type = "caballero"
+at = [64, 18]
+count = 20
+cols = 10
+
+[[unit]]
+player = 0
+type = "ballestero"
+at = [48, 22]
+count = 10
+cols = 5
+
+[[unit]]
+player = 0
+type = "arquero"
+at = [58, 22]
+count = 8
+cols = 4
+
+[[unit]]
+player = 0
+type = "leva"
+at = [66, 22]
+count = 12
+cols = 6
+
+[[unit]]
+player = 0
+type = "cirujano"
+at = [58, 16]
+count = 2
+cols = 2
+
+[[unit]]
+player = 0
+type = "carreta"
+at = [56, 10]
+count = 4
+cols = 1
+
+[[unit]]
+player = 0
+type = "aldeano"
+at = [68, 9]
+count = 4
+cols = 4
+
+# La guardia del puerto: lanzas en la boca, tiradores detrás.
+[[unit]]
+player = 1
+type = "leva"
+at = [60, 59]
+count = 12
+cols = 8
+
+[[unit]]
+player = 1
+type = "hombre_armas"
+at = [64, 60]
+count = 4
+cols = 4
+
+[[unit]]
+player = 1
+type = "arquero"
+at = [58, 61]
+count = 12
+cols = 12
+
+[[unit]]
+player = 1
+type = "ballestero"
+at = [60, 62]
+count = 6
+cols = 6
+
+# El ejército del califa en el llano, delante del palenque.
+[[unit]]
+player = 1
+type = "leva"
+at = [48, 74]
+count = 18
+cols = 9
+
+[[unit]]
+player = 1
+type = "hombre_armas"
+at = [66, 74]
+count = 6
+cols = 3
+
+[[unit]]
+player = 1
+type = "arquero"
+at = [52, 78]
+count = 12
+cols = 6
+
+[[unit]]
+player = 1
+type = "ballestero"
+at = [62, 78]
+count = 6
+cols = 3
+
+[[unit]]
+player = 1
+type = "jinete"
+at = [36, 76]
+count = 6
+cols = 3
+
+[[unit]]
+player = 1
+type = "jinete"
+at = [84, 76]
+count = 6
+cols = 3
+
+# La guardia del califa, dentro del palenque.
+[[unit]]
+player = 1
+type = "hombre_armas"
+at = [58, 88]
+count = 12
+cols = 6
+
+[[unit]]
+player = 1
+type = "ballestero"
+at = [58, 95]
+count = 8
+cols = 4
+
+[[player]]
+stock = { comida = 2000, madera = 300, piedra = 0, oro = 200, hierro = 300 }
+
+[[player]]
+stock = { comida = 4000, madera = 300, piedra = 0, oro = 200, hierro = 400 }
+
+[[objective]]
+player = 0
+kind = "llegar"
+text = "Cruza la sierra con 25 tropas"
+count = 25
+zone = [0, 60, 127, 111]
+
+[[objective]]
+player = 0
+kind = "destruir"
+text = "Destruye la tienda del califa, dentro del palenque"
+target = 1
+building = "campamento"
+zone = [56, 86, 72, 100]
+
+[[objective]]
+player = 1
+kind = "sobrevivir"
+text = "Plazo: sin víveres, la hueste tendrá que volverse (45 minutos)"
+seconds = 2700
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 87]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 88]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 89]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 90]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 91]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 92]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 93]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 94]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 95]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 96]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 97]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 98]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 99]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [56, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [57, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [57, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [58, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [58, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [59, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [59, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [60, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [60, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [61, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [61, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [62, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [62, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [63, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [63, 100]
+
+[[building]]
+player = 1
+type = "puerta_empalizada"
+at = [64, 86]
+
+[[building]]
+player = 1
+type = "puerta_empalizada"
+at = [64, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [65, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [65, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [66, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [66, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [67, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [67, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [68, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [68, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [69, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [69, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [70, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [70, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [71, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [71, 100]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 86]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 87]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 88]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 89]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 90]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 91]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 92]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 93]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 94]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 95]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 96]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 97]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 98]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 99]
+
+[[building]]
+player = 1
+type = "empalizada"
+at = [72, 100]

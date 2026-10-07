@@ -274,6 +274,8 @@ repair_cost_percent = 50
 salvage_percent = 50
 rubble_stone = "cascote"
 rubble_wood = "pino"
+breach_stone = "cascote"
+breach_wood = "pino"
 
 [fire]
 max_intensity = 1000
@@ -370,6 +372,9 @@ cavalry_taken_percent = 50
 ranged_taken_percent = 125
 stops_charge = true
 
+
+[objectives]
+check_every_ticks = 10
 
 [market]
 enabled = false

@@ -24,6 +24,7 @@
 #include "sim/medicine.hpp"
 #include "sim/morale.hpp"
 #include "sim/movement.hpp"
+#include "sim/objectives.hpp"
 #include "sim/rng.hpp"
 #include "sim/supply.hpp"
 #include "sim/tick.hpp"
@@ -81,6 +82,7 @@ struct ScenarioPlacement {
     std::uint8_t type = 0;  // UnitTypeId, BuildingTypeId o NodeTypeId
     PlayerId owner = 0;     // unidades y edificios
     TileCoord at;           // casilla de la unidad, u origen del edificio o del recurso
+    Stock store{};          // campamentos (F4): su almacén de suministros al empezar
 };
 
 struct ScenarioParams {
@@ -90,6 +92,8 @@ struct ScenarioParams {
     std::vector<std::uint8_t> elevation;  // width * height
     std::vector<ScenarioPlacement> placements;
     std::int32_t players = 0;
+    std::vector<Stock> stocks;           // almacén inicial por jugador (vacío: el de [setup])
+    std::vector<Objective> objectives;   // F4: objetivos de la partida (vacío: conquista)
 
     [[nodiscard]] bool active() const noexcept { return width > 0 && height > 0; }
 };
@@ -115,6 +119,7 @@ struct WorldParams {
     FormationParams formation;
     MarketParams market;
     VisionParams vision;
+    ObjectiveParams objectives;
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
     SetupParams setup;
@@ -217,6 +222,9 @@ struct Snapshot {
     std::vector<std::shared_ptr<const std::vector<std::uint8_t>>> fog;
     std::vector<std::vector<RememberedBuilding>> memory;
     std::array<std::int32_t, kResourceCount> market_prices{};  // oro por lote (C3)
+    // Objetivos del escenario (F4), en el orden de ObjectiveSystem::objectives().
+    std::vector<ObjectiveStatus> objectives;
+    std::int32_t winner = -1;  // jugador que los ha cumplido todos; -1 = nadie aún
 };
 
 class World {
@@ -245,6 +253,7 @@ public:
     [[nodiscard]] const MarketSystem& market() const noexcept { return market_; }
     [[nodiscard]] const VisionSystem& vision() const noexcept { return vision_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
+    [[nodiscard]] const ObjectiveSystem& objectives() const noexcept { return objectives_; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     // Solo para preparar escenarios en pruebas y herramientas: tocar el estado fuera de
     // las órdenes rompe las repeticiones.
@@ -295,6 +304,7 @@ private:
     MarketSystem market_;
     VisionSystem vision_;
     AiSystem ai_;
+    ObjectiveSystem objectives_;
     entt::registry registry_;
     Xoshiro256pp rng_;
     struct StartSite {

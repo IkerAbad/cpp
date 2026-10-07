@@ -32,6 +32,7 @@ add_library(rts_sim STATIC
     sim/path/grid.cpp
     sim/path/hpa.cpp
     sim/tile_map.cpp
+    sim/objectives.cpp
     sim/world.cpp)
 target_include_directories(rts_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(rts_sim PUBLIC EnTT::EnTT)
@@ -71,6 +72,7 @@ add_library(rts_game_core STATIC
     game/wire.cpp
     game/lockstep.cpp
     game/sound_director.cpp
+    game/campaign.cpp
     game/scenario.cpp
     game/alerts.cpp
     game/minimap.cpp

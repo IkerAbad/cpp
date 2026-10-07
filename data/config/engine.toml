@@ -150,6 +150,10 @@ repair_cost_percent = 50
 salvage_percent = 50
 rubble_stone = "escombros_piedra"
 rubble_wood = "escombros_madera"
+# Brecha (F4): lo derribado de un muro o una puerta no cierra el paso; se asalta por
+# encima de los escombros, que se pueden seguir recogiendo.
+breach_stone = "brecha_piedra"
+breach_wood = "brecha_madera"
 
 [fire]
 # Intensidad de 0 a 1000. Por debajo de 200 un fuego mengua 2 por tick y se apaga
@@ -304,6 +308,10 @@ ranged_attack_percent = 90
 cavalry_taken_percent = 50
 ranged_taken_percent = 125
 stops_charge = true
+
+[objectives]
+# Objetivos de escenario (F4): se comprueban cada 10 ticks (medio segundo).
+check_every_ticks = 10
 
 [market]
 # Mercado (C3). Lotes de 100; precios en oro por lote, los mismos para todos. Cada

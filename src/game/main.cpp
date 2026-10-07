@@ -79,7 +79,7 @@ int run(int argc, char** argv, bool& windowed) {
     // Sin límite de fotogramas (lo normal al abrirlo), el menú; con él (pruebas de humo),
     // directamente una partida.
     if (options->max_frames == 0) {
-        return rts::game::run_interactive(*data);
+        return rts::game::run_interactive(*data, options->data_dir);
     }
     return rts::game::run_windowed(*data, options->max_frames);
 }

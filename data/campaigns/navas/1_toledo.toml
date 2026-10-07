@@ -1,0 +1,193 @@
+# Campaña de Las Navas de Tolosa, capítulo 1 (F4). Mapa escrito a mano con pinceladas
+# (formato en src/game/scenario.hpp). Toledo, en un cerro dentro del meandro del Tajo,
+# abierto solo por el norte; dos puentes cruzan el río (el terreno vado hace de puente).
+name = "Toledo, 1212: la reunión de la hueste"
+players = 2
+width = 128
+height = 96
+base = "pradera"
+base_level = 2
+briefing = """
+Toledo, primavera de 1212. Alfonso VIII de Castilla ha llamado a la guerra contra el califa almohade, y a la ciudad llegan caballeros de toda la cristiandad. Una hueste no vive del aire: hay que juntar víveres para la marcha y reunir a la tropa al otro lado del Tajo, camino del sur.
+
+Objetivos: junta 1500 de comida en el almacén y lleva 30 tropas al campo de la reunión, al sur del río, antes de que acabe el plazo. Toledo no puede caer.
+"""
+
+# El cerro de la ciudad: colinas alrededor y una meseta alta en el centro.
+[[paint]]
+at = [50, 38]
+radius = 12
+terrain = "colinas"
+level = 4
+
+[[paint]]
+at = [50, 38]
+radius = 8
+terrain = "pradera"
+level = 5
+
+# El Tajo: viene del este, rodea la ciudad por el sur y sigue al oeste.
+[[paint]]
+at = [127, 28]
+to = [[78, 30], [70, 44], [64, 56], [50, 60], [36, 56], [30, 44], [22, 36], [0, 34]]
+radius = 1
+terrain = "agua"
+level = 1
+
+# Puentes de Alcántara (este) y de San Martín (oeste).
+[[paint]]
+at = [70, 44]
+radius = 1
+terrain = "vado"
+level = 3
+
+[[paint]]
+at = [30, 44]
+radius = 1
+terrain = "vado"
+level = 3
+
+# Montes y sotos.
+[[forest]]
+at = [102, 14]
+radius = 12
+density = 450
+
+[[forest]]
+at = [14, 14]
+radius = 10
+density = 450
+
+[[forest]]
+at = [104, 78]
+radius = 11
+density = 400
+
+[[forest]]
+at = [18, 80]
+radius = 9
+density = 400
+
+[[node]]
+type = "arbusto_bayas"
+at = [60, 26]
+
+[[node]]
+type = "arbusto_bayas"
+at = [62, 27]
+
+[[node]]
+type = "arbusto_bayas"
+at = [60, 28]
+
+[[node]]
+type = "mina_piedra"
+at = [82, 18]
+
+[[node]]
+type = "mina_oro"
+at = [30, 22]
+
+[[node]]
+type = "mina_hierro"
+at = [92, 58]
+
+# La ciudad.
+[[building]]
+player = 0
+type = "centro_urbano"
+at = [49, 37]
+
+[[building]]
+player = 0
+type = "casa"
+at = [44, 33]
+
+[[building]]
+player = 0
+type = "casa"
+at = [54, 33]
+
+[[building]]
+player = 0
+type = "casa"
+at = [44, 42]
+
+[[building]]
+player = 0
+type = "casa"
+at = [55, 42]
+
+[[building]]
+player = 0
+type = "cuartel"
+at = [42, 26]
+
+[[building]]
+player = 0
+type = "molino"
+at = [56, 24]
+
+[[unit]]
+player = 0
+type = "aldeano"
+at = [47, 30]
+count = 10
+cols = 5
+
+[[unit]]
+player = 0
+type = "hombre_armas"
+at = [46, 46]
+count = 6
+cols = 6
+
+[[unit]]
+player = 0
+type = "caballero"
+at = [53, 46]
+count = 4
+cols = 4
+
+[[unit]]
+player = 0
+type = "ballestero"
+at = [46, 48]
+count = 4
+cols = 4
+
+[[unit]]
+player = 0
+type = "carreta"
+at = [58, 36]
+count = 2
+cols = 1
+
+[[player]]
+stock = { comida = 400, madera = 300, piedra = 100, oro = 200, hierro = 150 }
+
+[[objective]]
+player = 0
+kind = "reunir"
+text = "Junta 1500 de comida para la marcha"
+resource = "comida"
+count = 1500
+
+[[objective]]
+player = 0
+kind = "llegar"
+text = "Reúne 30 tropas en el campo de la reunión, al sur del Tajo"
+count = 30
+zone = [52, 72, 78, 90]
+
+[[objective]]
+player = 0
+kind = "conservar"
+text = "Toledo no puede caer"
+building = "centro_urbano"
+
+[[objective]]
+player = 1
+kind = "sobrevivir"
+text = "Plazo: la hueste debe partir hacia el sur (40 minutos)"
+seconds = 2400

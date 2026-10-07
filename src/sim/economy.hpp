@@ -115,6 +115,10 @@ struct EconomyParams {
     std::int32_t salvage_percent = 0;
     NodeTypeId rubble_stone = 0;
     NodeTypeId rubble_wood = 0;
+    // Brecha (F4): lo que queda de un muro o una puerta derribados se puede cruzar (se
+    // asalta la brecha) y se sigue pudiendo recoger.
+    NodeTypeId breach_stone = 0;
+    NodeTypeId breach_wood = 0;
     // Un aldeano hambriento (sin víveres) trabaja a este % de su ritmo.
     std::int32_t hungry_work_percent = 100;
 };
@@ -326,7 +330,7 @@ private:
     [[nodiscard]] std::size_t tile_index(TileCoord c) const noexcept {
         return static_cast<std::size_t>(c.y) * static_cast<std::size_t>(width_) + static_cast<std::size_t>(c.x);
     }
-    void occupy(MovementSystem& movement, const Footprint& f, entt::entity e);
+    void occupy(MovementSystem& movement, const Footprint& f, entt::entity e, bool block = true);
     void release(MovementSystem& movement, const Footprint& f);
 
     void update_worker(entt::registry& registry, MovementSystem& movement, entt::entity e,

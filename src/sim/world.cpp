@@ -84,6 +84,8 @@ World::World(const WorldParams& params)
       market_(params.market, params.unit_types, params.building_types),
       vision_(params.vision, *map_, params.unit_types, params.building_types, params.node_types, player_count(params)),
       ai_(params.ai, params.supply, params.ai_players),
+      objectives_(params.objectives, params.scenario.objectives, params.unit_types,
+                  static_cast<std::size_t>(player_count(params))),
       rng_(params.demo.seed) {
     if (params.scenario.active()) {
         place_scenario(params.scenario, params.setup.start_stock);
@@ -235,7 +237,8 @@ void World::setup_game(const SetupParams& setup) {
 
 void World::place_scenario(const ScenarioParams& scenario, const Stock& stock) {
     for (std::int32_t p = 0; p < scenario.players; ++p) {
-        economy_.player_state(static_cast<PlayerId>(p)).stock = stock;
+        const auto i = static_cast<std::size_t>(p);
+        economy_.player_state(static_cast<PlayerId>(p)).stock = i < scenario.stocks.size() ? scenario.stocks[i] : stock;
     }
     const EconomyCatalog& catalog = economy_.catalog();
     // En el orden del fichero: lo que no cabe (fuera del mapa, encima de otra cosa) se
@@ -245,7 +248,18 @@ void World::place_scenario(const ScenarioParams& scenario, const Stock& stock) {
             case ScenarioPlacement::Kind::Building:
                 if (pl.type < catalog.buildings.size() && pl.owner < economy_.players().size() &&
                     economy_.can_place(registry_, movement_.grid(), catalog.buildings[pl.type].size, pl.at)) {
-                    economy_.place_building(registry_, movement_, pl.owner, pl.type, pl.at, true);
+                    const auto b = economy_.place_building(registry_, movement_, pl.owner, pl.type, pl.at, true);
+                    // Campamento ya abastecido (F4), hasta lo que cabe: lo trajeron de casa.
+                    const std::int32_t capacity = catalog.buildings[pl.type].store_capacity;
+                    if (b && capacity > 0 && std::ranges::any_of(pl.store, [](std::int32_t v) { return v > 0; })) {
+                        Stock s{};
+                        std::int32_t room = capacity;
+                        for (std::size_t r = 0; r < kResourceCount; ++r) {
+                            s[r] = std::clamp(pl.store[r], 0, room);
+                            room -= s[r];
+                        }
+                        registry_.emplace<SupplyStore>(*b, SupplyStore{s});
+                    }
                 }
                 break;
             case ScenarioPlacement::Kind::Node:
@@ -478,6 +492,7 @@ void World::step() {
     movement_.commit_grid_changes(registry_);
     movement_.update(registry_, tick_);
     fatigue_.update(registry_, movement_, combat_.morale_hits());
+    objectives_.update(registry_, economy_, tick_);
     ++tick_;
 }
 
@@ -618,6 +633,7 @@ std::uint64_t World::state_hash() const {
     market_.hash_into(h, registry_);
     vision_.hash_into(h);
     ai_.hash_into(h);
+    objectives_.hash_into(h);
     return h.value();
 }
 
@@ -773,6 +789,8 @@ void World::write_snapshot(Snapshot& out) const {
     }
     out.players.assign(economy_.players().begin(), economy_.players().end());
     out.market_prices = market_.prices();
+    out.objectives = objectives_.status();
+    out.winner = objectives_.winner() ? static_cast<std::int32_t>(*objectives_.winner()) : -1;
     out.daylight_percent = vision_.enabled() ? vision_.daylight_percent(tick_) : kPercent;
     out.fog.clear();
     out.memory.clear();
