@@ -39,8 +39,11 @@ public:
 };
 
 // Señales y std::terminate escriben el informe en report_root; log es el registro a
-// copiar. Se llama una vez al arrancar.
-void install_crash_handlers(const std::filesystem::path& report_root, const std::filesystem::path& log);
+// copiar. notify, si lo hay, anota el fallo en el registro y lo vacía a disco antes
+// de copiarlo (esta biblioteca no usa spdlog). Se llama una vez al arrancar.
+using CrashNotify = void (*)(std::string_view reason);
+void install_crash_handlers(const std::filesystem::path& report_root, const std::filesystem::path& log,
+                            CrashNotify notify = nullptr);
 
 // Escribe el informe ahora (también para fallos que no tumban el programa, como una
 // desincronización). Devuelve la carpeta, o nada si no se pudo.

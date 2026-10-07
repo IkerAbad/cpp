@@ -8,8 +8,6 @@
 #include <format>
 #include <fstream>
 
-#include <spdlog/spdlog.h>
-
 #include "game/replay.hpp"
 #include "sim/world.hpp"
 
@@ -25,6 +23,7 @@ struct Current {
 Current g_current;
 std::filesystem::path g_root;
 std::filesystem::path g_log;
+CrashNotify g_notify = nullptr;
 std::atomic<bool> g_writing{false};  // un informe a la vez (una caída dentro de otra)
 
 #if defined(_MSC_VER)
@@ -94,9 +93,11 @@ CrashGuard::~CrashGuard() {
     g_current = {};
 }
 
-void install_crash_handlers(const std::filesystem::path& report_root, const std::filesystem::path& log) {
+void install_crash_handlers(const std::filesystem::path& report_root, const std::filesystem::path& log,
+                            CrashNotify notify) {
     g_root = report_root;
     g_log = log;
+    g_notify = notify;
     for (const int sig : {SIGSEGV, SIGABRT, SIGFPE, SIGILL}) {
         std::signal(sig, on_signal);
     }
@@ -109,9 +110,8 @@ std::optional<std::filesystem::path> write_crash_report(std::string_view reason)
     }
     std::optional<std::filesystem::path> out;
     try {
-        spdlog::error("Fallo: {}. Se escribe un informe.", reason);
-        if (auto logger = spdlog::default_logger()) {
-            logger->flush();
+        if (g_notify != nullptr) {
+            g_notify(reason);
         }
         std::filesystem::path dir = g_root / std::format("informe-{}", time_stamp());
         // Dos informes en el mismo segundo: otra carpeta.

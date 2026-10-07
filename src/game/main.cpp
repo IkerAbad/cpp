@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -56,7 +57,11 @@ int run(int argc, char** argv, bool& windowed) {
     // Informes de errores (G3): una caída deja repetición y registro.
     const std::filesystem::path exe_dir = rts::platform::executable_dir();
     rts::game::install_crash_handlers(
-        options->report_dir.empty() ? exe_dir / rts::game::kReportDir : options->report_dir, exe_dir / "rts.log");
+        options->report_dir.empty() ? exe_dir / rts::game::kReportDir : options->report_dir, exe_dir / "rts.log",
+        [](std::string_view reason) {
+            spdlog::error("Fallo: {}. Se escribe un informe.", reason);
+            spdlog::default_logger()->flush();
+        });
     // Las repeticiones llevan sus propios datos: no se lee data/.
     if (!options->verify_replay.empty()) {
         return rts::game::run_verify_replay(options->verify_replay);
