@@ -312,6 +312,30 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
   - No hay sonidos de ambiente (viento, pájaros, agua).
   - El volumen solo se cambia en `sound.toml`; las opciones en pantalla son de F5.
 
+### Mapas: ríos con vados y de 2 a 4 jugadores (F3)
+
+- **Tipos de mapa.**
+  - En el menú se elige el mapa:
+    - «Continental», el de siempre: lagos y continentes por ruido.
+    - «Ríos»: dos ríos, uno de arriba abajo y otro de lado a lado.
+    - «Gran río»: uno solo, ancho y con más vados.
+  - Viajan en los ajustes de la partida (`map = "Ríos"`), así que las repeticiones y las partidas en red los llevan.
+  - Cada tipo cambia solo lo que dice (`[[map.preset]]` en `engine.toml`). Con el mapa por defecto no se toca ni el generador aleatorio: el hash es el de siempre.
+- **Ríos.**
+  - Van de un borde al opuesto, con meandros (en cada paso, un 35 % de probabilidad de desviarse una casilla, sin alejarse del eje más de un octavo del mapa).
+  - Se prueban hasta 16 trazados y se queda el primero que pasa a más de 40 casillas de todos los inicios.
+- **Vados.**
+  - El terreno nuevo «vado» es agua somera: se cruza, despacio (45 %) y sin poder cargar.
+  - Un río solo separa tierra donde hay tierra en las dos orillas. En cada uno de esos tramos va al menos un vado, más si es largo, según la densidad pedida. Así el río nunca aísla lo que el terreno dejaba unido.
+  - Las orillas de cada vado quedan despejadas 3 casillas (pradera, sin bosque).
+- **De 2 a 4 jugadores, todos se alcanzan.**
+  - El edificio inicial se busca en la región de tierra más grande del mapa, que es una sola. Antes bastaba con una región «grande», y un lago podía dejar a un jugador en una isla.
+  - Si aun así el bosque corta el paso entre dos inicios, se talan los árboles del camino más corto por terreno transitable. Nunca se quita una mina ni unas bayas.
+  - Medido en 270 combinaciones (3 tipos de mapa, 30 semillas, 2, 3 y 4 jugadores): todos los inicios se alcanzan por tierra en todas.
+- **Límite conocido.**
+  - Se puede construir sobre un vado.
+  - La IA cruza los vados como cualquier terreno, sin planear dónde defenderlos.
+
 ### Repeticiones (M5)
 
 - **Qué se graba.** Una copia de los ficheros de `data/` (unos 20 KB) y las órdenes humanas, cada una con el tick en que se emitió. La IA vive dentro de la simulación y es determinista: sus órdenes no se graban, se regeneran. Una repetición se reproduce con los datos con que se jugó aunque luego cambien los de `data/`.
@@ -678,6 +702,7 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `unit`: red | Sala con arranque manual, ajustes y charla que llegan a todos; charla cortada sin partir un carácter; un invitado que se va y la IA que toma su bando en el mismo tick en los que quedan, con el mismo hash final; partida de cuatro con IA en los puestos pedidos; orden de relevo idempotente; códec de órdenes; órdenes de prueba solo para unidades propias; 2 y 3 jugadores por bucle local acaban con el mismo hash habiendo ejecutado órdenes que solo conocía el otro; una orden que solo ve un mundo en el tick 10 se detecta en el hash del tick 20; rechazo por datos distintos; plazo agotado sin noticias de otro jugador |
 | `unit`: arte | `art.toml` cubre todos los tipos y rechaza nombres que no existen o repetidos y valores no válidos; cada figura tiene sus poses, la capa del jugador en grises, y andar y golpear cambian el dibujo; generación determinista; edificios con altura por encima de su huella y campos a ras de suelo; terreno sin juntas; árboles variados con pinos; atlas sin solapes con los píxeles de cada imagen; escena con lo de delante pintado después, espejo, obra recortada y llamas con humo |
 | `unit`: sonido | El tono que se pide (cruces por cero) y una octava al subir 1200 cents, sin pasar de ±1 y determinista; ruido distinto por semilla y apagado por el filtro; música con la duración de sus compases, sin saturar; mezclador con panorama, robo de la voz más débil, música en bucle y fundido; banco con versiones; director que hace sonar lo visible con panorama, calla lo lejano y lo cubierto por la niebla, respeta las esperas, cambia a música de batalla y vuelve a la de paz, y oye bajas, derrumbes, obras, avisos, órdenes, trabajo y fuego; errores claros en `sound.toml` |
+| `unit`: mapas | Sin ríos, el mapa es idéntico al de siempre; con ríos, cruzan de borde a borde, con vados, lejos de los inicios y siempre igual; con «Ríos» y «Gran río», 2 y 4 jugadores y varias semillas, todos los inicios en la misma región de tierra; tipo de mapa desconocido, error claro |
 | `sim_purity` | Regla 2: `src/sim/` limpio de tokens prohibidos |
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |

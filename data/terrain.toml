@@ -74,3 +74,13 @@ color = [120, 120, 124]
 speed_percent = 100
 arrow_cover_percent = 100
 charge = false
+
+# Vado (F3): agua somera de un río por donde se puede cruzar, despacio y sin cargar.
+# Va al final: añadirlo no cambia los identificadores de los demás.
+[[terrain]]
+name = "vado"
+passable = true
+color = [92, 142, 176]
+speed_percent = 45
+arrow_cover_percent = 100
+charge = false

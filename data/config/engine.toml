@@ -55,6 +55,39 @@ max_elevation = 53000
 terrain = "roca"
 max_elevation = 65536
 
+# Ríos (F3): de un borde al opuesto, con meandros (en cada paso, un 35 % de probabilidad
+# de desviarse una casilla), a más de 40 casillas de los inicios y con vados de agua
+# somera repartidos a lo largo. En el mapa por defecto, ninguno; los tipos de mapa de
+# abajo los ponen.
+[map.rivers]
+count = 0
+width_tiles = 4
+fords = 2
+ford_length_tiles = 5
+meander_percent = 35
+clearance_tiles = 40
+bed_level = 0
+water = "agua"
+ford = "vado"
+# Orillas de cada vado despejadas (sin bosque) 3 casillas a cada lado.
+landing = "pradera"
+landing_tiles = 3
+
+# Tipos de mapa que se eligen en el menú. Cada uno cambia solo lo que dice.
+[[map.preset]]
+name = "Continental"
+rivers = 0
+
+[[map.preset]]
+name = "Ríos"
+rivers = 2
+
+[[map.preset]]
+name = "Gran río"
+rivers = 1
+river_width_tiles = 7
+fords = 3
+
 # Jugadores, en orden de PlayerId. start: centro deseado del edificio inicial (se
 # busca el sitio válido más cercano). color: RGB del dueño en marcadores y edificios.
 # controller: "humano" (el jugador local es el 0), "ia" o "libre" (un puesto que solo

@@ -331,6 +331,34 @@ void read_map_params(const toml::table& root, std::string_view source, const Ter
     if (previous != sim::kElevationRange) {
         r.fail(std::format("la última banda de 'map.bands' debe llegar a max_elevation = {}", sim::kElevationRange));
     }
+
+    // Ríos (F3). Sin la sección, ninguno.
+    for (const TerrainInfo& t : terrain.types) {
+        map.passable.push_back(t.passable ? 1 : 0);
+    }
+    if (!root.at_path("map.rivers")) {
+        return;
+    }
+    constexpr std::int64_t kMaxRivers = 8;
+    constexpr std::int64_t kMaxRiverTiles = 64;
+    sim::RiverParams& rv = map.rivers;
+    rv.count = r.get_i32("map.rivers.count", 0, kMaxRivers);
+    rv.width_tiles = r.get_i32("map.rivers.width_tiles", 1, kMaxRiverTiles);
+    rv.fords = r.get_i32("map.rivers.fords", 0, kMaxRiverTiles);
+    rv.ford_length_tiles = r.get_i32("map.rivers.ford_length_tiles", 1, kMaxRiverTiles);
+    rv.meander_percent = r.get_i32("map.rivers.meander_percent", 0, 100);
+    rv.clearance_tiles = r.get_i32("map.rivers.clearance_tiles", 0, 1024);
+    rv.bed_level = r.get_i32("map.rivers.bed_level", 0, kByteMax);
+    rv.landing_tiles = r.get_i32("map.rivers.landing_tiles", 0, kMaxRiverTiles);
+    for (const auto& [key, dest] : {std::pair{"map.rivers.water", &rv.water}, std::pair{"map.rivers.ford", &rv.ford},
+                                    std::pair{"map.rivers.landing", &rv.landing}}) {
+        const std::string name = r.get_string(key);
+        if (const auto id = terrain.find(name)) {
+            *dest = *id;
+        } else if (!r.failed()) {
+            r.fail(std::format("'{}' = \"{}\" no está en terrain.toml", r.full(key), name));
+        }
+    }
 }
 
 template <typename Types>
@@ -1222,6 +1250,18 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         }
     });
 
+    // Los ríos no pasan cerca de los inicios.
+    cfg.world.map.keep_dry = cfg.world.setup.starts;
+    // Tipos de mapa (F3).
+    for_each_table(r.get_table_array("map.preset", false), source_name, "map.preset", error, [&](Reader& mr, std::size_t) {
+        MapPreset preset;
+        preset.name = mr.get_string("name");
+        preset.rivers = mr.get_i32("rivers", 0, 8);
+        preset.river_width_tiles = mr.get_i32_or("river_width_tiles", cfg.world.map.rivers.width_tiles, 1, 64);
+        preset.fords = mr.get_i32_or("fords", cfg.world.map.rivers.fords, 0, 64);
+        cfg.map_presets.push_back(std::move(preset));
+    });
+
     sim::DemoParams& demo = cfg.world.demo;
     demo.seed = r.get_u64("demo.seed");
     demo.unit_type = r.get_named("demo.unit", units, "units.toml");
@@ -1856,6 +1896,11 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         if (root->contains("seats")) {
             seats = r.get_string_list("seats");
         }
+        // Opcional (F3): tipo de mapa.
+        std::string map_type;
+        if (root->contains("map")) {
+            map_type = r.get_string("map");
+        }
         const auto& names = data.engine.ai_profile_names;
         const auto it = std::ranges::find(names, rival);
         if (!error && it == names.end()) {
@@ -1872,6 +1917,7 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
                                                    e.seat_starts.size()));
             }
             e.world.setup.starts.assign(e.seat_starts.begin(), e.seat_starts.begin() + std::ssize(seats));
+            e.world.map.keep_dry = e.world.setup.starts;
             e.player_colors.assign(e.seat_colors.begin(), e.seat_colors.begin() + std::ssize(seats));
             e.world.ai_players.clear();
             for (std::size_t i = 0; i < seats.size(); ++i) {
@@ -1882,6 +1928,16 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
                                                        match->path, seats[i]));
                 }
             }
+        }
+        if (!map_type.empty()) {
+            const auto& presets = data.engine.map_presets;
+            const auto p = std::ranges::find(presets, map_type, &MapPreset::name);
+            if (p == presets.end()) {
+                return std::unexpected(std::format("{}: 'map' = \"{}\": no es un [[map.preset]]", match->path, map_type));
+            }
+            data.engine.world.map.rivers.count = p->rivers;
+            data.engine.world.map.rivers.width_tiles = p->river_width_tiles;
+            data.engine.world.map.rivers.fords = p->fords;
         }
         data.engine.world.map.seed = seed;
         data.engine.world.setup.seed = seed;
@@ -1896,6 +1952,9 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
 std::string match_settings_toml(const MatchSettings& s) {
     std::string out = std::format("# Ajustes de esta partida (los genera el menú).\nseed = {}\nrival = \"{}\"\nfog = {}\n",
                                   s.seed, s.rival, s.fog ? "true" : "false");
+    if (!s.map.empty()) {
+        out += std::format("map = \"{}\"\n", s.map);
+    }
     if (!s.seats.empty()) {
         out += "seats = [";
         for (std::size_t i = 0; i < s.seats.size(); ++i) {

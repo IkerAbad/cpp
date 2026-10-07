@@ -1067,3 +1067,58 @@ TEST_CASE("Configuración: los ajustes de partida del menú viajan como un fiche
     s.rival = "inexistente";
     CHECK_FALSE(rts::game::with_match_settings(*base, s).has_value());
 }
+
+TEST_CASE("Mapas (F3): con ríos, de 2 a 4 jugadores, todos los inicios se alcanzan por tierra") {
+    const auto base = load_game_data(RTS_DATA_DIR);
+    REQUIRE(base.has_value());
+    REQUIRE(base->engine.map_presets.size() >= 3);
+    for (const std::string map : {"Ríos", "Gran río"}) {
+        for (const std::uint64_t seed : {2ULL, 5ULL, 7ULL, 15ULL}) {
+            for (const std::size_t players : {2U, 4U}) {
+                CAPTURE(map);
+                CAPTURE(seed);
+                CAPTURE(players);
+                rts::game::MatchSettings ms;
+                ms.seed = seed;
+                ms.rival = base->engine.ai_profile_names.front();
+                ms.map = map;
+                ms.seats.assign(players, "ia");
+                const auto data = rts::game::with_match_settings(*base, ms);
+                REQUIRE(data.has_value());
+                CHECK(data->engine.world.map.rivers.count > 0);
+                const rts::sim::World world(data->engine.world);
+                rts::sim::Snapshot snap;
+                world.write_snapshot(snap);
+                // Un edificio inicial por jugador, y todos en la misma región de tierra.
+                std::vector<std::uint32_t> regions;
+                const auto& grid = world.movement().grid();
+                for (const auto& o : snap.objects) {
+                    if (o.kind != rts::sim::ObjectKind::Building) {
+                        continue;
+                    }
+                    // La región por la que se sale del edificio: la mayor de su contorno.
+                    std::uint32_t best = 0;
+                    for (std::int32_t y = o.origin.y - 1; y <= o.origin.y + o.size; ++y) {
+                        for (std::int32_t x = o.origin.x - 1; x <= o.origin.x + o.size; ++x) {
+                            const std::uint32_t c = grid.component({x, y});
+                            if (c != 0 && (best == 0 || grid.component_size(c) > grid.component_size(best))) {
+                                best = c;
+                            }
+                        }
+                    }
+                    regions.push_back(best);
+                }
+                REQUIRE(regions.size() == players);
+                for (const auto r : regions) {
+                    CHECK(r == regions.front());
+                }
+            }
+        }
+    }
+    rts::game::MatchSettings bad;
+    bad.rival = base->engine.ai_profile_names.front();
+    bad.map = "Atlántida";
+    const auto err = rts::game::with_match_settings(*base, bad);
+    REQUIRE_FALSE(err.has_value());
+    CHECK(err.error().find("Atlántida") != std::string::npos);
+}

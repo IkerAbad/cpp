@@ -273,6 +273,14 @@ private:
     AiSystem ai_;
     entt::registry registry_;
     Xoshiro256pp rng_;
+    struct StartSite {
+        std::optional<entt::entity> building;
+        TileCoord center;
+        std::uint32_t region = 0;  // componente del terreno donde está
+    };
+    [[nodiscard]] std::vector<Footprint> starts_footprints(const std::vector<StartSite>& starts) const;
+    void open_paths(const std::vector<Footprint>& feet, NodeTypeId tree_type);
+
     std::vector<Command> pending_;
     std::vector<Command> ai_orders_;
     std::uint32_t next_order_id_ = 1;

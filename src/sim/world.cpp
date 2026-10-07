@@ -88,23 +88,36 @@ void World::setup_game(const SetupParams& setup) {
     assert(setup.start_building < catalog.buildings.size());
     const std::int32_t start_size = catalog.buildings[setup.start_building].size;
 
-    struct Start {
-        std::optional<entt::entity> building;
-        TileCoord center;
-        std::uint32_t region = 0;  // componente del terreno donde está
-    };
-    std::vector<Start> starts(setup.starts.size());
+    std::vector<StartSite> starts(setup.starts.size());
 
     // 1. Edificio inicial de cada jugador en el sitio válido más cercano al pedido, en
-    //    una región de tierra lo bastante grande (no en un islote).
+    //    la región de tierra más grande del mapa, que es una sola: así todos los
+    //    jugadores pueden llegar unos a otros por tierra (F3). Si no la hay a su alcance,
+    //    en cualquier región lo bastante grande (no en un islote).
+    std::uint32_t largest = 0;
+    std::uint32_t largest_size = 0;
+    for (std::int32_t y = 0; y < map_->height(); ++y) {
+        for (std::int32_t x = 0; x < map_->width(); ++x) {
+            const std::uint32_t c = grid.component({x, y});
+            if (c != 0 && grid.component_size(c) > largest_size) {
+                largest = c;
+                largest_size = grid.component_size(c);
+            }
+        }
+    }
     for (std::size_t p = 0; p < setup.starts.size(); ++p) {
         const auto player = static_cast<PlayerId>(p);
         economy_.player_state(player).stock = setup.start_stock;
         const TileCoord want{setup.starts[p].x - start_size / 2, setup.starts[p].y - start_size / 2};
-        const auto origin = nearest_origin(want, setup.start_search_radius, [&](TileCoord o) {
-            return economy_.can_place(registry_, grid, start_size, o) &&
-                   std::cmp_greater_equal(grid.component_size(grid.component(o)), setup.min_start_region_tiles);
+        auto origin = nearest_origin(want, setup.start_search_radius, [&](TileCoord o) {
+            return economy_.can_place(registry_, grid, start_size, o) && grid.component(o) == largest;
         });
+        if (!origin) {
+            origin = nearest_origin(want, setup.start_search_radius, [&](TileCoord o) {
+                return economy_.can_place(registry_, grid, start_size, o) &&
+                       std::cmp_greater_equal(grid.component_size(grid.component(o)), setup.min_start_region_tiles);
+            });
+        }
         if (!origin) {
             continue;  // sin sitio: el jugador empieza sin edificio ni aldeanos
         }
@@ -114,7 +127,7 @@ void World::setup_game(const SetupParams& setup) {
     }
 
     // 2. Recursos alrededor de cada inicio, en su misma región.
-    for (const Start& start : starts) {
+    for (const StartSite& start : starts) {
         if (!start.building) {
             continue;
         }
@@ -170,7 +183,7 @@ void World::setup_game(const SetupParams& setup) {
                     continue;
                 }
                 const bool tree = rng.next_below(kPermille) < static_cast<std::uint32_t>(setup.tree_density_permille);
-                const bool clearing = std::ranges::any_of(starts, [&](const Start& s) {
+                const bool clearing = std::ranges::any_of(starts, [&](const StartSite& s) {
                     return s.building && chebyshev(c, s.center) <= setup.clear_radius;
                 });
                 if (tree && !clearing && grid.terrain_passable(c) && economy_.occupant(c) == entt::null) {
@@ -179,6 +192,11 @@ void World::setup_game(const SetupParams& setup) {
             }
         }
     }
+
+    // 3b. Sendas (F3): todos los jugadores han de poder llegar unos a otros. Si el bosque
+    //     corta el paso (orillas boscosas de un río, por ejemplo), se talan los árboles
+    //     del camino más corto por terreno transitable entre el primero y cada otro.
+    open_paths(starts_footprints(starts), setup.tree_type);
 
     // 4. Aldeanos iniciales alrededor del edificio inicial.
     for (std::size_t p = 0; p < starts.size(); ++p) {
@@ -194,6 +212,92 @@ void World::setup_game(const SetupParams& setup) {
             }
             economy_.spawn_unit(registry_, static_cast<PlayerId>(p), setup.start_unit, tile_center(*tile));
             ++b.spawned;
+        }
+    }
+}
+
+std::vector<Footprint> World::starts_footprints(const std::vector<StartSite>& starts) const {
+    std::vector<Footprint> out;
+    for (const StartSite& s : starts) {
+        if (s.building) {
+            out.push_back(registry_.get<Footprint>(*s.building));
+        }
+    }
+    return out;
+}
+
+void World::open_paths(const std::vector<Footprint>& feet, NodeTypeId tree_type) {
+    if (feet.size() < 2) {
+        return;
+    }
+    const PassGrid& grid = movement_.grid();
+    const std::int32_t w = map_->width();
+    const auto index = [w](TileCoord c) {
+        return static_cast<std::size_t>(c.y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(c.x);
+    };
+    // Casillas por las que se sale de un edificio.
+    const auto ring = [&](const Footprint& f) {
+        std::vector<TileCoord> out;
+        for (std::int32_t y = f.origin.y - 1; y <= f.origin.y + f.size; ++y) {
+            for (std::int32_t x = f.origin.x - 1; x <= f.origin.x + f.size; ++x) {
+                const TileCoord c{x, y};
+                if (!f.contains(c) && grid.terrain_passable(c)) {
+                    out.push_back(c);
+                }
+            }
+        }
+        return out;
+    };
+    constexpr std::array<TileCoord, 4> kSteps{TileCoord{1, 0}, TileCoord{-1, 0}, TileCoord{0, 1}, TileCoord{0, -1}};
+    // Anchura desde el primero; through_trees: los árboles no cortan (para trazar la senda).
+    const auto search = [&](bool through_trees, std::vector<std::int32_t>& parent) {
+        parent.assign(static_cast<std::size_t>(map_->tile_count()), -2);
+        std::vector<TileCoord> frontier;
+        for (const TileCoord c : ring(feet.front())) {
+            if (grid.passable(c) || through_trees) {
+                parent[index(c)] = -1;
+                frontier.push_back(c);
+            }
+        }
+        for (std::size_t head = 0; head < frontier.size(); ++head) {
+            const TileCoord c = frontier[head];
+            for (const TileCoord d : kSteps) {
+                const TileCoord n{c.x + d.x, c.y + d.y};
+                if (!map_->contains(n) || parent[index(n)] != -2) {
+                    continue;
+                }
+                const entt::entity occ = economy_.occupant(n);
+                // Solo árboles: una mina o unas bayas no se quitan del camino.
+                const ResourceNode* node = occ != entt::null ? registry_.try_get<ResourceNode>(occ) : nullptr;
+                const bool tree = node != nullptr && node->type == tree_type;
+                const bool open = grid.passable(n) || (through_trees && grid.terrain_passable(n) && tree);
+                if (open) {
+                    parent[index(n)] = static_cast<std::int32_t>(index(c));
+                    frontier.push_back(n);
+                }
+            }
+        }
+    };
+    std::vector<std::int32_t> parent;
+    for (std::size_t p = 1; p < feet.size(); ++p) {
+        search(false, parent);
+        const auto target = ring(feet[p]);
+        if (std::ranges::any_of(target, [&](TileCoord c) { return parent[index(c)] != -2; })) {
+            continue;  // ya se llega
+        }
+        search(true, parent);
+        const auto reached = std::ranges::find_if(target, [&](TileCoord c) { return parent[index(c)] != -2; });
+        if (reached == target.end()) {
+            continue;  // ni talando: separados por agua o roca
+        }
+        for (std::int32_t at = static_cast<std::int32_t>(index(*reached)); at >= 0;
+             at = parent[static_cast<std::size_t>(at)]) {
+            const TileCoord c{at % w, at / w};
+            const entt::entity occ = economy_.occupant(c);
+            const ResourceNode* node = occ != entt::null ? registry_.try_get<ResourceNode>(occ) : nullptr;
+            if (node != nullptr && node->type == tree_type) {
+                economy_.deplete(registry_, movement_, occ);
+            }
         }
     }
 }

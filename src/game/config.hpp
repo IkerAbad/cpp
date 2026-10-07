@@ -159,6 +159,14 @@ struct ReplayConfig {
     std::vector<std::int32_t> speeds;            // multiplicadores del reproductor
 };
 
+// Tipo de mapa (F3): lo que cambia respecto al de [map].
+struct MapPreset {
+    std::string name;
+    std::int32_t rivers = 0;
+    std::int32_t river_width_tiles = 0;
+    std::int32_t fords = 0;
+};
+
 // Partidas en red (E1), sección [net].
 struct NetConfig {
     LockstepConfig lockstep;
@@ -177,6 +185,7 @@ struct MatchSettings {
     // Partidas en red (E2): "humano" o "ia" por puesto, del 0 en adelante. Vacío: los
     // jugadores de engine.toml tal cual.
     std::vector<std::string> seats;
+    std::string map;  // tipo de mapa (F3, [[map.preset]]); vacío: el de engine.toml
 };
 
 inline constexpr std::string_view kMatchSettingsFile = "config/partida.toml";
@@ -205,6 +214,7 @@ struct EngineConfig {
     std::vector<std::array<std::uint8_t, 3>> player_colors;  // por PlayerId
     // Todos los puestos de [[player]], también los libres (E2): inicio y color.
     std::vector<sim::TileCoord> seat_starts;
+    std::vector<MapPreset> map_presets;  // F3
     std::vector<std::array<std::uint8_t, 3>> seat_colors;
     std::vector<std::string> hero_names;                     // por índice de CombatParams
     std::vector<std::string> ai_profile_names;               // por índice de AiParams::profiles

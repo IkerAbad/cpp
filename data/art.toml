@@ -746,3 +746,8 @@ grain_percent = 24
 name = "roca"
 texture = "roca"
 grain_percent = 20
+
+[[terrain]]
+name = "vado"
+texture = "agua"
+grain_percent = 16

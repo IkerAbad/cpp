@@ -100,3 +100,69 @@ TEST_CASE("TileMap: la revisión crece con cada escritura") {
     CHECK_FALSE(map.contains({4, 0}));
     CHECK_FALSE(map.contains({0, -1}));
 }
+
+// --- Ríos con vados (F3) ----------------------------------------------------------
+
+namespace {
+
+rts::sim::MapGenParams river_params(std::int32_t rivers) {
+    auto p = rts::test::test_map_params();
+    p.rivers.count = rivers;
+    p.rivers.width_tiles = 4;
+    p.rivers.fords = 2;
+    p.rivers.ford_length_tiles = 5;
+    p.rivers.meander_percent = 35;
+    p.rivers.clearance_tiles = 30;
+    p.rivers.bed_level = 0;
+    // Terrenos de prueba: el último es el agua del río; se añade un vado.
+    p.rivers.water = 0;
+    p.rivers.ford = 9;
+    p.passable.assign(10, 1);
+    p.passable[0] = 0;
+    p.keep_dry = {{40, 40}, {200, 200}};
+    return p;
+}
+
+}  // namespace
+
+TEST_CASE("Ríos: sin ríos, el mapa es exactamente el de siempre") {
+    const auto base = rts::sim::generate_map(rts::test::test_map_params());
+    auto p = river_params(0);
+    const auto same = rts::sim::generate_map(p);
+    for (std::int32_t y = 0; y < base.height(); ++y) {
+        for (std::int32_t x = 0; x < base.width(); ++x) {
+            REQUIRE(base.terrain({x, y}) == same.terrain({x, y}));
+            REQUIRE(base.elevation({x, y}) == same.elevation({x, y}));
+        }
+    }
+}
+
+TEST_CASE("Ríos: cruzan el mapa de borde a borde, lejos de los inicios, con vados y siempre igual") {
+    const auto p = river_params(2);
+    const auto a = rts::sim::generate_map(p);
+    const auto b = rts::sim::generate_map(p);
+    std::int32_t fords = 0;
+    for (std::int32_t y = 0; y < a.height(); ++y) {
+        for (std::int32_t x = 0; x < a.width(); ++x) {
+            REQUIRE(a.terrain({x, y}) == b.terrain({x, y}));
+            fords += a.terrain({x, y}) == p.rivers.ford ? 1 : 0;
+        }
+    }
+    CHECK(fords > 0);
+    // El primero va de arriba abajo: cada fila tiene cauce (agua o vado) en el tercio central.
+    for (std::int32_t y = 0; y < a.height(); ++y) {
+        bool water = false;
+        for (std::int32_t x = a.width() / 4; x < a.width() * 3 / 4 && !water; ++x) {
+            water = a.terrain({x, y}) == p.rivers.water || a.terrain({x, y}) == p.rivers.ford;
+        }
+        CHECK(water);
+    }
+    // Nada del cauce cerca de los inicios.
+    for (const auto& k : p.keep_dry) {
+        for (std::int32_t y = k.y - 10; y <= k.y + 10; ++y) {
+            for (std::int32_t x = k.x - 10; x <= k.x + 10; ++x) {
+                CHECK(a.terrain({x, y}) != p.rivers.ford);
+            }
+        }
+    }
+}

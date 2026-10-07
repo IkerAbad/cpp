@@ -188,7 +188,9 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   combate a la vista; posición en pantalla, niebla y esperas deciden qué suena. Falta:
   ambiente (viento, agua, pájaros) y volumen en pantalla (F5).
 - [ ] **F3. Mapas.** Ríos con vados, mapas para 2–4 jugadores y editor de
-  escenarios.
+  escenarios. Hecho: ríos con vados donde cortan tierra (tipos de mapa «Ríos» y «Gran
+  río»), inicios siempre en la misma región de tierra y sendas taladas si el bosque
+  corta el paso (comprobado en 270 combinaciones). Falta: el editor de escenarios.
 - [ ] **F4. Campaña.** Escenarios históricos con datos propios.
 - [ ] **F5. Idiomas y opciones.** Español e inglés; resolución, volumen y teclas.
 

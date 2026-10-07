@@ -2824,6 +2824,19 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
             }
             ImGui::EndCombo();
         }
+        // Tipo de mapa (F3): ríos con vados, etc.
+        const auto& presets = base.engine.map_presets;
+        if (!presets.empty()) {
+            const std::string shown = settings.map.empty() ? presets.front().name : settings.map;
+            if (ImGui::BeginCombo("Mapa", shown.c_str())) {
+                for (const MapPreset& p : presets) {
+                    if (ImGui::Selectable(p.name.c_str(), p.name == shown)) {
+                        settings.map = p.name;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
         ImGui::Checkbox("Niebla de guerra", &settings.fog);
         if (ImGui::Button("Empezar")) {
             choice.kind = MenuChoice::Kind::New;
@@ -2922,8 +2935,8 @@ std::optional<GameData> run_lobby(Display& d, const GameData& base, MatchSetting
             for (int i = 0; i < seats; ++i) {
                 ImGui::BulletText("Puesto %d: %s", i, i < net.connected() ? "humano" : ("IA " + settings.rival).c_str());
             }
-            ImGui::Text("Semilla %llu, niebla %s", static_cast<unsigned long long>(settings.seed),
-                        settings.fog ? "sí" : "no");
+            ImGui::Text("Semilla %llu, mapa %s, niebla %s", static_cast<unsigned long long>(settings.seed),
+                        settings.map.empty() ? "por defecto" : settings.map.c_str(), settings.fog ? "sí" : "no");
             ImGui::BeginDisabled(net.connected() < 2);
             if (ImGui::Button("Empezar")) {
                 settings.seats.assign(static_cast<std::size_t>(seats), "ia");
