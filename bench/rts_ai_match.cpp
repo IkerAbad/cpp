@@ -8,8 +8,12 @@
 // determinista: el mismo torneo da el mismo resultado en cualquier máquina.
 //
 // Uso: rts_ai_match --data <carpeta> --a <perfil> --b <perfil> [--games N] [--ticks T]
-//                   [--min-win-percent P] [--trace SEGUNDOS]
+//                   [--min-win-percent P] [--min-both-sides N] [--trace SEGUNDOS]
 // Con --min-win-percent, termina con código 1 si A gana menos del P % de las partidas.
+// Cada mapa se juega dos veces, una desde cada lado. En muchos mapas gana el mismo
+// lado juegue quien juegue (el mapa decide, no la IA: D4). Por eso también se cuentan
+// los mapas que una IA gana desde los dos lados; con --min-both-sides N, termina con
+// código 1 si A no gana al menos N mapas así o si B gana alguno.
 // Con --trace, cada tantos segundos de partida imprime el estado de cada jugador
 // (aldeanos, ejército, bagaje, campamentos, hambre, almacén): para entender por qué
 // gana o pierde un perfil.
@@ -37,7 +41,7 @@ bool parse_arg(std::string_view value, std::int64_t& out) {
 int usage() {
     std::fprintf(stderr,
                  "Uso: rts_ai_match --data <carpeta> --a <perfil> --b <perfil> [--games N] [--ticks T] "
-                 "[--min-win-percent P] [--trace SEGUNDOS]\n");
+                 "[--min-win-percent P] [--min-both-sides N] [--trace SEGUNDOS]\n");
     return 2;
 }
 
@@ -141,6 +145,7 @@ int main(int argc, char** argv) {
     std::int64_t games = 20;
     std::int64_t ticks = 36'000;  // 30 minutos
     std::int64_t min_win = -1;
+    std::int64_t min_both = -1;
     std::int64_t trace_seconds = 0;
     for (int i = 1; i + 1 < argc; i += 2) {
         const std::string_view key = argv[i];
@@ -156,6 +161,8 @@ int main(int argc, char** argv) {
             ok = parse_arg(value, games) && games > 0;
         } else if (key == "--ticks") {
             ok = parse_arg(value, ticks) && ticks > 0;
+        } else if (key == "--min-both-sides") {
+            ok = parse_arg(value, min_both);
         } else if (key == "--min-win-percent") {
             ok = parse_arg(value, min_win) && min_win <= kPercent;
         } else if (key == "--trace") {
@@ -200,6 +207,10 @@ int main(int argc, char** argv) {
     std::int64_t draws = 0;
     std::int64_t decisive = 0;  // victorias por derrota del rival (no a los puntos)
     std::int64_t routed_wins = 0;  // victorias en las que el vencido sufrió desbandadas
+    // Por mapa: quién ganó la partida en la que A era el jugador 0 (+1 A, -1 B, 0 empate).
+    std::int64_t both_a = 0;  // mapas que A gana desde los dos lados
+    std::int64_t both_b = 0;
+    int first_of_pair = 0;
     for (std::int64_t g = 0; g < games; ++g) {
         rts::sim::WorldParams params = data->engine.world;
         const auto pair = static_cast<std::uint64_t>(g / 2);
@@ -241,6 +252,12 @@ int main(int argc, char** argv) {
             (a_won ? wins_a : wins_b) += 1;
             result = a_won ? "gana A" : "gana B";
         }
+        const int outcome = winner < 0 ? 0 : (((winner == 0) == a_first) ? 1 : -1);
+        if (a_first) {
+            first_of_pair = outcome;
+        } else if (outcome != 0 && outcome == first_of_pair) {
+            (outcome > 0 ? both_a : both_b) += 1;
+        }
         std::printf("partida %2lld (semilla +%llu, A es el jugador %d): %s %s en %lld:%02lld (valor %lld contra %lld; "
                     "desbandadas %lld contra %lld)\n",
                     static_cast<long long>(g), static_cast<unsigned long long>(pair), a_first ? 0 : 1, result,
@@ -256,5 +273,10 @@ int main(int argc, char** argv) {
                 name_a.c_str(), name_b.c_str(), static_cast<long long>(wins_a), static_cast<long long>(wins_b),
                 static_cast<long long>(draws), static_cast<long long>(games), static_cast<long long>(win_pct),
                 static_cast<long long>(decisive), static_cast<long long>(routed_wins));
+    std::printf("Mapas ganados desde los dos lados: A %lld, B %lld (el resto los decide el mapa)\n",
+                static_cast<long long>(both_a), static_cast<long long>(both_b));
+    if (min_both >= 0 && (both_a < min_both || both_b > 0)) {
+        return 1;
+    }
     return min_win >= 0 && win_pct < min_win ? 1 : 0;
 }
