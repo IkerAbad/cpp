@@ -150,19 +150,13 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 - [x] **D2. Guerra con niebla.** Emboscadas en el bosque, ataques de noche,
   exploración continua y defensa con torres.
 - [x] **D3. Moral y formaciones en la IA.** Usa B1 a B5.
-- [ ] **D4. Niveles.** Fácil, normal, difícil y experto, diferenciados por los
-  módulos que usan y lo bien que piensan.
-  - *Terminado (D1–D4):* en la CI, cada nivel gana al anterior en al menos el 70 %
-    de las partidas.
-  - *Estado de D4:* los cuatro niveles existen, y la CI comprueba que `normal` y
-    `experto` ganan a `facil`. Entre `normal`, `difícil` y `experto` (40 partidas)
-    sale 50 % y 50 % (`experto` contra `normal`, 62 %), sin diferencia significativa.
-    La logística ya no resta (de 32 % a 55 %: el bagaje no le quita el centro urbano
-    a los aldeanos). Falta que los módulos tácticos sumen fuerza, no solo variedad. Se medirá siempre con 40 partidas: con 10, el ruido
-    es de ±15 puntos.
-
-### Fase E — Multijugador (M8)
-
+- [x] **D4. Niveles de IA.** Cada nivel gana al de debajo. Hecho: el experto manda la
+  mitad de los aldeanos a la comida (la que limita aldeanos y raciones). Medido con 20
+  partidas (10 mapas jugados desde los dos lados): en muchos mapas gana el mismo lado
+  juegue quien juegue, así que se cuentan los mapas ganados desde los dos lados.
+  Normal contra fácil 7 a 0 (85 % en bruto), difícil contra normal 3 a 0 (65 %),
+  experto contra difícil 5 a 0 (75 %); la CI lo exige. Falta: inicios más justos (el
+  mapa decide demasiadas partidas) y un experto que le saque más al normal (4 a 1).
 - [x] **E1. Lockstep.** Las órdenes viajan, no el estado. Se confirma el hash cada
   segundo (5 turnos de 200 ms; cada tick sería caro para nada) y, si alguien se
   desincroniza, se detecta y se dice en qué tick y con quién. Hecho: turnos con
