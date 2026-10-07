@@ -208,8 +208,10 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 
 ### Fase G — Calidad continua
 
-- [ ] **G1. Rendimiento.** 4000 unidades por debajo de 50 ms por tick, con banco en
-  la CI.
+- [x] **G1. Rendimiento.** 4000 unidades por debajo de 50 ms por tick, con banco en
+  la CI. Hecho: medido aquí (4 núcleos), movimiento media 14,4 ms y máximo 30,5 ms;
+  batalla de 2000 contra 2000, media 18,8 ms y máximo 37,8 ms. La CI lo comprueba en
+  cada cambio (pasa también en su máquina).
 - [ ] **G2. Pruebas aleatorias de órdenes.** Órdenes al azar sobre partidas reales
   sin que nada se rompa ni se desincronice.
 - [ ] **G3. Informe de errores.** Ante un fallo, guardar la repetición y el registro.

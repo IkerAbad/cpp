@@ -763,6 +763,7 @@ Presupuesto del planificador: 60 000 nodos por tick desde M3. Los valores de M2 
 |---|---|---|---|---|
 | 1000 | 3,01 ms/tick (2,99) | 5,12 ms (6,39) | 18,0 ms (10,1) | ≤ 50 ms ✅ |
 | 2000 | 6,54 ms/tick (6,68) | 16,8 ms (10,8) | 19,1 ms (15,9) | ≤ 50 ms ✅ |
+| 4000 (G1) | 14,4 ms/tick | 26,2 ms | 30,5 ms | ≤ 50 ms ✅ |
 
 Batalla (`--combat 1`): dos ejércitos (2/3 soldados, 1/3 arqueros) con los frentes a 40 casillas, en ataque-movimiento, 1200 ticks:
 
@@ -770,6 +771,7 @@ Batalla (`--combat 1`): dos ejércitos (2/3 soldados, 1/3 arqueros) con los fren
 |---|---|---|---|---|
 | 1000 (500 contra 500) | 5,29 ms/tick | 10,4 ms | 12,5 ms | 242 / 2537 |
 | 2000 (1000 contra 1000) | 10,2 ms/tick | 18,2 ms | 30,2 ms | 642 / 4226 |
+| 4000 (2000 contra 2000, G1) | 18,8 ms/tick | 30,0 ms | 37,8 ms | 989 / 10 492 |
 
 El peor tick de la batalla grande lo marca el planificador (61 200 nodos: persecuciones que se recalculan a la vez).
 
