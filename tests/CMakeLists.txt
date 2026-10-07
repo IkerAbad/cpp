@@ -34,6 +34,7 @@ add_executable(rts_tests
     test_art.cpp
     test_audio.cpp
     test_campaign.cpp
+    test_fuzz.cpp
     test_i18n.cpp
     test_scenario.cpp
     test_rng.cpp

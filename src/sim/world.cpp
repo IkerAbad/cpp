@@ -403,12 +403,13 @@ void World::apply_command(const Command& command) {
         ai_.add_seat({command.player, command.kind}, economy_.players().size());
         return;
     }
-    // Solo las unidades del jugador que da la orden.
+    // Solo las unidades del jugador que da la orden, cada una una vez (una orden con una
+    // unidad repetida, que puede llegar por la red, no debe aplicarse dos veces; G2).
     std::vector<entt::entity> units;
     for (const std::uint32_t id : command.units) {
         const auto e = static_cast<entt::entity>(id);
         if (registry_.valid(e) && registry_.all_of<Unit, Position, Owner>(e) &&
-            registry_.get<Owner>(e).player == command.player) {
+            registry_.get<Owner>(e).player == command.player && std::ranges::find(units, e) == units.end()) {
             units.push_back(e);
         }
     }

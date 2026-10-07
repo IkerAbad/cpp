@@ -18,3 +18,8 @@ rts_set_warnings(rts_art_sheet)
 add_executable(rts_sound_wav rts_sound_wav.cpp)
 target_link_libraries(rts_sound_wav PRIVATE rts_game_core rts_audio)
 rts_set_warnings(rts_sound_wav)
+
+# Pruebas aleatorias de órdenes largas (G2): varias semillas, partidas y capítulos.
+add_executable(rts_fuzz rts_fuzz.cpp)
+target_link_libraries(rts_fuzz PRIVATE rts_sim rts_game_core)
+rts_set_warnings(rts_fuzz)
