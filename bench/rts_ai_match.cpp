@@ -14,6 +14,8 @@
 // lado juegue quien juegue (el mapa decide, no la IA: D4). Por eso también se cuentan
 // los mapas que una IA gana desde los dos lados; con --min-both-sides N, termina con
 // código 1 si A no gana al menos N mapas así o si B gana alguno.
+// Con --symmetric, cada mapa generado se juega reflejado por el centro (escenario con
+// las dos mitades iguales): separa lo que decide el mapa de lo que decide la IA.
 // Con --trace, cada tantos segundos de partida imprime el estado de cada jugador
 // (aldeanos, ejército, bagaje, campamentos, hambre, almacén): para entender por qué
 // gana o pierde un perfil.
@@ -27,8 +29,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "game/config.hpp"
+#include "game/scenario.hpp"
 #include "sim/world.hpp"
 
 namespace {
@@ -41,7 +45,7 @@ bool parse_arg(std::string_view value, std::int64_t& out) {
 int usage() {
     std::fprintf(stderr,
                  "Uso: rts_ai_match --data <carpeta> --a <perfil> --b <perfil> [--games N] [--ticks T] "
-                 "[--min-win-percent P] [--min-both-sides N] [--trace SEGUNDOS]\n");
+                 "[--min-win-percent P] [--min-both-sides N] [--symmetric] [--trace SEGUNDOS]\n");
     return 2;
 }
 
@@ -145,11 +149,24 @@ int main(int argc, char** argv) {
     std::int64_t games = 20;
     std::int64_t ticks = 36'000;  // 30 minutos
     std::int64_t min_win = -1;
+    bool symmetric = false;
     std::int64_t min_both = -1;
     std::int64_t trace_seconds = 0;
-    for (int i = 1; i + 1 < argc; i += 2) {
-        const std::string_view key = argv[i];
-        const std::string_view value = argv[i + 1];
+    // --symmetric no lleva valor; el resto va por parejas.
+    std::vector<std::string_view> args;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--symmetric") {
+            symmetric = true;
+        } else {
+            args.emplace_back(argv[i]);
+        }
+    }
+    if (args.size() % 2 != 0) {
+        return usage();
+    }
+    for (std::size_t i = 0; i + 1 < args.size(); i += 2) {
+        const std::string_view key = args[i];
+        const std::string_view value = args[i + 1];
         bool ok = true;
         if (key == "--data") {
             data_dir = value;
@@ -217,6 +234,11 @@ int main(int argc, char** argv) {
         params.map.seed += pair;
         params.setup.seed += pair;
         const bool a_first = g % 2 == 0;
+        if (symmetric) {
+            const rts::sim::World generated(params);
+            params.scenario =
+                rts::game::mirrored_scenario(rts::game::scenario_from_world(generated, "espejo", 2), *data).params;
+        }
         params.ai_players = {{0, a_first ? *a : *b}, {1, a_first ? *b : *a}};
         rts::sim::World world(params);
         std::int64_t t = 0;

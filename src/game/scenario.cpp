@@ -642,6 +642,53 @@ std::expected<GameData, std::string> with_scenario(const GameData& base, const S
     return parse_game_data(std::move(files));
 }
 
+ScenarioDoc mirrored_scenario(const ScenarioDoc& doc, const GameData& data) {
+    const sim::ScenarioParams& in = doc.params;
+    if (in.width != in.height || in.players != 2) {
+        return doc;
+    }
+    const std::int32_t n = in.width;
+    // La casilla de la mitad del jugador 0: por debajo de la diagonal, o en ella y antes
+    // del centro.
+    const auto primary = [n](sim::TileCoord c) { return c.x + c.y < n - 1 || (c.x + c.y == n - 1 && c.x < n - 1 - c.x); };
+    const auto mirror = [n](sim::TileCoord c) { return sim::TileCoord{n - 1 - c.x, n - 1 - c.y}; };
+    ScenarioDoc out = doc;
+    sim::ScenarioParams& s = out.params;
+    for (std::int32_t y = 0; y < n; ++y) {
+        for (std::int32_t x = 0; x < n; ++x) {
+            if (!primary({x, y})) {
+                const sim::TileCoord m = mirror({x, y});
+                s.terrain[cell(s, {x, y})] = in.terrain[cell(in, m)];
+                s.elevation[cell(s, {x, y})] = in.elevation[cell(in, m)];
+            }
+        }
+    }
+    s.placements.clear();
+    for (const sim::ScenarioPlacement& p : in.placements) {
+        const std::int32_t size = placement_size(p, data);
+        bool inside_half = true;
+        for (std::int32_t dy = 0; dy < size && inside_half; ++dy) {
+            for (std::int32_t dx = 0; dx < size && inside_half; ++dx) {
+                inside_half = primary({p.at.x + dx, p.at.y + dy});
+            }
+        }
+        // Del jugador 1 no se guarda nada: su mitad es la copia de la del 0.
+        if (!inside_half || (p.kind != sim::ScenarioPlacement::Kind::Node && p.owner != 0)) {
+            continue;
+        }
+        s.placements.push_back(p);
+        sim::ScenarioPlacement q = p;
+        // El origen es la esquina de arriba a la izquierda: la reflejada es la de abajo a
+        // la derecha del original.
+        q.at = mirror({p.at.x + size - 1, p.at.y + size - 1});
+        if (q.kind != sim::ScenarioPlacement::Kind::Node) {
+            q.owner = 1;
+        }
+        s.placements.push_back(q);
+    }
+    return out;
+}
+
 void paint_terrain(sim::ScenarioParams& s, sim::TileCoord center, std::int32_t radius, sim::TerrainId terrain) {
     for_diamond(s, center, radius, [&](sim::TileCoord c) { s.terrain[cell(s, c)] = terrain; });
 }

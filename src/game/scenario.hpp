@@ -71,6 +71,12 @@ struct ScenarioDoc {
 [[nodiscard]] std::expected<GameData, std::string> with_scenario(const GameData& base, const ScenarioDoc& doc,
                                                                 MatchSettings settings);
 
+// Mapa simétrico para dos jugadores: la mitad del jugador 0 (respecto a la diagonal
+// x + y = ancho - 1) se refleja por el centro sobre la otra, con el jugador 1 en el
+// sitio del 0. Lo que cruza la diagonal se quita (sus dos copias se pisarían). Solo
+// para mapas cuadrados de dos jugadores; si no, devuelve el escenario tal cual.
+[[nodiscard]] ScenarioDoc mirrored_scenario(const ScenarioDoc& doc, const GameData& data);
+
 // --- Ediciones -------------------------------------------------------------------
 
 // Terreno en un rombo de radio radius alrededor de center.

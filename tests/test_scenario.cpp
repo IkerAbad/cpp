@@ -1,6 +1,7 @@
 // Escenarios hechos a mano (F3): formato, ida y vuelta, partida jugable y ediciones.
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 #include <doctest/doctest.h>
@@ -144,4 +145,44 @@ TEST_CASE("Escenario: errores claros en el fichero") {
     const auto letter = rts::game::parse_scenario_doc(bad_letter, d);
     REQUIRE_FALSE(letter.has_value());
     CHECK(letter.error().find("terreno") != std::string::npos);
+}
+
+TEST_CASE("Escenario: el mapa reflejado es igual visto desde los dos jugadores") {
+    const auto& d = game_data();
+    const ScenarioDoc doc = rts::game::mirrored_scenario(generated_doc(), d);
+    const auto& s = doc.params;
+    REQUIRE(s.width == s.height);
+    const std::int32_t n = s.width;
+    for (std::int32_t y = 0; y < n; y += 3) {
+        for (std::int32_t x = 0; x < n; x += 3) {
+            const auto a = static_cast<std::size_t>(y * n + x);
+            const auto b = static_cast<std::size_t>((n - 1 - y) * n + (n - 1 - x));
+            REQUIRE(s.terrain[a] == s.terrain[b]);
+            REQUIRE(s.elevation[a] == s.elevation[b]);
+        }
+    }
+    rts::sim::WorldParams p = d.engine.world;
+    p.scenario = s;
+    const rts::sim::World world(p);
+    rts::sim::Snapshot snap;
+    world.write_snapshot(snap);
+    std::array<std::size_t, 2> units{};
+    std::array<std::size_t, 2> buildings{};
+    std::size_t nodes = 0;
+    for (const auto& e : snap.entities) {
+        ++units.at(e.owner);
+    }
+    for (const auto& o : snap.objects) {
+        if (o.kind == rts::sim::ObjectKind::Building) {
+            ++buildings.at(o.owner);
+        } else {
+            ++nodes;
+        }
+    }
+    CHECK(units[0] > 0);
+    CHECK(units[0] == units[1]);
+    CHECK(buildings[0] == 1);
+    CHECK(buildings[1] == 1);
+    CHECK(nodes % 2 == 0);  // cada recurso y su reflejo
+    CHECK(world.player_state(0).stock == world.player_state(1).stock);
 }
