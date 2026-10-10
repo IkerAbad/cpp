@@ -23,3 +23,8 @@ rts_set_warnings(rts_sound_wav)
 add_executable(rts_fuzz rts_fuzz.cpp)
 target_link_libraries(rts_fuzz PRIVATE rts_sim rts_game_core)
 rts_set_warnings(rts_fuzz)
+
+# Inicios de partida: qué rodea a cada inicio en cada mapa (equidad de los mapas).
+add_executable(rts_start_report rts_start_report.cpp)
+target_link_libraries(rts_start_report PRIVATE rts_sim rts_game_core)
+rts_set_warnings(rts_start_report)
