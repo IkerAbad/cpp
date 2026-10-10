@@ -88,6 +88,15 @@ rivers = 1
 river_width_tiles = 7
 fords = 3
 
+# Espejo (tras D4): el mapa generado con la mitad del jugador 0 reflejada por el centro
+# sobre la del 1, para partidas de dos justas (con más jugadores no se refleja). Se
+# midió que en los mapas normales gana a menudo el mismo lado juegue quien juegue, pero
+# también en los reflejados: lo decide sobre todo el caos de la partida, no el mapa.
+[[map.preset]]
+name = "Espejo"
+rivers = 0
+mirror = true
+
 # Jugadores, en orden de PlayerId. start: centro deseado del edificio inicial (se
 # busca el sitio válido más cercano). color: RGB del dueño en marcadores y edificios.
 # controller: "humano" (el jugador local es el 0), "ia" o "libre" (un puesto que solo

@@ -165,6 +165,9 @@ struct MapPreset {
     std::int32_t rivers = 0;
     std::int32_t river_width_tiles = 0;
     std::int32_t fords = 0;
+    // Espejo: con dos jugadores, la mitad de uno se refleja por el centro sobre la del
+    // otro (los dos empiezan con lo mismo alrededor).
+    bool mirror = false;
 };
 
 // Partidas en red (E1), sección [net].

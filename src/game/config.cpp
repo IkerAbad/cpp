@@ -75,6 +75,13 @@ public:
         return get_i32(path, min, max);
     }
 
+    bool get_bool_or(std::string_view path, bool def) {
+        if (!table_.at_path(path)) {
+            return def;
+        }
+        return get_bool(path);
+    }
+
     std::uint64_t get_u64(std::string_view path) {
         const auto value = table_.at_path(path).value<std::int64_t>();
         if (!value || *value < 0) {
@@ -1260,6 +1267,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         preset.rivers = mr.get_i32("rivers", 0, 8);
         preset.river_width_tiles = mr.get_i32_or("river_width_tiles", cfg.world.map.rivers.width_tiles, 1, 64);
         preset.fords = mr.get_i32_or("fords", cfg.world.map.rivers.fords, 0, 64);
+        preset.mirror = mr.get_bool_or("mirror", false);
         cfg.map_presets.push_back(std::move(preset));
     });
 
@@ -1906,6 +1914,7 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         }
         // Opcional (F3): tipo de mapa.
         std::string map_type;
+        bool mirror = false;
         if (root->contains("map")) {
             map_type = r.get_string("map");
         }
@@ -1946,12 +1955,19 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
             data.engine.world.map.rivers.count = p->rivers;
             data.engine.world.map.rivers.width_tiles = p->river_width_tiles;
             data.engine.world.map.rivers.fords = p->fords;
+            mirror = p->mirror;
         }
         data.engine.world.map.seed = seed;
         data.engine.world.setup.seed = seed;
         data.engine.world.vision.enabled = fog;
         for (sim::AiSeat& seat : data.engine.world.ai_players) {
             seat.profile = profile;
+        }
+        // Mapa espejo: el generado, con la mitad del jugador 0 reflejada sobre la del 1.
+        // Con más de dos jugadores no se refleja.
+        if (mirror && data.engine.world.setup.starts.size() == 2) {
+            const sim::World generated(data.engine.world);
+            data.engine.world.scenario = mirrored_scenario(scenario_from_world(generated, map_type, 2), data).params;
         }
     }
     // Escenario hecho a mano (F3, opcional): mapa y objetos propios.

@@ -186,3 +186,30 @@ TEST_CASE("Escenario: el mapa reflejado es igual visto desde los dos jugadores")
     CHECK(nodes % 2 == 0);  // cada recurso y su reflejo
     CHECK(world.player_state(0).stock == world.player_state(1).stock);
 }
+
+TEST_CASE("Mapa Espejo: los dos jugadores empiezan igual y la repetición se reproduce") {
+    rts::game::MatchSettings settings;
+    settings.seed = 5;
+    settings.rival = game_data().engine.ai_profile_names.front();
+    settings.map = "Espejo";
+    const auto data = rts::game::with_match_settings(game_data(), settings);
+    REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
+    REQUIRE(data->engine.world.scenario.active());
+    rts::sim::World world(data->engine.world);
+    const rts::sim::TileMap& map = world.map();
+    const std::int32_t n = map.width();
+    for (std::int32_t y = 0; y < n; y += 5) {
+        for (std::int32_t x = 0; x < n; x += 5) {
+            REQUIRE(map.terrain({x, y}) == map.terrain({n - 1 - x, n - 1 - y}));
+        }
+    }
+    rts::game::ReplayRecorder rec(data->files, data->engine.replay.checkpoint_interval_ticks);
+    for (int t = 0; t < 300; ++t) {
+        world.step();
+        rec.after_step(world);
+    }
+    const auto replay = rec.finish(world);
+    const auto replayed = rts::game::parse_game_data(replay.data);
+    REQUIRE(replayed.has_value());
+    CHECK(rts::game::verify_replay(replay, replayed->engine.world).ok);
+}

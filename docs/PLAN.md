@@ -155,8 +155,12 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   partidas (10 mapas jugados desde los dos lados): en muchos mapas gana el mismo lado
   juegue quien juegue, así que se cuentan los mapas ganados desde los dos lados.
   Normal contra fácil 7 a 0 (85 % en bruto), difícil contra normal 3 a 0 (65 %),
-  experto contra difícil 5 a 0 (75 %); la CI lo exige. Falta: inicios más justos (el
-  mapa decide demasiadas partidas) y un experto que le saque más al normal (4 a 1).
+  experto contra difícil 5 a 0 (75 %); la CI lo exige. Después se midió por qué gana
+  tanto un mismo lado: en mapas reflejados (idénticos para los dos) y con la misma IA,
+  cada mapa sigue teniendo un ganador claro; lo decide el caos de la partida (desempates
+  que no son simétricos y que crecen en 30 minutos), no el mapa. Se añadió el tipo de
+  mapa «Espejo» para partidas de dos justas. Falta: un experto que le saque más al
+  normal (4 a 1).
 - [x] **E1. Lockstep.** Las órdenes viajan, no el estado. Se confirma el hash cada
   segundo (5 turnos de 200 ms; cada tick sería caro para nada) y, si alguien se
   desincroniza, se detecta y se dice en qué tick y con quién. Hecho: turnos con
