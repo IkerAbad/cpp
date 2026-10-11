@@ -102,6 +102,7 @@ struct WorldParams {
     MapGenParams map;
     ScenarioParams scenario;
     std::vector<std::uint8_t> passable_by_terrain;  // por TerrainId
+    std::vector<std::uint8_t> buildable_by_terrain; // por TerrainId (vacío: todo lo transitable)
     std::vector<UnitType> unit_types;                // por UnitTypeId
     std::vector<BuildingType> building_types;        // por BuildingTypeId
     std::vector<ResourceNodeType> node_types;        // por NodeTypeId

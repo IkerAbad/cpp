@@ -14,6 +14,8 @@
 #   (frontlinestories.com, «The Mud and the Arrows — Agincourt, 1415»).
 # arrow_cover_percent: % del daño de proyectiles que llega a quien está en esa casilla.
 #   Entre los árboles, las ramas y los troncos paran la mitad.
+# buildable (opcional, por omisión true): se puede construir encima. En el vado, no:
+#   un muro o una casa taparían el único paso del río.
 # charge: la caballería puede cargar (llano firme). En el bosque o en las colinas, no:
 #   en Courtrai (1302), «There was a stream to cross, and many horses refused» y
 #   «Men and horses fell into the ditches» (military-history.org, «The Battle of
@@ -84,3 +86,4 @@ color = [92, 142, 176]
 speed_percent = 45
 arrow_cover_percent = 100
 charge = false
+buildable = false

@@ -213,3 +213,32 @@ TEST_CASE("Mapa Espejo: los dos jugadores empiezan igual y la repetición se rep
     REQUIRE(replayed.has_value());
     CHECK(rts::game::verify_replay(replay, replayed->engine.world).ok);
 }
+
+TEST_CASE("Vados: se pasa por encima pero no se construye") {
+    const auto& d = game_data();
+    const auto doc = rts::game::parse_scenario_doc(R"(
+players = 2
+width = 20
+height = 20
+base = "pradera"
+
+[[paint]]
+at = [10, 0]
+to = [[10, 19]]
+radius = 1
+terrain = "vado"
+)",
+                                                   d);
+    REQUIRE(doc.has_value());
+    rts::sim::WorldParams p = d.engine.world;
+    p.scenario = doc->params;
+    p.ai_players.clear();
+    const rts::sim::World world(p);
+    const auto casa = std::ranges::find(d.buildings.types, std::string("casa"), &rts::game::BuildingInfo::name);
+    REQUIRE(casa != d.buildings.types.end());
+    const auto type = static_cast<rts::sim::BuildingTypeId>(casa - d.buildings.types.begin());
+    CHECK(world.can_place(type, {3, 5}));
+    CHECK_FALSE(world.can_place(type, {9, 5}));   // pisa el vado
+    CHECK_FALSE(world.can_place(type, {11, 5}));  // también
+    CHECK(world.movement().grid().passable({10, 5}));
+}

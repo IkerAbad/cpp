@@ -291,6 +291,8 @@ public:
                                                       std::uint32_t index) const;
 
     // Terreno transitable, sin objetos y sin unidades encima.
+    // Casillas donde no se construye aunque se pueda pasar (vados), una por casilla.
+    void set_unbuildable(std::vector<std::uint8_t> tiles) { unbuildable_ = std::move(tiles); }
     [[nodiscard]] bool can_place(const entt::registry& registry, const PassGrid& grid, std::int32_t size,
                                  TileCoord origin) const;
     [[nodiscard]] entt::entity occupant(TileCoord c) const noexcept;
@@ -370,6 +372,7 @@ private:
     EconomyCatalog catalog_;
     std::vector<PlayerState> players_;
     std::vector<entt::entity> occupant_;  // casilla -> objeto estático que la ocupa
+    std::vector<std::uint8_t> unbuildable_;  // casilla -> 1 si no se construye encima (vados)
     std::vector<entt::entity> scratch_;
     EconomyTickStats stats_;
 };

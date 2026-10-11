@@ -144,7 +144,8 @@ bool EconomySystem::can_place(const entt::registry& registry, const PassGrid& gr
     const Footprint f{origin, size};
     for (std::int32_t y = origin.y; y < origin.y + size; ++y) {
         for (std::int32_t x = origin.x; x < origin.x + size; ++x) {
-            if (!grid.terrain_passable({x, y}) || occupant_[tile_index({x, y})] != entt::null) {
+            if (!grid.terrain_passable({x, y}) || occupant_[tile_index({x, y})] != entt::null ||
+                (!unbuildable_.empty() && unbuildable_[tile_index({x, y})] != 0)) {
                 return false;
             }
         }

@@ -1157,6 +1157,7 @@ std::expected<TerrainCatalog, std::string> parse_terrain_catalog(std::string_vie
             info.speed_percent = tr.get_i32("speed_percent", 1, 100);
             info.arrow_cover_percent = tr.get_i32("arrow_cover_percent", 0, 100);
             info.charge = tr.get_bool("charge");
+            info.buildable = tr.get_bool_or("buildable", true);
             if (!error && catalog.find(info.name)) {
                 tr.fail(std::format("nombre de terreno repetido: \"{}\"", info.name));
             }
@@ -1191,6 +1192,7 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     for (const TerrainInfo& t : terrain.types) {
         cfg.world.passable_by_terrain.push_back(t.passable ? 1 : 0);
+        cfg.world.buildable_by_terrain.push_back(t.buildable ? 1 : 0);
     }
     // Terreno en combate (B2): desactivado, ni la marcha ni el combate lo miran.
     sim::TerrainCombatParams& tc = cfg.world.combat.terrain;

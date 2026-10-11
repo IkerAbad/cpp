@@ -87,6 +87,20 @@ World::World(const WorldParams& params)
       objectives_(params.objectives, params.scenario.objectives, params.unit_types,
                   static_cast<std::size_t>(player_count(params))),
       rng_(params.demo.seed) {
+    // Terreno transitable donde no se construye (vados): un muro o una casa no tapa el paso.
+    if (std::ranges::any_of(params.buildable_by_terrain, [](std::uint8_t b) { return b == 0; })) {
+        std::vector<std::uint8_t> unbuildable(static_cast<std::size_t>(map_->width()) *
+                                              static_cast<std::size_t>(map_->height()));
+        for (std::int32_t y = 0; y < map_->height(); ++y) {
+            for (std::int32_t x = 0; x < map_->width(); ++x) {
+                const TerrainId t = map_->terrain({x, y});
+                unbuildable[static_cast<std::size_t>(y) * static_cast<std::size_t>(map_->width()) +
+                            static_cast<std::size_t>(x)] =
+                    t < params.buildable_by_terrain.size() && params.buildable_by_terrain[t] == 0 ? 1 : 0;
+            }
+        }
+        economy_.set_unbuildable(std::move(unbuildable));
+    }
     if (params.scenario.active()) {
         place_scenario(params.scenario, params.setup.start_stock);
     } else {
