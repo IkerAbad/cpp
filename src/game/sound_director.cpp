@@ -15,8 +15,11 @@ SoundDirector::SoundDirector(const audio::SoundSpec& spec, const GameData& data)
     water_.assign(types.size(), 0);
     forest_.assign(types.size(), 0);
     for (std::size_t t = 0; t < types.size(); ++t) {
-        water_[t] = std::ranges::find(spec.ambient.water_terrains, types[t].name) != spec.ambient.water_terrains.end();
-        forest_[t] = std::ranges::find(spec.ambient.forest_terrains, types[t].name) != spec.ambient.forest_terrains.end();
+        const auto listed = [&](const std::vector<std::string>& names) {
+            return std::ranges::find(names, types[t].name) != names.end() ? std::uint8_t{1} : std::uint8_t{0};
+        };
+        water_[t] = listed(spec.ambient.water_terrains);
+        forest_[t] = listed(spec.ambient.forest_terrains);
     }
 }
 

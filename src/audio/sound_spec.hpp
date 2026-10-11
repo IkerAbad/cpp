@@ -3,6 +3,7 @@
 // Qué suena y cómo (data/sound.toml, F2): recetas de efectos, piezas de música, qué
 // suceso del juego usa cada receta y los ajustes de la mezcla.
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
