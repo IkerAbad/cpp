@@ -7,6 +7,8 @@
 
 #include <toml++/toml.hpp>
 
+#include "game/localized_toml.hpp"
+
 namespace rts::game {
 
 namespace {
@@ -68,26 +70,6 @@ std::string stock_toml(const sim::Stock& stock) {
     return out + " }";
 }
 
-// Texto como cadena básica de TOML.
-std::string toml_string(std::string_view text) {
-    std::string out = "\"";
-    for (const char ch : text) {
-        switch (ch) {
-            case '"':
-                out += "\\\"";
-                break;
-            case '\\':
-                out += "\\\\";
-                break;
-            case '\n':
-                out += "\\n";
-                break;
-            default:
-                out += ch;
-        }
-    }
-    return out + "\"";
-}
 
 template <typename Types>
 std::optional<std::uint8_t> index_of(const Types& types, std::string_view name) {
@@ -148,8 +130,8 @@ std::expected<ScenarioDoc, std::string> parse_scenario_doc(std::string_view text
     }
     const auto fail = [&](std::string msg) { return std::unexpected(std::format("{}: {}", source, msg)); };
     ScenarioDoc doc;
-    doc.name = root["name"].value_or(std::string("Sin nombre"));
-    doc.briefing = root["briefing"].value_or(std::string());
+    doc.name = read_localized(root.get("name")).value_or(LocalizedText("Sin nombre"));
+    doc.briefing = read_localized(root.get("briefing")).value_or(LocalizedText());
     sim::ScenarioParams& s = doc.params;
     s.players = static_cast<std::int32_t>(root["players"].value_or(std::int64_t{0}));
     s.width = static_cast<std::int32_t>(root["width"].value_or(std::int64_t{0}));
@@ -518,7 +500,7 @@ std::expected<ScenarioDoc, std::string> parse_scenario_doc(std::string_view text
                 return bad("llegar necesita 'zone'");
             }
             s.objectives.push_back(o);
-            doc.objective_texts.push_back((*t)["text"].value_or(std::string(kind)));
+            doc.objective_texts.push_back(read_localized(t->get("text")).value_or(LocalizedText(kind)));
         }
     }
     return doc;
@@ -530,9 +512,9 @@ std::string scenario_doc_toml(const ScenarioDoc& doc, const GameData& data) {
         "# Escenario (F3), hecho con el editor. terrain: una letra por casilla (a = el primer\n"
         "# terreno de terrain.toml); elevation: un dígito por casilla (nivel de altura).\n"
         "name = {}\nplayers = {}\nwidth = {}\nheight = {}\n",
-        toml_string(doc.name), s.players, s.width, s.height);
+        localized_toml(doc.name), s.players, s.width, s.height);
     if (!doc.briefing.empty()) {
-        out += std::format("briefing = {}\n", toml_string(doc.briefing));
+        out += std::format("briefing = {}\n", localized_toml(doc.briefing));
     }
     const auto rows = [&](const auto& layer, char base) {
         std::string r = "[\n";
@@ -553,7 +535,8 @@ std::string scenario_doc_toml(const ScenarioDoc& doc, const GameData& data) {
     for (std::size_t i = 0; i < s.objectives.size(); ++i) {
         const sim::Objective& o = s.objectives[i];
         out += std::format("\n[[objective]]\nplayer = {}\nkind = \"{}\"\ntext = {}\ntarget = {}\ncount = {}\n", o.player,
-                           objective_kind_key(o.kind), toml_string(i < doc.objective_texts.size() ? doc.objective_texts[i] : ""),
+                           objective_kind_key(o.kind),
+                           localized_toml(i < doc.objective_texts.size() ? doc.objective_texts[i] : LocalizedText()),
                            o.target, o.count);
         if (o.units) {
             out += std::format("unit = \"{}\"\n", o.type == sim::kAnyObjectType ? "*" : data.units.types[o.type].name);
@@ -600,7 +583,7 @@ std::string scenario_doc_toml(const ScenarioDoc& doc, const GameData& data) {
 
 ScenarioDoc scenario_from_world(const sim::World& world, std::string name, std::int32_t players) {
     ScenarioDoc doc;
-    doc.name = std::move(name);
+    doc.name = LocalizedText(std::move(name));
     sim::ScenarioParams& s = doc.params;
     const sim::TileMap& map = world.map();
     s.width = map.width();

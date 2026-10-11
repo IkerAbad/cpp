@@ -97,8 +97,25 @@ std::expected<void, std::string> set_language(const std::filesystem::path& data_
     if (!t) {
         return std::unexpected(t.error());
     }
+    t->set_code(std::string(code));
     current() = std::make_unique<Translations>(std::move(*t));
     return {};
+}
+
+std::string_view current_language_code() {
+    const std::string& c = current_translations().code();
+    return c.empty() ? kDefaultLanguage : std::string_view(c);
+}
+
+const std::string& LocalizedText::es() const {
+    static const std::string kEmpty;
+    const auto it = by_lang_.find(kDefaultLanguage);
+    return it != by_lang_.end() ? it->second : kEmpty;
+}
+
+const std::string& LocalizedText::get() const {
+    const auto it = by_lang_.find(current_language_code());
+    return it != by_lang_.end() && !it->second.empty() ? it->second : es();
 }
 
 const Translations& current_translations() {

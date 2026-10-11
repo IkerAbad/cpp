@@ -2,16 +2,22 @@
 # en la margen izquierda (sur) del Guadiana, con foso de agua del río. La puerta mira al
 # oeste; delante del foso, una calzada. El recinto de muralla y torres se genera aparte
 # (lista de [[building]] al final).
-name = "Calatrava la Vieja, 1212: el asedio"
+name.es = "Calatrava la Vieja, 1212: el asedio"
+name.en = "Calatrava la Vieja, 1212: the siege"
 players = 2
 width = 128
 height = 96
 base = "pradera"
 base_level = 2
-briefing = """
+briefing.es = """
 Junio de 1212. La hueste ha bajado de Toledo y ha tomado Malagón. Delante está Calatrava, que los almohades ganaron tras Alarcos y guardan desde entonces: una ciudad amurallada sobre un cerro, con el Guadiana al norte y un foso alrededor.
 
 Objetivos: toma el alcázar de Calatrava (su centro) antes de que acabe el plazo y conserva tu campamento, que da de comer al ejército. Su almacén no dura mucho: las carretas tienen que traer víveres desde Malagón, al oeste. Los arietes abren la puerta; los zapadores, las murallas; la tropa a pie puede escalar con escalas.
+"""
+briefing.en = """
+June 1212. The host has come down from Toledo and taken Malagón. Ahead lies Calatrava, which the Almohads won after Alarcos and have held ever since: a walled town on a hill, with the Guadiana to the north and a moat all around.
+
+Objectives: take the citadel of Calatrava (its centre) before time runs out and keep your camp, which feeds the army. Its store does not last long: the carts must bring food from Malagón, to the west. Battering rams break the gate; sappers, the walls; foot troops can climb with ladders.
 """
 
 # El Guadiana, de oeste a este, al norte del cerro.
@@ -240,20 +246,23 @@ stock = { comida = 600, madera = 300, piedra = 200, oro = 100, hierro = 100 }
 [[objective]]
 player = 0
 kind = "destruir"
-text = "Toma el alcázar de Calatrava"
+text.es = "Toma el alcázar de Calatrava"
+text.en = "Take the citadel of Calatrava"
 target = 1
 building = "centro_urbano"
 
 [[objective]]
 player = 0
 kind = "conservar"
-text = "Conserva el campamento: sin él, la hueste pasa hambre"
+text.es = "Conserva el campamento: sin él, la hueste pasa hambre"
+text.en = "Keep the camp: without it, the host goes hungry"
 building = "campamento"
 
 [[objective]]
 player = 1
 kind = "sobrevivir"
-text = "Plazo: el califa no esperará (30 minutos)"
+text.es = "Plazo: el califa no esperará (30 minutos)"
+text.en = "Time limit: the caliph will not wait (30 minutes)"
 seconds = 1800
 
 [[building]]

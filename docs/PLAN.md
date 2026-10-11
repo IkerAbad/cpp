@@ -202,7 +202,8 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   exige traducción, con los mismos especificadores, de cada texto marcado y nombre a la
   vista de cada tipo de los datos) y menú de opciones (idioma, pantalla completa,
   tamaño de ventana, tres volúmenes y 13 teclas), guardadas aparte de los datos de
-  partida. Falta: los textos de la campaña (informes, notas) solo están en español.
+  partida. Después, también los textos de la campaña y de los escenarios
+  (clave.es, clave.en), con una prueba que exige el inglés.
 
 ### Fase G — Calidad continua
 

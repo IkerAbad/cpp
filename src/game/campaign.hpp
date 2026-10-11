@@ -4,6 +4,9 @@
 //
 // data/campaigns/<id>/campana.toml:
 //
+// Los textos (name, intro, title, date, history, work) pueden ser una cadena (español)
+// o una tabla por idioma: title = { es = "...", en = "..." }.
+//
 //   name = "..."
 //   intro = "..."
 //   [[chapter]]
@@ -28,32 +31,34 @@
 #include <string_view>
 #include <vector>
 
+#include "game/i18n.hpp"
+
 namespace rts::game {
 
 inline constexpr std::string_view kCampaignDir = "campaigns";
 inline constexpr std::string_view kCampaignFile = "campana.toml";
 
 struct CampaignSource {
-    std::string quote;
-    std::string work;
+    std::string quote;  // literal, en su idioma original
+    LocalizedText work;
     std::string url;
 };
 
 struct CampaignChapter {
     std::string id;
-    std::string title;
-    std::string date;
+    LocalizedText title;
+    LocalizedText date;
     std::string scenario;  // fichero, relativo a la carpeta de la campaña
     std::string rival;     // vacío: el del menú
     bool fog = false;
-    std::string history;
+    LocalizedText history;
     std::vector<CampaignSource> sources;
 };
 
 struct Campaign {
     std::string id;  // nombre de la carpeta
-    std::string name;
-    std::string intro;
+    LocalizedText name;
+    LocalizedText intro;
     std::vector<CampaignChapter> chapters;
     std::filesystem::path dir;
 };

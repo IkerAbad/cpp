@@ -47,7 +47,7 @@ TEST_CASE("Escenario: un mundo capturado sale y vuelve igual del fichero") {
     const std::string text = rts::game::scenario_doc_toml(doc, d);
     const auto back = rts::game::parse_scenario_doc(text, d);
     REQUIRE_MESSAGE(back.has_value(), (back ? std::string() : back.error()));
-    CHECK(back->name == "Prueba");
+    CHECK(back->name.es() == "Prueba");
     CHECK(back->params.players == 2);
     CHECK(back->params.terrain == doc.params.terrain);
     CHECK(back->params.elevation == doc.params.elevation);
@@ -62,7 +62,7 @@ TEST_CASE("Escenario: se juega, con el mismo mapa y los mismos objetos, y su rep
     settings.seed = 99;  // con escenario, la semilla no cambia el mapa
     const auto data = rts::game::with_scenario(d, doc, settings);
     REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
-    CHECK(data->scenario_name == "Prueba");
+    CHECK(data->scenario_name.es() == "Prueba");
     rts::sim::World world(data->engine.world);
     const rts::sim::World original(d.engine.world);
     for (std::int32_t y = 0; y < world.map().height(); y += 7) {

@@ -355,7 +355,8 @@ Menú → «Opciones»: idioma, pantalla completa, tamaño de la ventana, volume
 - **Idiomas** (`data/lang/<código>.toml`, `src/game/i18n.hpp`). El texto español del código es la clave: `T("Empezar")` da «Start» en inglés y, si falta, el propio español. `TF` traduce formatos de `std::format`; `TK` marca literales de listas. Los tipos de los datos tienen nombre a la vista (`hombre_armas` → «Hombre de armas», «Man-at-arms»). Hay español e inglés; otro idioma es un fichero más.
 - **Pruebas** (`tests/test_i18n.cpp`). Leen el código fuente: todo texto marcado tiene traducción con los mismos especificadores (`%d`, `{}`...), no sobra ninguna traducción, y todo tipo de los datos, perfil de IA y tipo de mapa tiene nombre en cada idioma.
 - **Opciones** (`data/opciones.toml` por omisión, `opciones.toml` del jugador junto al ejecutable). No son datos de la partida: no van en repeticiones ni por la red, así que cambiarlas no rompe nada.
-- **Lo que no está traducido:** los textos de la campaña (informes, notas históricas; las fuentes citadas son en español o inglés por naturaleza), los mensajes del registro (`rts.log`) y el título provisional de la ventana.
+- **Textos de los datos.** La campaña y los escenarios (nombre, informe, objetivos, capítulos, notas, obras citadas) van en los dos idiomas: en el fichero, `clave.es = "..."` y `clave.en = "..."`, o una cadena sola (español). Se ven en el idioma elegido y, si falta, en español. Las citas de las fuentes quedan en su idioma original. Una prueba exige el inglés de cada texto propio de la campaña.
+- **Lo que no está traducido:** los mensajes del registro (`rts.log`) y el título provisional de la ventana.
 
 ### Campaña: Las Navas de Tolosa, 1212 (F4)
 

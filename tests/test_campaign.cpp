@@ -12,6 +12,7 @@
 
 #include "game/campaign.hpp"
 #include "game/config.hpp"
+#include "game/i18n.hpp"
 #include "game/scenario.hpp"
 #include "sim/world.hpp"
 
@@ -501,6 +502,13 @@ TEST_CASE("Campaña: los capítulos de data/campaigns se cargan y se juegan") {
             CAPTURE(ch.id);
             CHECK_FALSE(ch.sources.empty());
             CHECK_FALSE(ch.history.empty());
+            // Textos propios en español y en inglés (F5); las citas, en su idioma.
+            for (const rts::game::LocalizedText* t : {&c.name, &c.intro, &ch.title, &ch.date, &ch.history}) {
+                CHECK(t->has("en"));
+            }
+            for (const auto& src : ch.sources) {
+                CHECK(src.work.has("en"));
+            }
             const std::string text = read_file(c.dir / ch.scenario);
             REQUIRE_FALSE(text.empty());
             const auto doc = rts::game::parse_scenario_doc(text, d, ch.scenario);
@@ -508,6 +516,11 @@ TEST_CASE("Campaña: los capítulos de data/campaigns se cargan y se juegan") {
             CHECK_FALSE(doc->briefing.empty());
             REQUIRE_FALSE(doc->params.objectives.empty());
             CHECK(doc->objective_texts.size() == doc->params.objectives.size());
+            CHECK(doc->name.has("en"));
+            CHECK(doc->briefing.has("en"));
+            for (const auto& t : doc->objective_texts) {
+                CHECK(t.has("en"));
+            }
             CHECK(std::ranges::find(d.engine.ai_profile_names, ch.rival) != d.engine.ai_profile_names.end());
 
             rts::game::MatchSettings settings;
@@ -769,4 +782,29 @@ TEST_CASE("Campaña: en Toledo se puede reunir la hueste al otro lado del Tajo" 
     CHECK(world.objectives().status()[1] == ObjectiveStatus::Done);
     CHECK(world.tick() < 30 * 1200);
     CHECK_FALSE(world.objectives().winner());
+}
+
+TEST_CASE("Campaña: los textos se ven en el idioma elegido") {
+    rts::game::LocalizedText t("Hola");
+    t.set("en", "Hello");
+    REQUIRE(rts::game::set_language(RTS_DATA_DIR, "en").has_value());
+    CHECK(t.get() == "Hello");
+    CHECK(rts::game::LocalizedText("Solo español").get() == "Solo español");
+    REQUIRE(rts::game::set_language(RTS_DATA_DIR, "es").has_value());
+    CHECK(t.get() == "Hola");
+    // Ida y vuelta por el formato de escenario, con los dos idiomas.
+    rts::game::ScenarioDoc doc = parse(R"(
+name = { es = "Prueba", en = "Test" }
+players = 2
+width = 8
+height = 8
+base = "pradera"
+briefing.es = "Uno"
+briefing.en = "One"
+)");
+    CHECK(doc.name.es() == "Prueba");
+    CHECK(doc.briefing.all().at("en") == "One");
+    const auto back = parse(rts::game::scenario_doc_toml(doc, game_data()));
+    CHECK(back.name == doc.name);
+    CHECK(back.briefing == doc.briefing);
 }

@@ -1,16 +1,22 @@
 # Campaña de Las Navas de Tolosa, capítulo 1 (F4). Mapa escrito a mano con pinceladas
 # (formato en src/game/scenario.hpp). Toledo, en un cerro dentro del meandro del Tajo,
 # abierto solo por el norte; dos puentes cruzan el río (el terreno vado hace de puente).
-name = "Toledo, 1212: la reunión de la hueste"
+name.es = "Toledo, 1212: la reunión de la hueste"
+name.en = "Toledo, 1212: gathering the host"
 players = 2
 width = 128
 height = 96
 base = "pradera"
 base_level = 2
-briefing = """
+briefing.es = """
 Toledo, primavera de 1212. Alfonso VIII de Castilla ha llamado a la guerra contra el califa almohade, y a la ciudad llegan caballeros de toda la cristiandad. Una hueste no vive del aire: hay que juntar víveres para la marcha y reunir a la tropa al otro lado del Tajo, camino del sur.
 
 Objetivos: junta 1500 de comida en el almacén y lleva 30 tropas al campo de la reunión, al sur del río, antes de que acabe el plazo. Toledo no puede caer.
+"""
+briefing.en = """
+Toledo, spring of 1212. Alfonso VIII of Castile has called for war against the Almohad caliph, and knights from all over Christendom are arriving in the city. An army does not live on air: food must be gathered for the march and the troops assembled across the Tagus, on the road south.
+
+Objectives: gather 1500 food in your store and bring 30 troops to the gathering field, south of the river, before time runs out. Toledo must not fall.
 """
 
 # El cerro de la ciudad: colinas alrededor y una meseta alta en el centro.
@@ -169,25 +175,29 @@ stock = { comida = 400, madera = 300, piedra = 100, oro = 200, hierro = 150 }
 [[objective]]
 player = 0
 kind = "reunir"
-text = "Junta 1500 de comida para la marcha"
+text.es = "Junta 1500 de comida para la marcha"
+text.en = "Gather 1500 food for the march"
 resource = "comida"
 count = 1500
 
 [[objective]]
 player = 0
 kind = "llegar"
-text = "Reúne 30 tropas en el campo de la reunión, al sur del Tajo"
+text.es = "Reúne 30 tropas en el campo de la reunión, al sur del Tajo"
+text.en = "Assemble 30 troops at the gathering field, south of the Tagus"
 count = 30
 zone = [52, 72, 78, 90]
 
 [[objective]]
 player = 0
 kind = "conservar"
-text = "Toledo no puede caer"
+text.es = "Toledo no puede caer"
+text.en = "Toledo must not fall"
 building = "centro_urbano"
 
 [[objective]]
 player = 1
 kind = "sobrevivir"
-text = "Plazo: la hueste debe partir hacia el sur (40 minutos)"
+text.es = "Plazo: la hueste debe partir hacia el sur (40 minutos)"
+text.en = "Time limit: the host must set out south (40 minutes)"
 seconds = 2400

@@ -17,6 +17,8 @@
 #include <expected>
 #include <filesystem>
 #include <format>
+#include <functional>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -39,10 +41,14 @@ public:
     [[nodiscard]] bool has_text(std::string_view es) const { return texts_.contains(std::string(es)); }
     [[nodiscard]] bool has_name(std::string_view id) const { return names_.contains(std::string(id)); }
     [[nodiscard]] const std::string& language() const noexcept { return language_; }
+    // Código del idioma ("es", "en"): el nombre de su fichero. Vacío: el de partida.
+    [[nodiscard]] const std::string& code() const noexcept { return code_; }
+    void set_code(std::string code) { code_ = std::move(code); }
     [[nodiscard]] std::vector<std::string> text_keys() const;
 
 private:
     std::string language_;
+    std::string code_;
     std::unordered_map<std::string, std::string> texts_;
     std::unordered_map<std::string, std::string> names_;
 };
@@ -69,5 +75,30 @@ template <typename... Args>
     return std::vformat(T(es), std::make_format_args(args...));
 }
 [[nodiscard]] inline const char* N(const std::string& id) { return current_translations().name(id); }
+
+// Código del idioma actual ("es" mientras no se elija otro).
+[[nodiscard]] std::string_view current_language_code();
+
+// Texto de los datos (campaña, escenarios) en varios idiomas. En los ficheros, una
+// cadena (español) o una tabla { es = "...", en = "..." }. Se ve en el idioma actual y,
+// si no lo tiene, en español.
+class LocalizedText {
+public:
+    LocalizedText() = default;
+    explicit LocalizedText(std::string es) { by_lang_.emplace(std::string(kDefaultLanguage), std::move(es)); }
+
+    [[nodiscard]] const std::string& es() const;
+    void set(std::string code, std::string text) { by_lang_[std::move(code)] = std::move(text); }
+    void set_es(std::string text) { set(std::string(kDefaultLanguage), std::move(text)); }
+    // En el idioma actual, o en español.
+    [[nodiscard]] const std::string& get() const;
+    [[nodiscard]] bool has(std::string_view code) const { return by_lang_.contains(code); }
+    [[nodiscard]] bool empty() const { return es().empty(); }
+    [[nodiscard]] const std::map<std::string, std::string, std::less<>>& all() const noexcept { return by_lang_; }
+    [[nodiscard]] bool operator==(const LocalizedText&) const = default;
+
+private:
+    std::map<std::string, std::string, std::less<>> by_lang_;
+};
 
 }  // namespace rts::game

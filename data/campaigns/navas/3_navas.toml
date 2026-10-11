@@ -3,16 +3,22 @@
 # (el Puerto del Rey) que nadie vigila. Al sur, el llano y el campamento del califa con
 # su palenque (cerco de empalizada, lista de [[building]] al final). Con niebla: la senda
 # hay que encontrarla.
-name = "Las Navas de Tolosa, 16 de julio de 1212"
+name.es = "Las Navas de Tolosa, 16 de julio de 1212"
+name.en = "Las Navas de Tolosa, 16 July 1212"
 players = 2
 width = 128
 height = 112
 base = "pradera"
 base_level = 2
-briefing = """
+briefing.es = """
 Julio de 1212. La hueste de Castilla, Aragón y Navarra ha llegado a Sierra Morena, pero el califa an-Nasir ha cerrado el puerto con sus hombres y espera en el llano, al otro lado. Forzar el paso es una matanza.
 
 Un pastor dice conocer una senda por el oeste. Objetivos: cruza la sierra con 25 tropas y destruye la tienda del califa, dentro de su palenque, antes de que acabe el plazo.
+"""
+briefing.en = """
+July 1212. The host of Castile, Aragon and Navarre has reached Sierra Morena, but Caliph an-Nasir has closed the pass with his men and waits on the plain beyond. Forcing the pass would be a slaughter.
+
+A shepherd claims to know a path to the west. Objectives: cross the mountains with 25 troops and destroy the caliph's tent, inside his palisade, before time runs out.
 """
 
 # Sierra Morena: faldas de colinas y la cresta de roca.
@@ -258,14 +264,16 @@ stock = { comida = 4000, madera = 300, piedra = 0, oro = 200, hierro = 400 }
 [[objective]]
 player = 0
 kind = "llegar"
-text = "Cruza la sierra con 25 tropas"
+text.es = "Cruza la sierra con 25 tropas"
+text.en = "Cross the mountains with 25 troops"
 count = 25
 zone = [0, 60, 127, 111]
 
 [[objective]]
 player = 0
 kind = "destruir"
-text = "Destruye la tienda del califa, dentro del palenque"
+text.es = "Destruye la tienda del califa, dentro del palenque"
+text.en = "Destroy the caliph's tent, inside the palisade"
 target = 1
 building = "campamento"
 zone = [56, 86, 72, 100]
@@ -273,7 +281,8 @@ zone = [56, 86, 72, 100]
 [[objective]]
 player = 1
 kind = "sobrevivir"
-text = "Plazo: sin víveres, la hueste tendrá que volverse (45 minutos)"
+text.es = "Plazo: sin víveres, la hueste tendrá que volverse (45 minutos)"
+text.en = "Time limit: without food, the host will have to turn back (45 minutes)"
 seconds = 2700
 
 [[building]]

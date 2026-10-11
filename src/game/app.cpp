@@ -1983,7 +1983,7 @@ private:
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing);
         for (std::size_t i = 0; i < objectives.size(); ++i) {
             const sim::Objective& o = objectives[i];
-            const std::string text = i < data_.objective_texts.size() ? data_.objective_texts[i] : std::string();
+            const std::string text = i < data_.objective_texts.size() ? data_.objective_texts[i].get() : std::string();
             if (o.player == local_) {
                 const sim::ObjectiveStatus s = curr_.objectives[i];
                 const ImVec4 color = s == sim::ObjectiveStatus::Done     ? ImVec4{0.4f, 1.0f, 0.4f, 1.0f}
@@ -2011,9 +2011,9 @@ private:
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::SetNextWindowSize({display.x * kWidthShare, 0.0f}, ImGuiCond_Always);
         ImGui::SetNextWindowFocus();
-        ImGui::Begin(data_.scenario_name.empty() ? T("Informe") : data_.scenario_name.c_str(), nullptr,
+        ImGui::Begin(data_.scenario_name.empty() ? T("Informe") : data_.scenario_name.get().c_str(), nullptr,
                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
-        ImGui::TextWrapped("%s", data_.scenario_briefing.c_str());
+        ImGui::TextWrapped("%s", data_.scenario_briefing.get().c_str());
         if (ImGui::Button(T("Empezar"))) {
             briefing_open_ = false;
         }
@@ -2622,7 +2622,7 @@ private:
     void draw_editor(const ImVec2& display, const std::optional<sim::TileCoord>& hover) {
         sim::ScenarioParams& sp = editor_->params;
         if (edit_name_[0] == '\0') {
-            std::ranges::copy(editor_->name.substr(0, edit_name_.size() - 1), edit_name_.begin());
+            std::ranges::copy(editor_->name.es().substr(0, edit_name_.size() - 1), edit_name_.begin());
         }
         ImGui::SetNextWindowPos({display.x - kPanelMarginPx, kPanelMarginPx * 5.0f}, ImGuiCond_FirstUseEver, {1.0f, 0.0f});
         ImGui::Begin(T("Editor de escenarios"), nullptr, ImGuiWindowFlags_AlwaysAutoResize);
@@ -2707,12 +2707,12 @@ private:
         }
         ImGui::EndDisabled();
         if (ImGui::Button(T("Guardar"))) {
-            editor_->name = edit_name_.data();
+            editor_->name.set_es(edit_name_.data());
             edit_status_ = save_scenario();
         }
         ImGui::SameLine();
         if (ImGui::Button(T("Probar"))) {
-            editor_->name = edit_name_.data();
+            editor_->name.set_es(edit_name_.data());
             play_requested_ = true;
             back_to_menu_ = true;
         }
@@ -2744,7 +2744,7 @@ private:
     // Guarda en escenarios/<nombre>.toml, junto al ejecutable. Devuelve el mensaje.
     std::string save_scenario() {
         std::string file;
-        for (const char c : editor_->name) {
+        for (const char c : editor_->name.es()) {
             file += std::isalnum(static_cast<unsigned char>(c)) != 0 ? c : '_';
         }
         if (file.empty()) {
@@ -3361,7 +3361,7 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
             ImGui::SeparatorText(T("Campaña"));
             for (std::size_t i = 0; i < campaigns.size(); ++i) {
                 ImGui::PushID(static_cast<int>(i));
-                if (ImGui::Button(campaigns[i].name.c_str())) {
+                if (ImGui::Button(campaigns[i].name.get().c_str())) {
                     choice.kind = MenuChoice::Kind::Campaign;
                     choice.campaign = i;
                     chosen = true;
@@ -3802,17 +3802,17 @@ std::optional<ChapterPick> run_campaign_menu(Display& d, const GameData& base, c
         constexpr float kShare = 0.85f;
         ImGui::SetNextWindowPos({display.x * 0.5f, display.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
         ImGui::SetNextWindowSize({display.x * kShare, display.y * kShare}, ImGuiCond_Always);
-        ImGui::Begin(c.name.c_str(), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
+        ImGui::Begin(c.name.get().c_str(), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
         std::optional<ChapterPick> pick;
         bool back = false;
         constexpr float kListShare = 0.28f;
         ImGui::BeginChild("capitulos", {ImGui::GetContentRegionAvail().x * kListShare, 0.0f}, ImGuiChildFlags_Borders);
-        ImGui::TextWrapped("%s", c.intro.c_str());
+        ImGui::TextWrapped("%s", c.intro.get().c_str());
         ImGui::Separator();
         for (std::size_t i = 0; i < c.chapters.size(); ++i) {
             const bool open = progress.unlocked(c, i);
             const bool done = progress.has_won(c.id, c.chapters[i].id);
-            const std::string label = std::format("{}. {}{}", i + 1, c.chapters[i].title, done ? " (superado)" : "");
+            const std::string label = std::format("{}. {}{}", i + 1, c.chapters[i].title.get(), done ? T(" (superado)") : "");
             ImGui::BeginDisabled(!open);
             if (ImGui::Selectable(label.c_str(), selected == i)) {
                 selected = i;
@@ -3829,22 +3829,22 @@ std::optional<ChapterPick> run_campaign_menu(Display& d, const GameData& base, c
         const CampaignChapter& ch = c.chapters[selected];
         constexpr float kTitleScale = 1.5f;
         ImGui::SetWindowFontScale(kTitleScale);
-        ImGui::TextUnformatted(ch.title.c_str());
+        ImGui::TextUnformatted(ch.title.get().c_str());
         ImGui::SetWindowFontScale(1.0f);
-        ImGui::TextDisabled("%s", ch.date.c_str());
+        ImGui::TextDisabled("%s", ch.date.get().c_str());
         const auto& doc = docs[selected];
         if (!doc) {
             ImGui::TextColored({1.0f, 0.35f, 0.3f, 1.0f}, "%s", doc.error().c_str());
         } else {
             ImGui::SeparatorText(T("Informe"));
-            ImGui::TextWrapped("%s", doc->briefing.c_str());
+            ImGui::TextWrapped("%s", doc->briefing.get().c_str());
         }
         ImGui::SeparatorText(T("Nota histórica"));
-        ImGui::TextWrapped("%s", ch.history.c_str());
+        ImGui::TextWrapped("%s", ch.history.get().c_str());
         ImGui::SeparatorText(T("Fuentes (citas literales)"));
         for (const CampaignSource& s : ch.sources) {
             ImGui::TextWrapped("«%s»", s.quote.c_str());
-            ImGui::TextDisabled("%s · %s", s.work.c_str(), s.url.c_str());
+            ImGui::TextDisabled("%s · %s", s.work.get().c_str(), s.url.c_str());
             ImGui::Spacing();
         }
         ImGui::Separator();

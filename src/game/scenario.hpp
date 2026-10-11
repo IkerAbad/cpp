@@ -42,6 +42,7 @@
 #include <vector>
 
 #include "game/config.hpp"
+#include "game/i18n.hpp"
 #include "sim/world.hpp"
 
 namespace rts::game {
@@ -49,10 +50,10 @@ namespace rts::game {
 inline constexpr std::string_view kScenarioFile = "config/escenario.toml";
 
 struct ScenarioDoc {
-    std::string name;
-    std::string briefing;
+    LocalizedText name;
+    LocalizedText briefing;
     sim::ScenarioParams params;
-    std::vector<std::string> objective_texts;  // uno por objetivo de params.objectives
+    std::vector<LocalizedText> objective_texts;  // uno por objetivo de params.objectives
 };
 
 // Nombre de un tipo de objetivo en los ficheros ("destruir"...).

@@ -7,6 +7,8 @@
 
 #include <toml++/toml.hpp>
 
+#include "game/localized_toml.hpp"
+
 namespace rts::game {
 
 namespace {
@@ -26,8 +28,8 @@ std::expected<Campaign, std::string> parse_campaign(std::string_view text, std::
     }
     const auto fail = [&](std::string msg) { return std::unexpected(std::format("{}: {}", source, msg)); };
     Campaign c;
-    c.name = root["name"].value_or(std::string());
-    c.intro = root["intro"].value_or(std::string());
+    c.name = read_localized(root.get("name")).value_or(LocalizedText());
+    c.intro = read_localized(root.get("intro")).value_or(LocalizedText());
     if (c.name.empty()) {
         return fail("falta 'name'");
     }
@@ -42,12 +44,12 @@ std::expected<Campaign, std::string> parse_campaign(std::string_view text, std::
         }
         CampaignChapter ch;
         ch.id = (*t)["id"].value_or(std::string());
-        ch.title = (*t)["title"].value_or(std::string());
-        ch.date = (*t)["date"].value_or(std::string());
+        ch.title = read_localized(t->get("title")).value_or(LocalizedText());
+        ch.date = read_localized(t->get("date")).value_or(LocalizedText());
         ch.scenario = (*t)["scenario"].value_or(std::string());
         ch.rival = (*t)["rival"].value_or(std::string());
         ch.fog = (*t)["fog"].value_or(false);
-        ch.history = (*t)["history"].value_or(std::string());
+        ch.history = read_localized(t->get("history")).value_or(LocalizedText());
         if (ch.id.empty() || ch.title.empty() || ch.scenario.empty()) {
             return fail(std::format("'chapter[{}]' necesita 'id', 'title' y 'scenario'", i));
         }
@@ -60,7 +62,8 @@ std::expected<Campaign, std::string> parse_campaign(std::string_view text, std::
                 if (s == nullptr) {
                     return fail(std::format("'chapter[{}].source[{}]' debe ser una tabla", i, k));
                 }
-                CampaignSource src{(*s)["quote"].value_or(std::string()), (*s)["work"].value_or(std::string()),
+                CampaignSource src{(*s)["quote"].value_or(std::string()),
+                                   read_localized(s->get("work")).value_or(LocalizedText()),
                                    (*s)["url"].value_or(std::string())};
                 if (src.quote.empty() || src.work.empty()) {
                     return fail(std::format("'chapter[{}].source[{}]' necesita 'quote' y 'work'", i, k));
