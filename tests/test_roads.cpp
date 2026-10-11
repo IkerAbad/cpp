@@ -2,6 +2,7 @@
 // aceleran la marcha y quitan el castigo de ir fuera de llano, así que la carreta gana
 // mucho más; en obra no; nadie los ataca por su cuenta.
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -35,8 +36,6 @@ struct RoadSetup {
 };
 
 // Ticks que tarda una unidad del tipo dado de (17, 24) a (30, 24), con o sin camino.
-// Todo dentro de un mismo sector de 16x16: el camino recto va por encima del camino
-// (la búsqueda de caminos aún no prefiere los caminos: entre sectores podría rodearlo).
 int travel(RoadSetup s, rts::sim::UnitTypeId type, bool with_road, bool complete = true,
            rts::sim::PlayerId road_owner = 0) {
     World w(s.params);
@@ -94,4 +93,40 @@ TEST_CASE("Caminos: las tropas no atacan por su cuenta un camino enemigo") {
     }
     CHECK(w.registry().get<rts::sim::Combatant>(static_cast<entt::entity>(soldier)).target ==
           entt::entity{entt::null});
+}
+
+TEST_CASE("Caminos: la búsqueda de caminos se desvía hacia uno si por él se llega antes") {
+    // De (17, 24) a (60, 24) por la hierba, o bajando a un camino en la fila 26 que cruza
+    // tres sectores: por el camino hay más casillas pero se llega antes.
+    RoadSetup s;
+    const auto run = [&](bool with_road, std::vector<std::uint8_t>& on_road) {
+        World w(s.params);
+        if (with_road) {
+            for (std::int32_t x = 18; x <= 59; ++x) {
+                REQUIRE(w.spawn_building(0, s.road, {x, 26}, true).has_value());
+            }
+        }
+        const auto u = w.spawn_unit(0, kSoldier, {17, 24});
+        w.issue(move_order(w.tick(), {u}, {60, 24}));
+        on_road.assign(64, 0);
+        for (int t = 0; t < 6000; ++t) {
+            w.step();
+            const TileCoord at = rts::sim::tile_of(w.registry().get<rts::sim::Position>(static_cast<entt::entity>(u)));
+            if (at.y == 26 && at.x >= 18 && at.x <= 59) {
+                on_road[static_cast<std::size_t>(at.x)] = 1;
+            }
+            if (at == TileCoord{60, 24}) {
+                return t;
+            }
+        }
+        return 6000;
+    };
+    std::vector<std::uint8_t> visited;
+    const int grass = run(false, visited);
+    const int road = run(true, visited);
+    REQUIRE(grass < 6000);
+    // Casi todo el camino, no un tramo de paso por un portal de HPA*.
+    CHECK(std::ranges::count(visited, std::uint8_t{1}) >= 34);
+    CHECK(road * 100 < grass * 95);
+    MESSAGE("por la hierba " << grass << " ticks, por el camino " << road);
 }

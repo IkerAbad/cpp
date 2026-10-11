@@ -46,7 +46,7 @@ Fixed cluster_radius(Fixed r, std::int32_t n) noexcept {
 MovementSystem::MovementSystem(const TileMap& map, std::span<const std::uint8_t> passable_by_terrain,
                                const MovementParams& params)
     : params_(params),
-      grid_(map, passable_by_terrain),
+      grid_(map, passable_by_terrain, params.speed_percent_by_terrain),
       search_(map.width(), map.height()),
       hpa_(grid_, params.hpa, search_) {
     assert(params.max_neighbors > 0);
@@ -126,7 +126,14 @@ void MovementSystem::set_road(TileCoord c, std::int32_t percent) {
         }
         road_.assign(static_cast<std::size_t>(grid_.width()) * static_cast<std::size_t>(grid_.height()), 0);
     }
+    if (road_[grid_.index(c)] == percent) {
+        return;
+    }
     road_[grid_.index(c)] = percent;
+    // La búsqueda de caminos también lo ve: el sector cambia de costes, no de paso.
+    grid_.set_speed_override(c, percent);
+    dirty_sectors_[static_cast<std::size_t>(hpa_.sector_of(c))] = 1;
+    costs_dirty_ = true;
 }
 
 bool MovementSystem::can_enter(TileCoord c, std::int32_t owner) const noexcept {
@@ -150,10 +157,15 @@ void MovementSystem::set_blocked(TileCoord c, bool blocked) {
 }
 
 void MovementSystem::commit_grid_changes(entt::registry& registry) {
-    if (!grid_dirty_) {
+    if (!grid_dirty_ && !costs_dirty_) {
         return;
     }
-    grid_.relabel_components();
+    if (grid_dirty_) {
+        grid_.relabel_components();
+    }
+    if (costs_dirty_) {
+        grid_.refresh_heuristic();
+    }
     stats_.sectors_rebuilt += hpa_.rebuild(grid_, dirty_sectors_, search_);
 
     // Campos de flujo cuyo pasillo toca un sector cambiado: el mismo Dijkstra, otra vez.
@@ -173,25 +185,29 @@ void MovementSystem::commit_grid_changes(entt::registry& registry) {
         }
     }
 
-    // Caminos en curso que ahora pisan una casilla bloqueada: a replanificar.
-    for (const auto [e, follow] : registry.view<PathFollow>().each()) {
-        if (follow.waiting) {
-            continue;
-        }
-        bool blocked = false;
-        for (std::size_t i = follow.next_tile; i < follow.segment.size() && !blocked; ++i) {
-            blocked = !grid_.passable(follow.segment[i]);
-        }
-        for (std::size_t i = follow.next_waypoint; i < follow.waypoints.size() && !blocked; ++i) {
-            blocked = !grid_.passable(follow.waypoints[i]);
-        }
-        if (blocked) {
-            enqueue_path(e, follow);
-            ++stats_.paths_invalidated;
+    // Caminos en curso que ahora pisan una casilla bloqueada: a replanificar. Un camino
+    // construido no los invalida: el que llevan sigue valiendo.
+    if (grid_dirty_) {
+        for (const auto [e, follow] : registry.view<PathFollow>().each()) {
+            if (follow.waiting) {
+                continue;
+            }
+            bool blocked = false;
+            for (std::size_t i = follow.next_tile; i < follow.segment.size() && !blocked; ++i) {
+                blocked = !grid_.passable(follow.segment[i]);
+            }
+            for (std::size_t i = follow.next_waypoint; i < follow.waypoints.size() && !blocked; ++i) {
+                blocked = !grid_.passable(follow.waypoints[i]);
+            }
+            if (blocked) {
+                enqueue_path(e, follow);
+                ++stats_.paths_invalidated;
+            }
         }
     }
     std::ranges::fill(dirty_sectors_, std::uint8_t{0});
     grid_dirty_ = false;
+    costs_dirty_ = false;
 }
 
 const FlowField* MovementSystem::flow_field_of(const MoveGoal& goal) const noexcept {

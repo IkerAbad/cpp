@@ -57,7 +57,7 @@ std::int32_t HpaGraph::rebuild(const PassGrid& grid, std::span<const std::uint8_
     }
     nodes_.clear();
 
-    // 1. Portales en los bordes entre sectores (aristas entre sectores, coste 10).
+    // 1. Portales en los bordes entre sectores (aristas entre sectores: un paso recto).
     std::vector<std::vector<TempEdge>> adj;
     for (std::int32_t sy = 0; sy < sectors_h_; ++sy) {
         for (std::int32_t sx = 0; sx < sectors_w_; ++sx) {
@@ -191,8 +191,10 @@ void HpaGraph::add_portals_on_border(const PassGrid& grid, std::vector<std::vect
             const std::uint32_t a = add_node(grid, side_a(mid));
             const std::uint32_t b = add_node(grid, side_b(mid));
             adj.resize(nodes_.size());
-            adj[a].push_back({b, kStraightCost});
-            adj[b].push_back({a, kStraightCost});
+            const std::int32_t cost =
+                weighted_step(kStraightCost, grid.weight(side_a(mid)), grid.weight(side_b(mid)));
+            adj[a].push_back({b, cost});
+            adj[b].push_back({a, cost});
         }
         t = end;
     }
@@ -249,7 +251,7 @@ std::optional<std::vector<TileCoord>> HpaGraph::find_waypoints(const PassGrid& g
         if (closed_[to] == 0 && g < g_[to]) {
             g_[to] = g;
             parent_[to] = from;
-            const std::int32_t h = octile_distance(node_tile(to), goal);
+            const std::int32_t h = grid.heuristic(node_tile(to), goal);
             heap.push_back({g + h, h, to});
             std::ranges::push_heap(heap, heap_greater);
         }
@@ -258,7 +260,8 @@ std::optional<std::vector<TileCoord>> HpaGraph::find_waypoints(const PassGrid& g
     stamp_[start_id] = generation_;
     g_[start_id] = 0;
     closed_[start_id] = 0;
-    heap.push_back({octile_distance(start, goal), octile_distance(start, goal), start_id});
+    const std::int32_t h0 = grid.heuristic(start, goal);
+    heap.push_back({h0, h0, start_id});
     while (!heap.empty()) {
         std::ranges::pop_heap(heap, heap_greater);
         const AbsHeapNode cur = heap.back();

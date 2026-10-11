@@ -2,14 +2,15 @@
 
 // HPA* (Botea, Müller y Schaeffer, 2004): el mapa se divide en sectores cuadrados;
 // en cada borde compartido por dos sectores, cada tramo transitable contiguo se
-// convierte en uno o más portales (dos nodos, uno a cada lado, unidos con coste 10).
+// convierte en uno o más portales (dos nodos, uno a cada lado, unidos por un paso recto).
 // Dentro de cada sector se precalculan las distancias entre sus nodos. Una consulta
 // larga es un A* sobre ese grafo pequeño; el camino fino se refina por tramos, cada
 // uno acotado a uno o dos sectores.
 //
-// Cuando la ocupación cambia (M3: edificios, árboles talados), rebuild() rehace el
-// grafo reutilizando las aristas internas de los sectores intactos. El resultado es
-// idéntico, nodo a nodo y arista a arista, al de construirlo desde cero.
+// Cuando la ocupación o el peso de las casillas cambia (M3: edificios, árboles
+// talados; C4: caminos), rebuild() rehace el grafo reutilizando las aristas internas
+// de los sectores intactos. El resultado es idéntico, nodo a nodo y arista a arista,
+// al de construirlo desde cero.
 
 #include <cstdint>
 #include <optional>

@@ -25,17 +25,49 @@ struct HeapGreater {
 
 }  // namespace
 
-PassGrid::PassGrid(const TileMap& map, std::span<const std::uint8_t> passable_by_terrain)
+PassGrid::PassGrid(const TileMap& map, std::span<const std::uint8_t> passable_by_terrain,
+                   std::span<const std::int32_t> speed_percent_by_terrain)
     : width_(map.width()), height_(map.height()) {
     terrain_pass_.resize(static_cast<std::size_t>(map.tile_count()));
+    terrain_weight_.assign(terrain_pass_.size(), kWeightUnit);
     const auto terrain = map.terrain_layer();
     for (std::size_t i = 0; i < terrain_pass_.size(); ++i) {
         assert(terrain[i] < passable_by_terrain.size());
         terrain_pass_[i] = passable_by_terrain[terrain[i]] != 0 ? 1 : 0;
+        if (terrain[i] < speed_percent_by_terrain.size()) {
+            assert(speed_percent_by_terrain[terrain[i]] > 0);
+            terrain_weight_[i] = tile_weight(speed_percent_by_terrain[terrain[i]]);
+        }
     }
     blocked_.assign(terrain_pass_.size(), 0);
     pass_ = terrain_pass_;
+    weight_ = terrain_weight_;
+    refresh_heuristic();
     label_components();
+}
+
+void PassGrid::set_speed_override(TileCoord c, std::int32_t speed_percent) noexcept {
+    assert(contains(c) && speed_percent >= 0);
+    const std::size_t i = index(c);
+    weight_[i] = speed_percent > 0 ? tile_weight(speed_percent) : terrain_weight_[i];
+}
+
+void PassGrid::refresh_heuristic() noexcept {
+    // Solo cuentan las casillas por las que se puede andar: el peso del agua no importa.
+    min_weight_ = kWeightUnit;
+    bool first = true;
+    for (std::size_t i = 0; i < weight_.size(); ++i) {
+        if (terrain_pass_[i] == 0) {
+            continue;
+        }
+        min_weight_ = first ? weight_[i] : std::min(min_weight_, weight_[i]);
+        first = false;
+    }
+    // Ningún paso cuesta menos que entre dos casillas del peso mínimo, y con 10/14 la
+    // diagonal mínima queda entre una y dos rectas: la octil con ellas es consistente.
+    min_straight_ = weighted_step(kStraightCost, min_weight_, min_weight_);
+    min_diagonal_ = weighted_step(kDiagonalCost, min_weight_, min_weight_);
+    assert(min_straight_ >= 1 && min_diagonal_ >= min_straight_ && min_diagonal_ <= 2 * min_straight_);
 }
 
 void PassGrid::set_blocked(TileCoord c, bool blocked) noexcept {
@@ -166,7 +198,8 @@ std::optional<std::int32_t> GridSearch::astar(const PassGrid& grid, TileCoord st
     stamp_[s] = generation_;
     g_[s] = 0;
     closed_[s] = 0;
-    push({octile_distance(start, goal), octile_distance(start, goal), static_cast<std::uint32_t>(s)});
+    const std::int32_t h0 = grid.heuristic(start, goal);
+    push({h0, h0, static_cast<std::uint32_t>(s)});
 
     while (!heap_.empty()) {
         const HeapNode cur = pop();
@@ -193,7 +226,7 @@ std::optional<std::int32_t> GridSearch::astar(const PassGrid& grid, TileCoord st
                 continue;
             }
             const std::size_t ni = grid.index(n);
-            const std::int32_t g = g_[ci] + d.cost;
+            const std::int32_t g = g_[ci] + grid.step_cost(c, d);
             if (!visited(ni)) {
                 stamp_[ni] = generation_;
                 closed_[ni] = 0;
@@ -202,7 +235,7 @@ std::optional<std::int32_t> GridSearch::astar(const PassGrid& grid, TileCoord st
             if (closed_[ni] == 0 && g < g_[ni]) {
                 g_[ni] = g;
                 parent_[ni] = static_cast<std::uint32_t>(ci);
-                const std::int32_t h = octile_distance(n, goal);
+                const std::int32_t h = grid.heuristic(n, goal);
                 push({g + h, h, static_cast<std::uint32_t>(ni)});
             }
         }
@@ -235,7 +268,7 @@ void GridSearch::dijkstra(const PassGrid& grid, TileCoord source, const SearchRe
                 continue;
             }
             const std::size_t ni = grid.index(n);
-            const std::int32_t g = g_[ci] + d.cost;
+            const std::int32_t g = g_[ci] + grid.step_cost(c, d);
             if (!visited(ni)) {
                 stamp_[ni] = generation_;
                 closed_[ni] = 0;

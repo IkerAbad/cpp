@@ -936,6 +936,7 @@ void resupply(Decision& d) {
     const std::int32_t reach = d.supply.resupply_radius_tiles;
     std::vector<entt::entity> busy;
     std::vector<std::pair<TileCoord, std::vector<std::uint32_t>>> going;  // destino, unidades
+    std::vector<std::uint32_t> halt;  // ya al alcance: no hace falta llegar a la puerta
     for (const UnitSeen& s : v.soldiers) {
         if (s.supply_percent >= kPercent || s.target != entt::null) {
             continue;
@@ -989,6 +990,12 @@ void resupply(Decision& d) {
         }
         if (best_d <= (pillage ? d.supply.forage_reach_tiles : reach)) {
             busy.push_back(s.entity);  // se está abasteciendo: que termine
+            // Si iba hacia allí, se para aquí: en la puerta del almacén estorbaría a los
+            // aldeanos que entregan.
+            const MoveGoal* g = d.registry.try_get<MoveGoal>(s.entity);
+            if (g != nullptr && !g->arrived && chebyshev(g->tile, best_at) <= reach) {
+                halt.push_back(entt::to_integral(s.entity));
+            }
             continue;
         }
         if (s.supply_percent >= d.profile.resupply_percent) {
@@ -1010,6 +1017,11 @@ void resupply(Decision& d) {
         Command c = d.order(CommandType::Move);
         c.target = at;
         c.units = std::move(units);
+        d.out.push_back(std::move(c));
+    }
+    if (!halt.empty()) {
+        Command c = d.order(CommandType::Stop);
+        c.units = std::move(halt);
         d.out.push_back(std::move(c));
     }
     std::erase_if(v.idle_army, [&](entt::entity e) { return std::ranges::find(busy, e) != busy.end(); });
@@ -1060,7 +1072,7 @@ std::optional<TileCoord> field_center(const Decision& d) {
     return TileCoord{static_cast<std::int32_t>(sx / n), static_cast<std::int32_t>(sy / n)};
 }
 
-// Punto a k casillas de from sobre la recta hacia to (from si están más cerca).
+// Punto a k casillas de from sobre la recta hacia to (to, si está más cerca).
 TileCoord toward(TileCoord from, TileCoord to, std::int32_t k) {
     const std::int32_t span = chebyshev(from, to);
     if (span <= k) {

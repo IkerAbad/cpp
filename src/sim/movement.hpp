@@ -54,10 +54,11 @@ public:
     static constexpr std::int32_t kNoGate = -1;
     void set_gate(TileCoord c, std::int32_t owner);
     // Camino (C4): % de velocidad en la casilla c (0 lo quita: vuelve la del terreno).
+    // La búsqueda de caminos lo pesa igual que la marcha (en commit_grid_changes).
     void set_road(TileCoord c, std::int32_t percent);
     // ¿Puede la unidad de owner entrar en la casilla c? (rejilla y puertas)
     [[nodiscard]] bool can_enter(TileCoord c, std::int32_t owner) const noexcept;
-    [[nodiscard]] bool grid_dirty() const noexcept { return grid_dirty_; }
+    [[nodiscard]] bool grid_dirty() const noexcept { return grid_dirty_ || costs_dirty_; }
     void commit_grid_changes(entt::registry& registry);
 
     [[nodiscard]] const PassGrid& grid() const noexcept { return grid_; }
@@ -133,6 +134,7 @@ private:
     std::vector<CachedField> fields_;
     std::vector<std::uint8_t> dirty_sectors_;
     bool grid_dirty_ = false;
+    bool costs_dirty_ = false;  // pesos de casillas (caminos): no cambian el paso
     std::vector<entt::entity> path_queue_;
     std::size_t queue_head_ = 0;
     Scratch s_;

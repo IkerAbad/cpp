@@ -45,7 +45,7 @@ esconden, y un asedio sin suministro fracasa.
 | Sanidad | Puesto de socorro, hospital de campaña, hospital, enfermeros, cirujanos, heridas leves, reorganización |
 | Niebla | Tres estados, árboles, altura, día y noche, memoria de edificios |
 | Terreno | Altura para tiradores y cuerpo a cuerpo, bosque que cubre, marcha por terreno, carga en llano |
-| Caminos | Construibles; aceleran la marcha y sobre todo a las carretas (la búsqueda de caminos aún no los prefiere) |
+| Caminos | Construibles; aceleran la marcha y sobre todo a las carretas; la búsqueda de caminos los prefiere y rodea el terreno lento |
 | Mercado | Cambio por oro con precios comunes que se mueven; caravanas entre mercados propios |
 | Forrajeo | Saqueo de granjas y aldeas enemigas, caza en el bosque; la IA saquea lo que no está defendido |
 | Herrería | Mejoras de armas y armaduras por niveles, con hierro; valen para las unidades nuevas y las existentes |
@@ -141,7 +141,9 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   caravanas entre mercados propios (reutilizan los convoyes). *Terminado:* pruebas
   de precios y de rutas.
 - [x] **C4. Caminos.** Construibles; aceleran la marcha y, sobre todo, a las
-  carretas. *Terminado:* pruebas de velocidad.
+  carretas. *Terminado:* pruebas de velocidad. Después, la búsqueda de caminos pesa
+  cada casilla por su velocidad: rodea el bosque si por fuera llega antes y prefiere
+  los caminos (A\* óptimo frente a Dijkstra; HPA\* a un 5 % del óptimo).
 
 ### Fase D — Inteligencia artificial (M7)
 

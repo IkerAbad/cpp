@@ -132,13 +132,16 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
 
 - **Órdenes.** `sim::Command{tick, jugador, tipo, unidades, destino}` se encola con `World::issue` y se aplica al inicio del tick indicado, en orden de llegada. Es la unidad que grabarán las repeticiones (M5) y que viajará en lockstep (M8).
 - **Rejilla.**
-  - 8 direcciones con coste entero octil: 10 en recto, 14 en diagonal.
+  - 8 direcciones con coste entero: en llano, 10 en recto y 14 en diagonal.
+  - El coste es tiempo. Cada casilla pesa el inverso de su % de velocidad, y un paso cuesta la media de sus dos casillas, así que ir y volver cuesta lo mismo. En recto: llano 10, camino (125 %) 8, colinas 13, bosque 17, vado 22.
+  - La heurística octil usa el peso más bajo del mapa (el del camino, si hay alguno). Nunca sobrestima y es consistente: A\* sigue dando el óptimo, comprobado contra Dijkstra.
   - Prohibido atajar esquinas bloqueadas.
   - Las componentes conexas precalculadas descartan al instante los destinos inalcanzables, que se sustituyen por la casilla alcanzable más cercana.
 - **HPA\*.**
   - Sectores de 16×16, con portales en los tramos abiertos de cada borde (como mucho 8 casillas por portal) y aristas internas precalculadas con Dijkstra acotado al sector.
   - Una consulta es un A\* sobre el grafo abstracto (1626 nodos y 11 390 aristas en el mapa por defecto), más un refinado perezoso tramo a tramo.
-  - Medido frente a A\* óptimo en 200 rutas: 3,6 % más largas de media y 15,7 % en el peor caso.
+  - Medido frente a A\* óptimo en 200 rutas: 3,6 % más largas de media y 15,7 % en el peor caso. Con bosques, colinas, vados y caminos al azar: 5,3 % de media.
+  - Un camino construido marca su sector: se rehacen sus aristas y los campos de flujo que lo cruzan, pero no se replanifica a quien ya va de camino.
 - **Presupuesto determinista.** El planificador expande como mucho `path_node_budget_per_tick` nodos por tick. Se mide en nodos, no en milisegundos, para que el reparto sea idéntico en todas las máquinas.
 - **Campos de flujo.**
   - Una orden a 8 o más unidades usa un único Dijkstra desde el destino, limitado al pasillo de sectores del camino abstracto.
@@ -152,6 +155,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - En cadena, al tocar a una compañera ya llegada dentro del radio esperado del racimo.
   - Por atasco, tras `stuck_arrive_ticks` casi parada.
   - Las llegadas quedan quietas y son obstáculos para las demás.
+  - **Limitación conocida:** dos columnas que se cruzan de frente en un paso de una casilla (un puente estrecho) pueden quedarse atascadas: ninguna cede. Probé dejar que una unidad atascada pase entre las suyas. Arreglaba el puente, pero cambiaba demasiado otras situaciones (los defensores de Calatrava salían en tromba por su puerta), y lo dejé fuera.
 - **Sin coma flotante.** Todo el movimiento usa `Fixed` y enteros; la raíz cuadrada es entera (`isqrt`). El mismo hash tras 1200 ticks de movimiento con Clang 20 y GCC 14.
 
 ### Economía (M3)
@@ -370,7 +374,7 @@ Los mapas, las cifras de cada ejército y los plazos son del juego, no datos his
 
 - **Objetivos** (`sim/objectives.hpp`): destruir, conservar, sobrevivir, llegar a una zona, reunir recursos y derrotar a un jugador. Son reglas de la simulación: deterministas, en el hash solo si el escenario los tiene (las partidas normales no cambian). Gana quien cumple todos los suyos (los de conservar cuentan mientras no fallen); pierde quien falla uno de conservar o ve ganar a otro. Un plazo es un «sobrevivir» del rival. En partida, a la derecha: cada objetivo con su estado y lo que queda de plazo.
 - **Escenarios escritos a mano.** Además del formato del editor, `base` + pinceladas (`[[paint]]`: terreno y altura a lo largo de un trazo), bosques (`[[forest]]`: densidad por mil, siempre los mismos árboles), bloques de unidades (`count`, `cols`), almacén inicial por jugador (`[[player]] stock`) y campamentos ya abastecidos (`store`). Formato completo en `src/game/scenario.hpp`.
-- **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 50 de 66 tropas) y se pierde el ejército forzando el puerto (12 de 66 a los 8 min); Calatrava cae en 4 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 16. Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
+- **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 41 de 66 tropas) y se pierde el ejército forzando el puerto (23 de 66 a los 8 min); Calatrava cae en 9 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 22 (de un plazo de 30). Son las cifras desde que la búsqueda de caminos pesa el terreno; antes eran 50, 12, 4 min y minuto 16. Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
 
 ### Repeticiones (M5)
 
@@ -477,7 +481,7 @@ Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipe
   - Aquí se monta en un campamento de campaña, pagado con su almacén: madera y hierro traídos en convoy. Cada viaje lleva lo que le falta al campamento para su `store_target`, contando lo que ya está en camino.
   - Montado no se mueve (velocidad 0). Más lento que el ariete, pero derriba a 10 casillas sin arrimarse al muro.
 - **IA:**
-  - `abastecer`: la tropa que no pelea y baja del 30 % vuelve a la fuente más cercana que puede darle algo (edificio o bagaje) y espera a llenarse.
+  - `abastecer`: la tropa que no pelea y baja del 30 % vuelve a la fuente más cercana que puede darle algo (edificio o bagaje) y espera a llenarse. Se para en cuanto la tiene al alcance (`resupply_radius_tiles`), no en la puerta: allí taponaba el paso a los aldeanos que entregan, y en Toledo la economía de la IA se quedaba sin comida.
   - `logistica`: dos acémilas siguen al ejército en campaña unas casillas por detrás y vuelven a casa a cargar.
   - Ambos perfiles guardan comida para las raciones (`upkeep_reserve_percent`).
   - Asedio: solo con su ejército en campaña a 20 casillas o menos del objetivo (`siege_front_tiles`), campamento a 9 casillas de él, convoyes hacia allí y hasta 2 trabuquetes montados con lo que traen (`siege_engines`). Medido: un campamento sin el ejército delante se perdía enseguida; con esta condición, ni gana ni pierde partidas (10 a 10 contra la misma IA sin asedio): los convoyes rara vez reúnen un trabuquete antes de los 30 minutos.
@@ -560,12 +564,15 @@ Fuentes:
 - **Altura:** por cada nivel de ventaja (hasta 3), el tirador alcanza media casilla más y hiere un 10 % más; cuesta arriba, al revés, sin bajar de la mitad del alcance. Cuerpo a cuerpo, un 10 % por nivel a favor de quien está arriba.
 - **Fuera de llano** cada tipo pierde además su `rough_speed_percent`: la carreta de bueyes se queda al 50 % y el ariete al 60 %. En el bosque, la carreta va al 30 %.
 - **Carga:** tras 1 s seguido en marcha, el primer golpe del caballero vale el doble y el del jinete la mitad más, si el atacante y el blanco pisan pradera o arena.
-- **Limitación conocida:** la búsqueda de caminos aún no prefiere el terreno rápido; lo hará cuando el coste de las casillas entre en HPA*.
+- **Búsqueda de caminos:** pesa el terreno como lo anda un infante. Rodea un bosque si por fuera llega antes y aprovecha los caminos (ver Movimiento).
+  - **Limitación conocida:** la rejilla es una sola para todos los tipos. La carreta, que en el bosque pierde más que nadie, sigue la ruta del infante. No sé si compensaría una rejilla por tipo; no lo he medido.
 - **Desactivado** (`enabled = false`, como en las demás pruebas) nada cambia y el hash es el de antes.
 
 ### Caminos
 
 El camino (5 de piedra por casilla; con Mayús + clic se traza tramo a tramo) no cierra el paso a nadie, ni al enemigo, y nadie lo ataca por su cuenta. Terminado, sobre él se marcha al 125 %, sin el castigo de ir fuera de llano, y se cansa menos. La carreta es la que más gana: en el bosque pasa del 30 % al 125 %.
+
+La búsqueda de caminos lo prefiere: una casilla de camino cuesta 8 en vez de 10, así que las órdenes se desvían hacia él cuando por él se llega antes. Un camino que atraviesa un bosque vuelve rentable cruzarlo (prueba incluida).
 
 - **Fuente:** las calzadas romanas «provided efficient means for the overland movement of armies, officials, civilians, inland carriage of official communications, and trade goods» ([Roman roads](https://en.wikipedia.org/wiki/Roman_roads)).
 - **Limitación:** la búsqueda de caminos aún no prefiere los caminos, así que una ruta larga puede ir por su lado. Para seguirlos se encadenan puntos de paso (Mayús + clic derecho).

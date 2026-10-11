@@ -1,8 +1,15 @@
 #pragma once
 
 // Rejilla de transitabilidad y búsquedas sobre ella. Movimiento en 8 direcciones con
-// coste octil entero (10 recto, 14 diagonal) y sin atajar esquinas: una diagonal solo
-// es válida si las dos casillas ortogonales que roza también son transitables.
+// coste octil entero (10 recto, 14 diagonal en llano) y sin atajar esquinas: una
+// diagonal solo es válida si las dos casillas ortogonales que roza también son
+// transitables.
+//
+// El coste es tiempo: cada casilla pesa lo que se tarda en cruzarla (inverso de su %
+// de velocidad: bosque, colinas, vado, camino). Un paso cuesta el coste base por la
+// media de los pesos de sus dos casillas, así que es simétrico y un Dijkstra desde el
+// destino da el coste hacia él (campos de flujo). La heurística octil usa el peso más
+// bajo del mapa: nunca sobrestima y es consistente.
 
 #include <array>
 #include <cstdint>
@@ -18,6 +25,18 @@ namespace rts::sim {
 inline constexpr std::int32_t kStraightCost = 10;
 inline constexpr std::int32_t kDiagonalCost = 14;
 inline constexpr std::int32_t kUnreached = std::numeric_limits<std::int32_t>::max();
+// Peso de una casilla: milésimas del tiempo de cruzar una de llano (100 % de velocidad).
+inline constexpr std::int32_t kWeightUnit = 1000;
+inline constexpr std::int32_t kSpeedFull = 100;
+
+[[nodiscard]] constexpr std::int32_t tile_weight(std::int32_t speed_percent) noexcept {
+    return (kWeightUnit * kSpeedFull + speed_percent / 2) / speed_percent;
+}
+
+// Coste de un paso de coste base (10 o 14) entre dos casillas de pesos wa y wb.
+[[nodiscard]] constexpr std::int32_t weighted_step(std::int32_t base, std::int32_t wa, std::int32_t wb) noexcept {
+    return (base * (wa + wb) + kWeightUnit) / (2 * kWeightUnit);
+}
 
 struct Direction {
     std::int32_t dx;
@@ -51,8 +70,10 @@ inline constexpr std::array<Direction, 8> kDirections{{
 // durante la partida y los snapshots lo comparten sin copiarlo.
 class PassGrid {
 public:
-    // passable_by_terrain[id] indica si el terreno id es transitable.
-    PassGrid(const TileMap& map, std::span<const std::uint8_t> passable_by_terrain);
+    // passable_by_terrain[id] indica si el terreno id es transitable; speed_percent_by_terrain,
+    // su % de velocidad (vacío: todo pesa como llano).
+    PassGrid(const TileMap& map, std::span<const std::uint8_t> passable_by_terrain,
+             std::span<const std::int32_t> speed_percent_by_terrain = {});
 
     [[nodiscard]] std::int32_t width() const noexcept { return width_; }
     [[nodiscard]] std::int32_t height() const noexcept { return height_; }
@@ -78,6 +99,27 @@ public:
     void set_blocked(TileCoord c, bool blocked) noexcept;
     void relabel_components() { label_components(); }
 
+    // % de velocidad que manda sobre el del terreno en c (camino); 0 lo quita. La
+    // heurística queda desfasada hasta refresh_heuristic().
+    void set_speed_override(TileCoord c, std::int32_t speed_percent) noexcept;
+    void refresh_heuristic() noexcept;
+    [[nodiscard]] std::int32_t weight(TileCoord c) const noexcept { return weight_[index(c)]; }
+
+    // Coste de un paso válido de c en la dirección d.
+    [[nodiscard]] std::int32_t step_cost(TileCoord c, const Direction& d) const noexcept {
+        const std::size_t ci = index(c);
+        const std::size_t ni = index({c.x + d.dx, c.y + d.dy});
+        return weighted_step(d.cost, weight_[ci], weight_[ni]);
+    }
+    // Cota inferior consistente del coste de a a b.
+    [[nodiscard]] std::int32_t heuristic(TileCoord a, TileCoord b) const noexcept {
+        const std::int32_t dx = a.x > b.x ? a.x - b.x : b.x - a.x;
+        const std::int32_t dy = a.y > b.y ? a.y - b.y : b.y - a.y;
+        const std::int32_t lo = dx < dy ? dx : dy;
+        const std::int32_t hi = dx < dy ? dy : dx;
+        return min_straight_ * hi + (min_diagonal_ - min_straight_) * lo;
+    }
+
     // ¿Se puede ir de c a c + d en un paso? (incluye la regla de no atajar esquinas)
     [[nodiscard]] bool can_step(TileCoord c, const Direction& d) const noexcept;
 
@@ -102,6 +144,11 @@ private:
     std::vector<std::uint8_t> terrain_pass_;
     std::vector<std::uint8_t> blocked_;
     std::vector<std::uint8_t> pass_;  // terrain_pass_ && !blocked_
+    std::vector<std::int32_t> terrain_weight_;
+    std::vector<std::int32_t> weight_;  // el del terreno o el del camino que lo cubre
+    std::int32_t min_weight_ = kWeightUnit;
+    std::int32_t min_straight_ = kStraightCost;
+    std::int32_t min_diagonal_ = kDiagonalCost;
     std::vector<std::uint32_t> comp_;
     std::vector<std::uint32_t> comp_size_;  // por componente; [0] sin uso
 };

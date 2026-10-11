@@ -36,16 +36,25 @@ std::optional<TileCoord> FlowField::next_step(const PassGrid& grid, TileCoord fr
     if (here == kUnreached || here == 0) {
         return std::nullopt;
     }
+    // La que da menos coste total (paso + lo que queda): con pesos distintos por casilla
+    // no basta con la vecina más cercana al destino. A igualdad, la que deja menos por
+    // andar; luego, el orden fijo de kDirections.
     std::optional<TileCoord> best;
-    std::int32_t best_cost = here;
+    std::int32_t best_total = kUnreached;
+    std::int32_t best_rest = kUnreached;
     for (const Direction& d : kDirections) {
         if (!grid.can_step(from, d)) {
             continue;
         }
         const TileCoord n{from.x + d.dx, from.y + d.dy};
-        const std::int32_t c = cost(grid, n);
-        if (c < best_cost) {
-            best_cost = c;
+        const std::int32_t rest = cost(grid, n);
+        if (rest >= here) {
+            continue;  // también las que quedaron fuera del pasillo (kUnreached)
+        }
+        const std::int32_t total = rest + grid.step_cost(from, d);
+        if (total < best_total || (total == best_total && rest < best_rest)) {
+            best_total = total;
+            best_rest = rest;
             best = n;
         }
     }

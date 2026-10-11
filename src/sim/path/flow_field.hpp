@@ -25,8 +25,8 @@ public:
     // Coste hasta el destino; kUnreached si la casilla quedó fuera del pasillo.
     [[nodiscard]] std::int32_t cost(const PassGrid& grid, TileCoord c) const noexcept;
 
-    // Vecina con menor coste (orden fijo de kDirections en los empates). nullopt en el
-    // destino o fuera del campo.
+    // Vecina por la que sigue el camino más barato (paso + coste desde ella). nullopt
+    // en el destino o fuera del campo.
     [[nodiscard]] std::optional<TileCoord> next_step(const PassGrid& grid, TileCoord from) const noexcept;
 
     [[nodiscard]] std::size_t tiles_reached() const noexcept { return reached_; }
