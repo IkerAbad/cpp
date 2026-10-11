@@ -584,8 +584,15 @@ private:
                     if (player_ && !renderer_.ui_wants_keyboard()) {
                         replay_key(event.key.scancode);
                     }
+                    // Editor: Ctrl+Z deshace, Ctrl+Y (o Ctrl+Mayús+Z) rehace.
+                    // Los modificadores, los del propio evento: el estado global puede ir por detrás.
+                    if (editor_ != nullptr && !renderer_.ui_wants_keyboard() && (event.key.mod & SDL_KMOD_CTRL) != 0 &&
+                        (event.key.scancode == SDL_SCANCODE_Z || event.key.scancode == SDL_SCANCODE_Y)) {
+                        edit_history(event.key.scancode == SDL_SCANCODE_Z && (event.key.mod & SDL_KMOD_SHIFT) == 0);
+                        break;
+                    }
                     if (!player_ && !renderer_.ui_wants_keyboard()) {
-                        control_group_key(event.key.scancode);
+                        control_group_key(event.key.scancode, (event.key.mod & SDL_KMOD_CTRL) != 0);
                         if (is_key(event.key.scancode, KeyAction::LastAlert)) {
                             jump_to_alert();
                         }
@@ -620,12 +627,13 @@ private:
 
     // Grupos de control: Ctrl + 1…9 guarda la selección en ese grupo; 1…9 la recupera
     // (solo lo que siga vivo).
-    void control_group_key(SDL_Scancode key) {
+    // ctrl: con Ctrl pulsado según el propio evento (el estado global puede ir por detrás).
+    void control_group_key(SDL_Scancode key, bool ctrl) {
         if (key < SDL_SCANCODE_1 || key > SDL_SCANCODE_9) {
             return;
         }
         const auto index = static_cast<std::size_t>(key) - static_cast<std::size_t>(SDL_SCANCODE_1);
-        if (window_.ctrl_held()) {
+        if (ctrl) {
             groups_[index] = selection_.selected();
             return;
         }
@@ -2519,6 +2527,7 @@ private:
             edit_status_ = T("No cabe ahí");
             return;
         }
+        remember_edit();
         sp.placements.push_back(p);
         edit_status_.clear();
         rebuild_world();
@@ -2536,20 +2545,17 @@ private:
                     return true;
                 }
                 if (event.button.button == SDL_BUTTON_RIGHT && edit_tool_ != EditTool::Height) {
-                    if (erase_at(editor_->params, *t, data_)) {
-                        rebuild_world();
-                    }
+                    edit_erase(*t);
                     return true;
                 }
                 if (edit_tool_ == EditTool::Terrain || edit_tool_ == EditTool::Height) {
+                    remember_edit();  // un trazo entero se deshace de una vez
                     edit_painting_ = true;
                     edit_lowering_ = event.button.button == SDL_BUTTON_RIGHT;
                     edit_last_.reset();
                     edit_stroke(*t);
                 } else if (edit_tool_ == EditTool::Erase) {
-                    if (erase_at(editor_->params, *t, data_)) {
-                        rebuild_world();
-                    }
+                    edit_erase(*t);
                 } else if (event.button.button == SDL_BUTTON_LEFT) {
                     edit_place(*t);
                 }
@@ -2576,6 +2582,43 @@ private:
         }
     }
 
+    // Deshacer (F3, mejora): copia del escenario antes de cada cambio; como mucho
+    // kMaxUndo pasos hacia atrás. Un cambio nuevo olvida lo que se podía rehacer.
+    static constexpr std::size_t kMaxUndo = 64;
+    void remember_edit() {
+        edit_undo_.push_back(editor_->params);
+        if (edit_undo_.size() > kMaxUndo) {
+            edit_undo_.erase(edit_undo_.begin());
+        }
+        edit_redo_.clear();
+    }
+
+    void edit_erase(sim::TileCoord t) {
+        sim::ScenarioParams before = editor_->params;
+        if (erase_at(editor_->params, t, data_)) {
+            edit_undo_.push_back(std::move(before));
+            if (edit_undo_.size() > kMaxUndo) {
+                edit_undo_.erase(edit_undo_.begin());
+            }
+            edit_redo_.clear();
+            rebuild_world();
+        }
+    }
+
+    // Deshacer (undo = true) o rehacer el último cambio.
+    void edit_history(bool undo) {
+        auto& from = undo ? edit_undo_ : edit_redo_;
+        auto& to = undo ? edit_redo_ : edit_undo_;
+        if (from.empty() || edit_painting_) {
+            return;
+        }
+        to.push_back(std::move(editor_->params));
+        editor_->params = std::move(from.back());
+        from.pop_back();
+        edit_status_.clear();
+        rebuild_world();
+    }
+
     void draw_editor(const ImVec2& display, const std::optional<sim::TileCoord>& hover) {
         sim::ScenarioParams& sp = editor_->params;
         if (edit_name_[0] == '\0') {
@@ -2587,6 +2630,7 @@ private:
         int players = sp.players;
         const auto max_players = static_cast<int>(data_.engine.seat_starts.size());
         if (ImGui::SliderInt(T("Jugadores"), &players, 1, max_players)) {
+            remember_edit();
             sp.players = players;
             // Lo de jugadores que ya no están, fuera.
             std::erase_if(sp.placements, [&](const sim::ScenarioPlacement& p) {
@@ -2651,6 +2695,17 @@ private:
             ImGui::TextDisabled("%s", T("Casilla -"));
         }
         ImGui::Separator();
+        ImGui::BeginDisabled(edit_undo_.empty());
+        if (ImGui::Button(T("Deshacer (Ctrl+Z)"))) {
+            edit_history(true);
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(edit_redo_.empty());
+        if (ImGui::Button(T("Rehacer (Ctrl+Y)"))) {
+            edit_history(false);
+        }
+        ImGui::EndDisabled();
         if (ImGui::Button(T("Guardar"))) {
             editor_->name = edit_name_.data();
             edit_status_ = save_scenario();
@@ -2818,6 +2873,8 @@ private:
     int edit_player_ = 0;
     int edit_radius_ = 1;
     bool edit_painting_ = false;
+    std::vector<sim::ScenarioParams> edit_undo_;  // estados anteriores (el último, el más reciente)
+    std::vector<sim::ScenarioParams> edit_redo_;
     bool edit_lowering_ = false;
     std::optional<sim::TileCoord> edit_last_;
     std::vector<sim::TileCoord> edit_stroke_;

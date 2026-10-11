@@ -339,15 +339,14 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
     - subir (botón izquierdo) y bajar (derecho) la altura;
     - colocar recursos, edificios y unidades de cada jugador, con el edificio fantasma donde va;
     - borrar, también con el botón derecho;
-    - elegir de 1 a 4 jugadores, guardar y probar.
+    - elegir de 1 a 4 jugadores, guardar y probar;
+    - deshacer y rehacer (botones, o Ctrl+Z y Ctrl+Y): hasta 64 pasos; un trazo entero cuenta como uno.
   - El mundo se rehace al soltar el pincel o tras cada cambio (unos 65 ms en Release). Mientras se arrastra, el trazo se ve teñido.
   - Los escenarios se guardan en `escenarios/` junto al ejecutable. Es un TOML legible: el terreno y la altura van con una letra o un dígito por casilla, y debajo la lista de objetos.
   - Desde el menú se juegan o se editan. Al jugar, el escenario viaja con los datos de la partida (`config/escenario.toml`), así que la repetición y la partida en red lo llevan dentro.
 - **Límite conocido.**
-  - Se puede construir sobre un vado.
   - La IA cruza los vados como cualquier terreno, sin planear dónde defenderlos.
-  - El editor no tiene deshacer.
-  - Un escenario no lleva aún objetivos ni sucesos (eso es la campaña, F4).
+  - Un escenario no lleva sucesos (los objetivos llegaron con la campaña, F4).
 
 ### Idiomas y opciones (F5)
 

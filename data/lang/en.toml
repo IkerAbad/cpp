@@ -291,6 +291,8 @@ language = "English"
 "Volver sin guardar" = "Back without saving"
 "humano" = "human"
 "IA {}" = "AI {}"
+"Deshacer (Ctrl+Z)" = "Undo (Ctrl+Z)"
+"Rehacer (Ctrl+Y)" = "Redo (Ctrl+Y)"
 
 [names]
 "aldeano" = "Villager"

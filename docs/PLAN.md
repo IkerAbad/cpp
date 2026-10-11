@@ -189,8 +189,8 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   escenarios. Hecho: ríos con vados donde cortan tierra (tipos de mapa «Ríos» y «Gran
   río»), inicios siempre en la misma región de tierra y sendas taladas si el bosque
   corta el paso (comprobado en 270 combinaciones), y editor de escenarios (terreno,
-  altura, recursos, edificios, unidades, jugadores; guardar, jugar, editar). Falta:
-  deshacer en el editor.
+  altura, recursos, edificios, unidades, jugadores; guardar, jugar, editar), con
+  deshacer y rehacer (Ctrl+Z, Ctrl+Y; 64 pasos).
 - [x] **F4. Campaña.** Escenarios históricos con datos propios. Hecho: objetivos en la
   simulación (destruir, conservar, sobrevivir, llegar, reunir, derrotar), escenarios
   escritos a mano con pinceladas, y la campaña de Las Navas de Tolosa (Toledo,
