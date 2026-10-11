@@ -4,6 +4,7 @@
 // repite y funde al cambiar. Puro: lo llama el hilo principal, que entrega lo mezclado
 // a la salida de audio de la plataforma.
 
+#include <array>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -23,6 +24,12 @@ public:
 
     // Música en bucle; -1 la calla. El cambio funde en fade_frames.
     void set_music(std::int32_t sound, std::int32_t fade_frames);
+
+    // Fondos en bucle (viento, agua, pájaros...): kAmbientSlots a la vez, cada uno con su
+    // volumen 0..1, que cambia sin saltos a lo largo de la mezcla siguiente. Suenan con los
+    // efectos; el canal derecho lee el bucle medio bucle más adelante (sensación de espacio).
+    static constexpr std::size_t kAmbientSlots = 4;
+    void set_ambient(std::size_t slot, std::int32_t sound, float volume);
     [[nodiscard]] std::int32_t music() const noexcept { return music_.sound; }
 
     void set_gains(float master, float effects, float music) noexcept {
@@ -47,12 +54,19 @@ private:
         std::int32_t sound = -1;
         std::size_t pos = 0;
     };
+    struct AmbientTrack {
+        std::int32_t sound = -1;
+        std::size_t pos = 0;
+        float volume = 0.0f;  // el de ahora
+        float target = 0.0f;  // al que va en la mezcla siguiente
+    };
 
     std::size_t max_voices_;
     std::vector<std::vector<float>> sounds_;
     std::vector<Voice> voices_;
     Track music_;
     Track fading_;          // la pista que se va
+    std::array<AmbientTrack, kAmbientSlots> ambient_{};
     std::int32_t fade_total_ = 0;
     std::int32_t fade_left_ = 0;
     float master_ = 1.0f;

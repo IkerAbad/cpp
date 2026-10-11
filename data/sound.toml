@@ -45,6 +45,85 @@ order = "clic"
 peace = "paz"
 battle = "batalla"
 
+# Fondo en bucle según lo que se ve: el viento siempre; el agua, con ríos o mar en
+# pantalla; los pájaros, con bosque (o árboles) y de día; los grillos, de noche. Solo
+# cuentan las casillas ya exploradas.
+[ambient]
+wind = "viento"
+water = "agua"
+birds = "pajaros"
+night = "grillos"
+wind_percent = 35
+water_percent = 70
+birds_percent = 60
+night_percent = 45
+# Con un 20 % de la vista de agua, o un 30 % de bosque, ya suenan al máximo.
+water_full_percent = 20
+forest_full_percent = 30
+# Tarda 1,5 s en seguir a la cámara: moverla no da saltos de volumen.
+fade_ms = 1500
+water_terrains = ["agua", "agua_profunda", "vado"]
+forest_terrains = ["bosque"]
+
+# --- Fondo ------------------------------------------------------------------------
+# Bucles (loop_ms) que se repiten sin corte: lo que pasa del final vuelve al principio y
+# las capas sostenidas (sustain) se funden consigo mismas. tremolo_ms y tremolo_percent:
+# el volumen ondula (rachas, cantos que van y vienen; 100 % llega al silencio).
+# jitter_cents: cada golpe con su tono, para que ninguno suene igual.
+
+# Viento: un rumor grave que sube y baja en rachas lentas y un silbido fino que va a su aire.
+[[sound]]
+name = "viento"
+variants = 1
+variant_cents = 0
+cooldown_ms = 0
+loop_ms = 12000
+volume_percent = 100
+layers = [
+  { wave = "ruido", sustain = true, lowpass_hz = 380, volume_percent = 100, tremolo_ms = 6000, tremolo_percent = 70 },
+  { wave = "ruido", sustain = true, lowpass_hz = 1500, highpass_hz = 800, volume_percent = 20, tremolo_ms = 4000, tremolo_percent = 90 },
+]
+
+# Agua: rumor de corriente y un borboteo de gotas cortas que suben de tono.
+[[sound]]
+name = "agua"
+variants = 1
+variant_cents = 0
+cooldown_ms = 0
+loop_ms = 9000
+volume_percent = 100
+layers = [
+  { wave = "ruido", sustain = true, lowpass_hz = 1800, highpass_hz = 250, volume_percent = 45, tremolo_ms = 3000, tremolo_percent = 25 },
+  { wave = "seno", freq_start_hz = 700, freq_end_hz = 1400, attack_ms = 2, decay_ms = 40, volume_percent = 10, repeats = 120, repeat_ms = 75, jitter_cents = 700 },
+]
+
+# Pájaros: un trino de piadas cortas que bajan, agrupadas en frases, y silbos lentos más
+# lejos.
+[[sound]]
+name = "pajaros"
+variants = 1
+variant_cents = 0
+cooldown_ms = 0
+loop_ms = 14000
+volume_percent = 100
+layers = [
+  { wave = "seno", freq_start_hz = 4200, freq_end_hz = 3300, attack_ms = 4, decay_ms = 60, volume_percent = 35, repeats = 110, repeat_ms = 125, jitter_cents = 250, tremolo_ms = 3500, tremolo_percent = 100 },
+  { wave = "seno", freq_start_hz = 2300, freq_end_hz = 3100, delay_ms = 900, attack_ms = 30, decay_ms = 180, volume_percent = 20, repeats = 20, repeat_ms = 700, jitter_cents = 400, vibrato_hz = 18, vibrato_cents = 60 },
+]
+
+# Grillos: pulsos agudos muy seguidos, cortados en grupos (cri-cri), de dos grillos.
+[[sound]]
+name = "grillos"
+variants = 1
+variant_cents = 0
+cooldown_ms = 0
+loop_ms = 10000
+volume_percent = 100
+layers = [
+  { wave = "seno", freq_start_hz = 4600, attack_ms = 1, decay_ms = 12, volume_percent = 26, repeats = 400, repeat_ms = 25, jitter_cents = 30, tremolo_ms = 700, tremolo_percent = 100 },
+  { wave = "seno", freq_start_hz = 4100, delay_ms = 300, attack_ms = 1, decay_ms = 10, volume_percent = 15, repeats = 330, repeat_ms = 30, jitter_cents = 30, tremolo_ms = 900, tremolo_percent = 100 },
+]
+
 # --- Efectos ----------------------------------------------------------------------
 
 # Hierro contra hierro: parciales inarmónicos que se apagan, y el chasquido del golpe.

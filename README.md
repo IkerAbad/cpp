@@ -18,7 +18,7 @@ Todo el código y todos los recursos son originales o de licencia compatible. No
 | M7 | IA más inteligente (varias dificultades por cómo juega, nunca por trampas) | en curso: percepción con niebla, 18 módulos |
 | M8 | Multijugador lockstep | hecho (fase E: sala, charla, 2–4 jugadores, relevo de la IA) |
 | F1 | Arte propio generado por código: figuras animadas, edificios, árboles, fuego y humo | hecho |
-| F2 | Sonido propio sintetizado: efectos de combate, trabajo y avisos; música modal compuesta por código | hecho |
+| F2 | Sonido propio sintetizado: efectos de combate, trabajo y avisos; música modal compuesta por código; fondo de viento, agua, pájaros y grillos | hecho |
 
 El plan completo, con lo que falta y en qué orden, está en [docs/PLAN.md](docs/PLAN.md).
 
@@ -298,6 +298,13 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
   - La forma es A A B A, en frases de cuatro compases que cierran en la tónica.
   - El bordón tiene ciclos enteros por vuelta, así que la pieza se repite sin salto.
   - La música de batalla entra cuando hay combate a la vista y la de paz vuelve tras 15 s sin él, con fundido de 3 s.
+- **Fondo.** Cuatro bucles propios que se repiten sin corte, cada uno con su volumen según lo que se ve:
+  - el viento, siempre: un rumor grave en rachas lentas y un silbido fino que va a su aire;
+  - el agua, con ríos, lagos o vados en pantalla: rumor de corriente y borboteo;
+  - los pájaros, con bosque o árboles a la vista y de día: trinos agrupados en frases y silbos lejanos;
+  - los grillos, de noche.
+  - Solo cuentan las casillas ya exploradas, y el volumen tarda 1,5 s en seguir a la cámara (sin saltos). El canal derecho lee el bucle medio bucle más adelante, lo que da sensación de espacio.
+  - En los bucles, lo que pasa del final vuelve al principio, las capas sostenidas se funden consigo mismas y la ondulación del volumen da un número entero de vueltas: una prueba comprueba que la costura no salta más que el resto del sonido.
 - **Qué suena.** Un director de sonido traduce lo que pasa en sonidos:
   - golpes (filo, golpe sordo, flecha o asedio, según quién golpea) y disparos;
   - bajas y derrumbes;
@@ -312,9 +319,7 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
   - SDL3 sin hilos propios: cada fotograma se mezclan las muestras justas para mantener 60 ms en cola.
   - Sin dispositivo de audio, como en la CI, el juego sigue en silencio.
 - **Oírlo sin jugar.** `rts_sound_wav --data data --out sonidos` escribe cada efecto y cada pieza en WAV.
-- **Límite conocido.**
-  - No hay sonidos de ambiente (viento, pájaros, agua).
-  - El volumen solo se cambia en `sound.toml`; las opciones en pantalla son de F5.
+- **Límite conocido.** No he oído el resultado: el contenedor no tiene salida de sonido. Lo medido es la duración, la costura, que no sature y que el nivel quede por debajo de los efectos (`tests/test_audio.cpp`); `rts_sound_wav` escribe los bucles en WAV para oírlos.
 
 ### Mapas: ríos con vados, de 2 a 4 jugadores y editor de escenarios (F3)
 

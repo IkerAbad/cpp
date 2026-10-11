@@ -27,6 +27,11 @@ struct Layer {
     std::int32_t vibrato_cents = 0;
     std::int32_t repeats = 1;        // golpes repetidos (crepitar, pasos)
     std::int32_t repeat_ms = 0;      // separación media entre golpes
+    std::int32_t jitter_cents = 0;   // cada golpe, el tono movido al azar hasta esto (pájaros, gotas)
+    // Solo en los fondos en bucle (SoundRecipe::loop_ms > 0):
+    bool sustain = false;            // suena todo el bucle a volumen fijo (viento, rumor del agua)
+    std::int32_t tremolo_ms = 0;     // periodo de la ondulación del volumen (0 = sin ella)
+    std::int32_t tremolo_percent = 0;  // cuánto baja el volumen en el valle (100 = hasta el silencio)
 };
 
 struct SoundRecipe {
@@ -36,10 +41,14 @@ struct SoundRecipe {
     std::int32_t variants = 1;          // versiones con el tono algo cambiado (no suena clonado)
     std::int32_t variant_cents = 0;     // separación de tono entre versiones
     std::int32_t cooldown_ms = 0;       // el mismo sonido no se repite antes
+    // > 0: fondo en bucle de esta duración. Se repite sin corte: lo que pasa del final
+    // vuelve al principio y las capas sostenidas se funden consigo mismas.
+    std::int32_t loop_ms = 0;
 };
 
 // Muestras de la receta, con el tono desplazado cents (100 = un semitono). seed varía el
-// ruido y los tiempos de las repeticiones; mismo seed, mismas muestras.
+// ruido y los tiempos de las repeticiones; mismo seed, mismas muestras. Un fondo en bucle
+// da exactamente loop_ms de muestras.
 [[nodiscard]] std::vector<float> render(const SoundRecipe& recipe, std::int32_t sample_rate, std::int32_t cents,
                                         std::uint32_t seed);
 

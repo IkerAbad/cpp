@@ -185,8 +185,9 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
 - [x] **F2. Sonido propio.** Sonidos sintetizados y música de dominio público o con
   licencia CC0. Hecho, todo propio: 15 efectos sintetizados desde `data/sound.toml` y
   dos piezas modales (paz y batalla) compuestas por código, que cambian según haya
-  combate a la vista; posición en pantalla, niebla y esperas deciden qué suena. Falta:
-  ambiente (viento, agua, pájaros) y volumen en pantalla (F5).
+  combate a la vista; posición en pantalla, niebla y esperas deciden qué suena. Después,
+  el fondo: viento, agua, pájaros de día y grillos de noche, en bucles sin costura que
+  siguen a lo que se ve (el volumen en pantalla llegó con F5).
 - [x] **F3. Mapas.** Ríos con vados, mapas para 2–4 jugadores y editor de
   escenarios. Hecho: ríos con vados donde cortan tierra (tipos de mapa «Ríos» y «Gran
   río»), inicios siempre en la misma región de tierra y sendas taladas si el bosque

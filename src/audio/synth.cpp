@@ -106,20 +106,57 @@ float soft_clip(double v) {
     return static_cast<float>(v - kCubic * v * v * v);
 }
 
+// Oscilador de una capa con sus filtros de un polo: lo comparten las notas y los fondos.
+class Oscillator {
+public:
+    Oscillator(const Layer& l, double sample_rate)
+        : layer_(&l),
+          sample_rate_(sample_rate),
+          lp_(l.lowpass_hz > 0 ? one_pole(l.lowpass_hz, sample_rate) : 0.0),
+          hp_(l.highpass_hz > 0 ? one_pole(l.highpass_hz, sample_rate) : 0.0) {}
+
+    // Siguiente muestra a la frecuencia f (Hz), filtrada.
+    double next(double f, Noise& noise) {
+        phase_ += f / sample_rate_;
+        double x = wave_at(layer_->wave, phase_, noise);
+        if (lp_ > 0.0) {
+            low_ += lp_ * (x - low_);
+            x = low_;
+        }
+        if (hp_ > 0.0) {
+            high_ += hp_ * (x - high_);
+            x -= high_;
+        }
+        return x;
+    }
+
+private:
+    const Layer* layer_;
+    double sample_rate_;
+    double lp_;
+    double hp_;
+    double phase_ = 0.0;
+    double low_ = 0.0;
+    double high_ = 0.0;
+};
+
+// Muestras que ocupa una nota de la capa (subida y caída).
+std::size_t burst_length(const Layer& l, double sample_rate) {
+    const double attack = std::max(1.0, l.attack_ms * sample_rate / kMsPerS);
+    const double decay = std::max(1.0, l.decay_ms * sample_rate / kMsPerS);
+    return static_cast<std::size_t>(attack + decay);
+}
+
 // Una nota de una capa en out a partir de start (muestras).
 void render_burst(const Layer& l, double sample_rate, double pitch, std::size_t start, std::vector<double>& out,
                   Noise& noise) {
     const double attack = std::max(1.0, l.attack_ms * sample_rate / kMsPerS);
     const double decay = std::max(1.0, l.decay_ms * sample_rate / kMsPerS);
-    const auto length = static_cast<std::size_t>(attack + decay);
+    const std::size_t length = burst_length(l, sample_rate);
     const double f0 = std::max(1, l.freq_start_hz) * pitch;
     const double f1 = std::max(1, l.freq_end_hz) * pitch;
-    const double lp = l.lowpass_hz > 0 ? one_pole(l.lowpass_hz, sample_rate) : 0.0;
-    const double hp = l.highpass_hz > 0 ? one_pole(l.highpass_hz, sample_rate) : 0.0;
     const double volume = l.volume_percent / kPercent;
-    double phase = 0.0;
-    double low = 0.0;
-    double high_state = 0.0;
+    Oscillator osc(l, sample_rate);
     // Deslizamiento exponencial del tono (como lo oye el oído): un factor por muestra.
     const double glide = std::pow(f1 / f0, 1.0 / static_cast<double>(std::max<std::size_t>(length, 1)));
     double base = f0;
@@ -132,16 +169,7 @@ void render_burst(const Layer& l, double sample_rate, double pitch, std::size_t 
         if (l.vibrato_hz > 0) {
             f *= vibrato_ratio(l.vibrato_cents * sine().at(l.vibrato_hz * static_cast<double>(i) / sample_rate));
         }
-        phase += f / sample_rate;
-        double x = wave_at(l.wave, phase, noise);
-        if (lp > 0.0) {
-            low += lp * (x - low);
-            x = low;
-        }
-        if (hp > 0.0) {
-            high_state += hp * (x - high_state);
-            x -= high_state;
-        }
+        const double x = osc.next(f, noise);
         const double fi = static_cast<double>(i);
         double env = 0.0;
         if (fi < attack) {
@@ -154,9 +182,89 @@ void render_burst(const Layer& l, double sample_rate, double pitch, std::size_t 
     }
 }
 
+// Tono de un golpe: el de la capa, movido al azar hasta jitter_cents si lo pide. Sin
+// jitter no se gasta ningún número del ruido (los sonidos de antes no cambian).
+double burst_pitch(const Layer& l, double pitch, Noise& noise) {
+    return l.jitter_cents > 0 ? pitch * cents_ratio(l.jitter_cents * noise.signed_unit()) : pitch;
+}
+
+// Capa sostenida de un fondo: suena en todo out a volumen fijo, con su vibrato.
+void render_sustain(const Layer& l, double sample_rate, double pitch, std::vector<double>& out, Noise& noise) {
+    const double f = std::max(1, l.freq_start_hz) * pitch;
+    const double volume = l.volume_percent / kPercent;
+    Oscillator osc(l, sample_rate);
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        double fi = f;
+        if (l.vibrato_hz > 0) {
+            fi *= vibrato_ratio(l.vibrato_cents * sine().at(l.vibrato_hz * static_cast<double>(i) / sample_rate));
+        }
+        out[i] += osc.next(fi, noise) * volume;
+    }
+}
+
+// Fundido de las capas sostenidas al cerrar el bucle: lo que sonó tras el final entra
+// por el principio con igual potencia (sin el chasquido de un salto).
+constexpr double kLoopFadeMs = 60.0;
+
+// Fondo en bucle: exactamente loop_ms de muestras que se repiten sin corte.
+std::vector<float> render_loop(const SoundRecipe& recipe, std::int32_t sample_rate, std::int32_t cents,
+                               std::uint32_t seed) {
+    const auto sr = static_cast<double>(sample_rate);
+    const auto n = std::max<std::size_t>(static_cast<std::size_t>(recipe.loop_ms * sr / kMsPerS), 1);
+    const auto fade = std::min(n, static_cast<std::size_t>(kLoopFadeMs * sr / kMsPerS));
+    std::vector<double> mix(n, 0.0);
+    std::vector<double> layer;
+    Noise noise(seed);
+    const double pitch = cents_ratio(cents);
+    for (const Layer& l : recipe.layers) {
+        if (l.sustain) {
+            layer.assign(n + fade, 0.0);
+            render_sustain(l, sr, pitch, layer, noise);
+            for (std::size_t i = 0; i < fade; ++i) {
+                const double t = (static_cast<double>(i) + 0.5) / static_cast<double>(fade);
+                const double in = sine().at(t * 0.25);           // sen(t·π/2)
+                const double out = sine().at(0.25 + t * 0.25);   // cos(t·π/2)
+                layer[i] = layer[i] * in + layer[n + i] * out;
+            }
+        } else {
+            // Golpes repartidos por el bucle; lo que pasa del final vuelve al principio.
+            layer.assign(n + burst_length(l, sr) + 1, 0.0);
+            double at_ms = l.delay_ms;
+            for (std::int32_t r = 0; r < std::max(l.repeats, 1); ++r) {
+                const auto start = static_cast<std::size_t>(at_ms * sr / kMsPerS) % n;
+                render_burst(l, sr, burst_pitch(l, pitch, noise), start, layer, noise);
+                at_ms += l.repeat_ms * (0.6 + 0.8 * noise.unit());
+            }
+            for (std::size_t i = n; i < layer.size(); ++i) {
+                layer[i % n] += layer[i];
+            }
+        }
+        // Ondulación del volumen con un número entero de vueltas por bucle: no hay salto.
+        const bool tremolo = l.tremolo_ms > 0 && l.tremolo_percent > 0;
+        const double turns = tremolo ? std::max(1.0, std::round(static_cast<double>(recipe.loop_ms) / l.tremolo_ms)) : 0.0;
+        const double depth = l.tremolo_percent / kPercent;
+        for (std::size_t i = 0; i < n; ++i) {
+            double gain = 1.0;
+            if (tremolo) {
+                gain = 1.0 - depth * (0.5 - 0.5 * sine().at(turns * static_cast<double>(i) / static_cast<double>(n)));
+            }
+            mix[i] += layer[i] * gain;
+        }
+    }
+    const double volume = recipe.volume_percent / kPercent;
+    std::vector<float> out(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        out[i] = soft_clip(mix[i] * volume);
+    }
+    return out;
+}
+
 }  // namespace
 
 std::vector<float> render(const SoundRecipe& recipe, std::int32_t sample_rate, std::int32_t cents, std::uint32_t seed) {
+    if (recipe.loop_ms > 0) {
+        return render_loop(recipe, sample_rate, cents, seed);
+    }
     const auto sr = static_cast<double>(sample_rate);
     double length_ms = 0.0;
     for (const Layer& l : recipe.layers) {
@@ -169,7 +277,8 @@ std::vector<float> render(const SoundRecipe& recipe, std::int32_t sample_rate, s
     for (const Layer& l : recipe.layers) {
         double at_ms = l.delay_ms;
         for (std::int32_t r = 0; r < std::max(l.repeats, 1); ++r) {
-            render_burst(l, sr, pitch, static_cast<std::size_t>(at_ms * sr / kMsPerS), mix, noise);
+            render_burst(l, sr, burst_pitch(l, pitch, noise), static_cast<std::size_t>(at_ms * sr / kMsPerS), mix,
+                         noise);
             // Separación irregular entre golpes: entre el 60 % y el 140 % de la media.
             at_ms += l.repeat_ms * (0.6 + 0.8 * noise.unit());
         }

@@ -4,6 +4,7 @@
 // suceso del juego usa cada receta y los ajustes de la mezcla.
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "audio/synth.hpp"
@@ -43,6 +44,27 @@ struct EventSounds {
     std::int32_t order = -1;       // orden dada
 };
 
+// Fondo (F2): bucles que suenan según lo que se ve. Recetas con loop_ms (-1 = ninguno).
+enum class AmbientSlot : std::uint8_t { Wind, Water, Birds, Night };
+inline constexpr std::size_t kAmbientCount = 4;
+
+struct AmbientSounds {
+    std::int32_t wind = -1;   // siempre
+    std::int32_t water = -1;  // con agua a la vista
+    std::int32_t birds = -1;  // con bosque a la vista, de día
+    std::int32_t night = -1;  // de noche (grillos)
+    std::int32_t wind_percent = 0;
+    std::int32_t water_percent = 0;
+    std::int32_t birds_percent = 0;
+    std::int32_t night_percent = 0;
+    // Con este % de la vista de agua (o de bosque) ya suena al máximo.
+    std::int32_t water_full_percent = 1;
+    std::int32_t forest_full_percent = 1;
+    std::int32_t fade_ms = 0;  // lo que tarda en seguir a la cámara
+    std::vector<std::string> water_terrains;   // nombres de terreno que cuentan como agua
+    std::vector<std::string> forest_terrains;  // ... y como bosque (además de los árboles)
+};
+
 struct SoundSpec {
     AudioConfig config;
     std::vector<SoundRecipe> recipes;
@@ -50,6 +72,7 @@ struct SoundSpec {
     std::int32_t peace_music = -1;   // índice en music
     std::int32_t battle_music = -1;
     EventSounds events;
+    AmbientSounds ambient;
 };
 
 }  // namespace rts::audio

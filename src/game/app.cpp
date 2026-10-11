@@ -396,6 +396,14 @@ struct AudioSystem {
         constexpr std::int32_t kMsPerS = 1000;
         mixer.set_music(bank.piece(piece), spec->config.sample_rate / kMsPerS * spec->config.fade_ms);
     }
+    // Fondo (F2): el volumen de cada bucle (viento, agua, pájaros, noche); ceros lo callan.
+    void ambient(const std::array<float, audio::kAmbientCount>& volume) {
+        const audio::AmbientSounds& a = spec->ambient;
+        const std::array<std::int32_t, audio::kAmbientCount> recipes{a.wind, a.water, a.birds, a.night};
+        for (std::size_t i = 0; i < recipes.size(); ++i) {
+            mixer.set_ambient(i, bank.sound(recipes[i]), volume[i]);
+        }
+    }
 };
 
 // Registro de la charla y línea para escribir (sala y partida en red).
@@ -726,6 +734,44 @@ private:
             audio_->bank.play(audio_->mixer, c);
         }
         audio_->music(sounds_->music(now_ms()));
+        sounds_->on_view(ambient_view(screen), now_ms());
+        audio_->ambient(sounds_->ambient());
+    }
+
+    // Lo que se ve, para el fondo: casillas exploradas en pantalla, cuántas son agua o
+    // bosque, y los árboles a la vista (un soto en la pradera también trae pájaros).
+    [[nodiscard]] AmbientView ambient_view(render::Vec2 screen) const {
+        AmbientView view;
+        view.daylight_percent = curr_.daylight_percent;
+        if (!curr_.map) {
+            return view;
+        }
+        const sim::TileMap& map = *curr_.map;
+        render::for_each_visible_tile(proj_, camera_, screen, map.width(), map.height(),
+                                      [&](std::int32_t x, std::int32_t y) {
+                                          const sim::TileCoord t{x, y};
+                                          if (!tile_explored(t)) {
+                                              return;
+                                          }
+                                          ++view.tiles;
+                                          view.water += sounds_->water_terrain(map.terrain(t)) ? 1 : 0;
+                                          view.forest += sounds_->forest_terrain(map.terrain(t)) ? 1 : 0;
+                                      });
+        for (const render::SceneObject& o : objects_) {
+            if (o.art != render::SceneObject::Art::Node || o.art_type < 0 ||
+                static_cast<std::size_t>(o.art_type) >= data_.art.nodes.size() ||
+                data_.art.nodes[static_cast<std::size_t>(o.art_type)].shape != render::NodeShape::Tree ||
+                sounds_->forest_terrain(map.terrain(o.origin)) || !tile_explored(o.origin)) {
+                continue;
+            }
+            const render::Vec2 at = camera_.world_to_screen(proj_.tile_to_world(
+                {static_cast<float>(o.origin.x) + 0.5f, static_cast<float>(o.origin.y) + 0.5f}));
+            if (at.x >= 0.0f && at.y >= 0.0f && at.x <= screen.x && at.y <= screen.y) {
+                ++view.forest;
+            }
+        }
+        view.forest = std::min(view.forest, view.tiles);
+        return view;
     }
 
     void issue(sim::Command c) {
@@ -3199,9 +3245,11 @@ struct Display {
     std::unique_ptr<render::Renderer> renderer;
     std::unique_ptr<AudioSystem> audio;  // null: sin sonido (sin dispositivo o sin datos)
 
+    // Fuera de la partida (menús): su música y sin fondo.
     void pump_audio(std::int32_t piece) {
         if (audio) {
             audio->music(piece);
+            audio->ambient({});
             audio->pump();
         }
     }

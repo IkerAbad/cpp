@@ -53,4 +53,12 @@ std::int32_t Bank::piece(std::int32_t index) const noexcept {
                                                                            : -1;
 }
 
+std::int32_t Bank::sound(std::int32_t recipe) const noexcept {
+    if (recipe < 0 || static_cast<std::size_t>(recipe) >= variants_.size() ||
+        variants_[static_cast<std::size_t>(recipe)].empty()) {
+        return -1;
+    }
+    return variants_[static_cast<std::size_t>(recipe)].front();
+}
+
 }  // namespace rts::audio

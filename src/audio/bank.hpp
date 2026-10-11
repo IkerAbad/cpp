@@ -30,6 +30,9 @@ public:
     void play(Mixer& mixer, const SoundCue& cue);
     // Número en el mezclador de la pieza (índice en SoundSpec::music); -1 si no existe.
     [[nodiscard]] std::int32_t piece(std::int32_t index) const noexcept;
+    // Número en el mezclador de la receta (su primera versión; los fondos en bucle tienen
+    // una); -1 si no existe.
+    [[nodiscard]] std::int32_t sound(std::int32_t recipe) const noexcept;
 
 private:
     std::vector<std::vector<std::int32_t>> variants_;  // por receta: números en el mezclador

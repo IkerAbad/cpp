@@ -9,6 +9,17 @@ namespace {
 constexpr float kPercentF = 100.0f;
 }  // namespace
 
+SoundDirector::SoundDirector(const audio::SoundSpec& spec, const GameData& data) : spec_(&spec), data_(&data) {
+    last_played_.assign(spec.recipes.size(), -1.0e9);
+    const auto& types = data.terrain.types;
+    water_.assign(types.size(), 0);
+    forest_.assign(types.size(), 0);
+    for (std::size_t t = 0; t < types.size(); ++t) {
+        water_[t] = std::ranges::find(spec.ambient.water_terrains, types[t].name) != spec.ambient.water_terrains.end();
+        forest_[t] = std::ranges::find(spec.ambient.forest_terrains, types[t].name) != spec.ambient.forest_terrains.end();
+    }
+}
+
 void SoundDirector::cue(std::int32_t recipe, float volume, float pan, double now_ms) {
     if (recipe < 0 || volume <= 0.0f) {
         return;
@@ -160,6 +171,41 @@ std::vector<audio::SoundCue> SoundDirector::take() {
     std::vector<audio::SoundCue> out;
     out.swap(cues_);
     return out;
+}
+
+void SoundDirector::on_view(const AmbientView& view, double now_ms) {
+    const audio::AmbientSounds& a = spec_->ambient;
+    // Parte de lo que se ve que es agua o bosque; con *_full_percent ya es el máximo.
+    const auto share = [&](std::int32_t n, std::int32_t full_percent) {
+        if (view.tiles <= 0) {
+            return 0.0f;
+        }
+        const float part = static_cast<float>(n) * kPercentF / static_cast<float>(view.tiles);
+        return std::min(1.0f, part / static_cast<float>(std::max(full_percent, 1)));
+    };
+    // Luz: 1 de día, 0 de noche cerrada (la vista nocturna marca el fondo de la escala).
+    const std::int32_t night = data_->engine.world.vision.night_sight_percent;
+    const float day = night >= static_cast<std::int32_t>(kPercentF)
+                          ? 1.0f
+                          : std::clamp(static_cast<float>(view.daylight_percent - night) /
+                                           (kPercentF - static_cast<float>(night)),
+                                       0.0f, 1.0f);
+    std::array<float, audio::kAmbientCount> target{};
+    target[static_cast<std::size_t>(audio::AmbientSlot::Wind)] = static_cast<float>(a.wind_percent) / kPercentF;
+    target[static_cast<std::size_t>(audio::AmbientSlot::Water)] =
+        static_cast<float>(a.water_percent) / kPercentF * share(view.water, a.water_full_percent);
+    target[static_cast<std::size_t>(audio::AmbientSlot::Birds)] =
+        static_cast<float>(a.birds_percent) / kPercentF * share(view.forest, a.forest_full_percent) * day;
+    target[static_cast<std::size_t>(audio::AmbientSlot::Night)] = static_cast<float>(a.night_percent) / kPercentF * (1.0f - day);
+    // Se acerca al objetivo en fade_ms: mover la cámara no da saltos de volumen.
+    float k = 1.0f;
+    if (a.fade_ms > 0 && last_view_ms_ >= 0.0) {
+        k = std::clamp(static_cast<float>(now_ms - last_view_ms_) / static_cast<float>(a.fade_ms), 0.0f, 1.0f);
+    }
+    last_view_ms_ = now_ms;
+    for (std::size_t i = 0; i < ambient_.size(); ++i) {
+        ambient_[i] += (target[i] - ambient_[i]) * k;
+    }
 }
 
 std::int32_t SoundDirector::music(double now_ms) const noexcept {

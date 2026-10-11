@@ -39,6 +39,20 @@ void Mixer::set_music(std::int32_t sound, std::int32_t fade_frames) {
     fade_left_ = fade_total_;
 }
 
+void Mixer::set_ambient(std::size_t slot, std::int32_t sound, float volume) {
+    if (slot >= ambient_.size()) {
+        return;
+    }
+    AmbientTrack& t = ambient_[slot];
+    if (sound < 0 || static_cast<std::size_t>(sound) >= sounds_.size()) {
+        sound = -1;
+    }
+    if (t.sound != sound) {
+        t = {sound, 0, 0.0f, 0.0f};  // otro bucle: entra desde el silencio
+    }
+    t.target = std::clamp(volume, 0.0f, 1.0f);
+}
+
 void Mixer::mix(std::span<float> out) {
     std::ranges::fill(out, 0.0f);
     const std::size_t frames = out.size() / 2;
@@ -79,6 +93,25 @@ void Mixer::mix(std::span<float> out) {
         if (gone > 0.0f) {
             add_track(fading_, i, music_gain_ * gone);
         }
+    }
+    for (AmbientTrack& t : ambient_) {
+        if (t.sound < 0 || (t.volume <= 0.0f && t.target <= 0.0f)) {
+            t.volume = t.target;
+            continue;
+        }
+        const std::vector<float>& s = sounds_[static_cast<std::size_t>(t.sound)];
+        if (s.empty()) {
+            continue;
+        }
+        const std::size_t half = s.size() / 2;
+        const float step = frames > 0 ? (t.target - t.volume) / static_cast<float>(frames) : 0.0f;
+        for (std::size_t i = 0; i < frames; ++i) {
+            const float g = (t.volume + step * static_cast<float>(i + 1)) * effects_;
+            out[i * 2] += s[t.pos] * g;
+            out[i * 2 + 1] += s[(t.pos + half) % s.size()] * g;
+            t.pos = (t.pos + 1) % s.size();
+        }
+        t.volume = t.target;
     }
     for (float& x : out) {
         x = std::clamp(x * master_, -1.0f, 1.0f);

@@ -275,4 +275,192 @@ TEST_CASE("Datos de sonido: errores claros en sound.toml") {
     const auto bad_mode = replaced("mode = [0, 2, 3, 5, 7, 9, 10]", "mode = [2, 3, 5]");
     REQUIRE_FALSE(bad_mode.has_value());
     CHECK(bad_mode.error().find("mode") != std::string::npos);
+    // Fondo: solo recetas en bucle, y sostener u ondular solo en ellas.
+    const auto not_loop = replaced("wind = \"viento\"", "wind = \"espada\"");
+    REQUIRE_FALSE(not_loop.has_value());
+    CHECK(not_loop.error().find("loop_ms") != std::string::npos);
+    const auto sustain_once = replaced("name = \"espada\"", "name = \"espada\"\nloop_ms = 0");
+    REQUIRE(sustain_once.has_value());  // loop_ms = 0 es un sonido normal
+    const auto bad_sustain = replaced("{ wave = \"seno\", freq_start_hz = 2400", "{ wave = \"seno\", sustain = true, freq_start_hz = 2400");
+    REQUIRE_FALSE(bad_sustain.has_value());
+    CHECK(bad_sustain.error().find("bucle") != std::string::npos);
+}
+
+namespace {
+
+double rms(const std::vector<float>& s, std::size_t from = 0, std::size_t to = 0) {
+    to = to == 0 ? s.size() : to;
+    double e = 0.0;
+    for (std::size_t i = from; i < to; ++i) {
+        e += static_cast<double>(s[i]) * static_cast<double>(s[i]);
+    }
+    return to > from ? std::sqrt(e / static_cast<double>(to - from)) : 0.0;
+}
+
+// Mayor salto entre dos muestras seguidas dentro del bucle (sin contar la costura).
+float max_step(const std::vector<float>& s) {
+    float m = 0.0f;
+    for (std::size_t i = 1; i < s.size(); ++i) {
+        m = std::max(m, std::abs(s[i] - s[i - 1]));
+    }
+    return m;
+}
+
+}  // namespace
+
+TEST_CASE("Fondo: un bucle dura lo que dice y se cierra sin salto") {
+    // Un seno sostenido de 437,5 Hz no cabe un número entero de veces en 1 s: sin el
+    // fundido, la costura daría un chasquido.
+    SoundRecipe r;
+    r.name = "zumbido";
+    r.loop_ms = 1000;
+    Layer l;
+    l.wave = Wave::Sine;
+    l.freq_start_hz = 437;
+    l.freq_end_hz = 437;
+    l.sustain = true;
+    l.volume_percent = 50;
+    r.layers.push_back(l);
+    const auto a = rts::audio::render(r, kRate, 50, 3);
+    REQUIRE(a.size() == static_cast<std::size_t>(kRate));
+    const float seam = std::abs(a.front() - a.back());
+    CHECK(seam <= max_step(a) * 1.5f);
+    CHECK(rms(a) > 0.2);  // suena todo el bucle, no solo al principio
+    CHECK(rms(a, a.size() - kRate / 10) > 0.2);
+    CHECK(a == rts::audio::render(r, kRate, 50, 3));
+}
+
+TEST_CASE("Fondo: los golpes que pasan del final suenan al principio; la ondulación llega al silencio") {
+    SoundRecipe r;
+    r.name = "gota";
+    r.loop_ms = 1000;
+    Layer l;
+    l.wave = Wave::Sine;
+    l.freq_start_hz = 900;
+    l.freq_end_hz = 900;
+    l.delay_ms = 950;  // empieza a 50 ms del final y dura 201 ms
+    l.attack_ms = 1;
+    l.decay_ms = 200;
+    l.volume_percent = 60;
+    r.layers.push_back(l);
+    const auto a = rts::audio::render(r, kRate, 0, 1);
+    REQUIRE(a.size() == static_cast<std::size_t>(kRate));
+    CHECK(rms(a, 0, kRate / 20) > 0.01);           // la cola, al principio
+    CHECK(rms(a, kRate / 2, kRate / 2 + kRate / 10) < 1e-6);  // en medio, nada
+
+    SoundRecipe w;
+    w.name = "rafagas";
+    w.loop_ms = 2000;
+    Layer n;
+    n.wave = Wave::Noise;
+    n.sustain = true;
+    n.volume_percent = 50;
+    n.tremolo_ms = 1000;
+    n.tremolo_percent = 100;
+    w.layers.push_back(n);
+    const auto b = rts::audio::render(w, kRate, 0, 1);
+    // Dos vueltas por bucle (un seno): crestas en 1/8 y 5/8, valles en 3/8 y 7/8.
+    const std::size_t e = b.size() / 8;
+    const std::size_t win = b.size() / 200;
+    CHECK(rms(b, e - win, e + win) > 10.0 * rms(b, 3 * e - win, 3 * e + win));
+    CHECK(rms(b, 5 * e - win, 5 * e + win) > 10.0 * rms(b, 7 * e - win, 7 * e + win));
+}
+
+TEST_CASE("Fondo: cada golpe con su tono si lo pide (jitter), sin tocar lo que no lo pide") {
+    auto plain = tone(Wave::Sine, 1000, 30);
+    plain.layers[0].repeats = 8;
+    plain.layers[0].repeat_ms = 50;
+    auto jittered = plain;
+    jittered.layers[0].jitter_cents = 600;
+    CHECK(rts::audio::render(plain, kRate, 0, 5) != rts::audio::render(jittered, kRate, 0, 5));
+    // Sin jitter, los tiempos de los golpes no cambian: el mismo sonido que antes.
+    CHECK(rts::audio::render(plain, kRate, 0, 5) == rts::audio::render(plain, kRate, 0, 5));
+}
+
+TEST_CASE("Fondo: los bucles de los datos duran lo suyo, se cierran sin salto y no saturan") {
+    const auto& d = game_data();
+    const auto& a = d.sound.ambient;
+    for (const std::int32_t i : {a.wind, a.water, a.birds, a.night}) {
+        REQUIRE(i >= 0);
+        const auto& rec = d.sound.recipes[static_cast<std::size_t>(i)];
+        CAPTURE(rec.name);
+        REQUIRE(rec.loop_ms > 0);
+        const auto s = rts::audio::render(rec, kRate, 0, 11);
+        CHECK(s.size() == static_cast<std::size_t>(static_cast<std::int64_t>(rec.loop_ms) * kRate / 1000));
+        CHECK(std::ranges::all_of(s, [](float x) { return std::isfinite(x) && x >= -1.0f && x <= 1.0f; }));
+        CHECK(std::abs(s.front() - s.back()) <= max_step(s));
+        // Un fondo: se oye, pero por debajo de los efectos (nunca pegado al techo).
+        const double level = rms(s);
+        MESSAGE(rec.name, ": nivel ", level);
+        CHECK(level > 0.005);
+        CHECK(level < 0.3);
+        CHECK(std::ranges::count_if(s, [](float x) { return std::abs(x) > 0.99f; }) == 0);
+    }
+}
+
+TEST_CASE("Mezclador: los fondos entran sin salto, suenan con los efectos y se callan") {
+    Mixer mixer(4);
+    mixer.set_gains(1.0f, 0.5f, 1.0f);
+    std::vector<float> loop(1000, 0.0f);
+    for (std::size_t i = 0; i < loop.size(); ++i) {
+        loop[i] = i < 500 ? 0.4f : 0.2f;  // la derecha lee medio bucle más adelante
+    }
+    const auto id = mixer.add(loop);
+    mixer.set_ambient(0, id, 1.0f);
+    std::vector<float> out(200);  // 100 tramas
+    mixer.mix(out);
+    // Rampa desde el silencio hasta el volumen pedido, por los efectos (0,5).
+    CHECK(out[0] < 0.01f);
+    CHECK(out[198] == doctest::Approx(0.4 * 0.5).epsilon(0.02));
+    CHECK(out[199] == doctest::Approx(0.2 * 0.5).epsilon(0.02));
+    mixer.mix(out);
+    CHECK(out[0] == doctest::Approx(0.2).epsilon(0.02));  // ya a su volumen
+    mixer.set_ambient(0, id, 0.0f);
+    mixer.mix(out);
+    CHECK(std::abs(out[198]) < 0.01f);
+    mixer.mix(out);
+    CHECK(std::ranges::all_of(out, [](float x) { return x == 0.0f; }));
+    // Un hueco fuera de rango o un sonido que no existe no hacen nada.
+    mixer.set_ambient(99, id, 1.0f);
+    mixer.set_ambient(1, 12345, 1.0f);
+    mixer.mix(out);
+    CHECK(std::ranges::all_of(out, [](float x) { return x == 0.0f; }));
+}
+
+TEST_CASE("Director de sonido: el fondo sigue a lo que se ve y a la luz, sin saltos") {
+    const auto& d = game_data();
+    rts::game::SoundDirector dir(d.sound, d);
+    const auto& a = d.sound.ambient;
+    const auto slot = [&](rts::audio::AmbientSlot s) { return dir.ambient()[static_cast<std::size_t>(s)]; };
+    using rts::audio::AmbientSlot;
+    // Agua y bosque, de día: viento, agua y pájaros; nada de grillos.
+    rts::game::AmbientView day{100, 40, 50, 100};
+    dir.on_view(day, 0.0);  // la primera vista se toma tal cual
+    CHECK(slot(AmbientSlot::Wind) == doctest::Approx(a.wind_percent / 100.0));
+    CHECK(slot(AmbientSlot::Water) == doctest::Approx(a.water_percent / 100.0));
+    CHECK(slot(AmbientSlot::Birds) == doctest::Approx(a.birds_percent / 100.0));
+    CHECK(slot(AmbientSlot::Night) == doctest::Approx(0.0));
+    // La cámara se va a un campo sin agua ni bosque: a mitad de fade_ms, a medio camino.
+    rts::game::AmbientView field{100, 0, 0, 100};
+    dir.on_view(field, a.fade_ms / 2.0);
+    CHECK(slot(AmbientSlot::Water) == doctest::Approx(a.water_percent / 200.0).epsilon(0.01));
+    dir.on_view(field, a.fade_ms * 2.0);
+    CHECK(slot(AmbientSlot::Water) == doctest::Approx(0.0));
+    CHECK(slot(AmbientSlot::Birds) == doctest::Approx(0.0));
+    // Noche cerrada sobre el bosque: grillos y no pájaros.
+    rts::game::AmbientView night{100, 0, 50, d.engine.world.vision.night_sight_percent};
+    dir.on_view(night, a.fade_ms * 10.0);
+    CHECK(slot(AmbientSlot::Birds) == doctest::Approx(0.0));
+    CHECK(slot(AmbientSlot::Night) == doctest::Approx(a.night_percent / 100.0));
+    // Sin nada explorado a la vista, solo el viento.
+    dir.on_view({0, 0, 0, 100}, a.fade_ms * 20.0);
+    CHECK(slot(AmbientSlot::Water) == doctest::Approx(0.0));
+    CHECK(slot(AmbientSlot::Wind) == doctest::Approx(a.wind_percent / 100.0));
+    // Terrenos del fondo, por nombre en los datos.
+    for (std::size_t t = 0; t < d.terrain.types.size(); ++t) {
+        const auto& name = d.terrain.types[t].name;
+        CHECK(dir.water_terrain(static_cast<rts::sim::TerrainId>(t)) ==
+              (name == "agua" || name == "agua_profunda" || name == "vado"));
+        CHECK(dir.forest_terrain(static_cast<rts::sim::TerrainId>(t)) == (name == "bosque"));
+    }
 }

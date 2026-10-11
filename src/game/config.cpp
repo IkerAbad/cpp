@@ -956,6 +956,7 @@ std::expected<audio::SoundSpec, std::string> parse_sound_spec(std::string_view t
     constexpr std::int64_t kMaxHz = 20'000;
     constexpr std::int64_t kMaxVoices = 256;
     constexpr std::int64_t kMaxRepeats = 64;
+    constexpr std::int64_t kMaxLoopRepeats = 1024;  // golpes en un fondo en bucle (gotas, pájaros)
     constexpr std::int64_t kMaxCents = 2400;
     constexpr std::int64_t kMaxBars = 256;
     constexpr std::int64_t kMaxBeats = 8;
@@ -984,6 +985,8 @@ std::expected<audio::SoundSpec, std::string> parse_sound_spec(std::string_view t
         rec.variants = sr.get_i32("variants", 1, kMaxRepeats);
         rec.variant_cents = sr.get_i32("variant_cents", 0, kMaxCents);
         rec.cooldown_ms = sr.get_i32("cooldown_ms", 0, kMaxMs);
+        rec.loop_ms = sr.get_i32_or("loop_ms", 0, 0, kMaxMs);
+        const bool loop = rec.loop_ms > 0;
         for_each_table(sr.get_table_array("layers"), source_name, sr.full("layers"), error, [&](Reader& lr, std::size_t) {
             audio::Layer l;
             l.wave = pick(lr, "wave", kWaves);
@@ -991,14 +994,22 @@ std::expected<audio::SoundSpec, std::string> parse_sound_spec(std::string_view t
             l.freq_end_hz = lr.get_i32_or("freq_end_hz", l.freq_start_hz, 0, kMaxHz);
             l.delay_ms = lr.get_i32_or("delay_ms", 0, 0, kMaxMs);
             l.attack_ms = lr.get_i32_or("attack_ms", 0, 0, kMaxMs);
-            l.decay_ms = lr.get_i32("decay_ms", 1, kMaxMs);
+            // Una capa sostenida no cae: decay_ms no hace falta.
+            l.sustain = lr.get_bool_or("sustain", false);
+            l.decay_ms = l.sustain ? lr.get_i32_or("decay_ms", 1, 1, kMaxMs) : lr.get_i32("decay_ms", 1, kMaxMs);
             l.volume_percent = lr.get_i32("volume_percent", 0, 200);
             l.lowpass_hz = lr.get_i32_or("lowpass_hz", 0, 0, kMaxHz);
             l.highpass_hz = lr.get_i32_or("highpass_hz", 0, 0, kMaxHz);
             l.vibrato_hz = lr.get_i32_or("vibrato_hz", 0, 0, 100);
             l.vibrato_cents = lr.get_i32_or("vibrato_cents", 0, 0, kMaxCents);
-            l.repeats = lr.get_i32_or("repeats", 1, 1, kMaxRepeats);
+            l.repeats = lr.get_i32_or("repeats", 1, 1, loop ? kMaxLoopRepeats : kMaxRepeats);
             l.repeat_ms = lr.get_i32_or("repeat_ms", 0, 0, kMaxMs);
+            l.jitter_cents = lr.get_i32_or("jitter_cents", 0, 0, kMaxCents);
+            l.tremolo_ms = lr.get_i32_or("tremolo_ms", 0, 0, kMaxMs);
+            l.tremolo_percent = lr.get_i32_or("tremolo_percent", 0, 0, 100);
+            if (!loop && (l.sustain || l.tremolo_ms > 0) && !lr.failed()) {
+                lr.fail(std::format("'{}': sustain y tremolo solo valen en un fondo en bucle (loop_ms)", lr.full("wave")));
+            }
             if (l.wave != audio::Wave::Noise && l.freq_start_hz == 0 && !lr.failed()) {
                 lr.fail(std::format("'{}': un oscilador que no es ruido necesita freq_start_hz", lr.full("wave")));
             }
@@ -1081,6 +1092,30 @@ std::expected<audio::SoundSpec, std::string> parse_sound_spec(std::string_view t
     };
     spec.peace_music = piece_index("music.peace");
     spec.battle_music = piece_index("music.battle");
+    // Fondo (opcional): cada uno, una receta en bucle.
+    if (r.table().contains("ambient")) {
+        audio::AmbientSounds& a = spec.ambient;
+        const auto loop_index = [&](std::string_view path) {
+            const std::int32_t i = recipe_index(path);
+            if (i >= 0 && spec.recipes[static_cast<std::size_t>(i)].loop_ms <= 0 && !r.failed()) {
+                r.fail(std::format("'{}': el fondo necesita un [[sound]] en bucle (loop_ms)", r.full(path)));
+            }
+            return i;
+        };
+        a.wind = loop_index("ambient.wind");
+        a.water = loop_index("ambient.water");
+        a.birds = loop_index("ambient.birds");
+        a.night = loop_index("ambient.night");
+        a.wind_percent = r.get_i32("ambient.wind_percent", 0, 100);
+        a.water_percent = r.get_i32("ambient.water_percent", 0, 100);
+        a.birds_percent = r.get_i32("ambient.birds_percent", 0, 100);
+        a.night_percent = r.get_i32("ambient.night_percent", 0, 100);
+        a.water_full_percent = r.get_i32("ambient.water_full_percent", 1, 100);
+        a.forest_full_percent = r.get_i32("ambient.forest_full_percent", 1, 100);
+        a.fade_ms = r.get_i32("ambient.fade_ms", 0, kMaxMs);
+        a.water_terrains = r.get_string_list("ambient.water_terrains");
+        a.forest_terrains = r.get_string_list("ambient.forest_terrains");
+    }
     if (error) {
         return std::unexpected(*error);
     }
@@ -1905,6 +1940,13 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         auto spec = parse_sound_spec(snd->text, snd->path);
         if (!spec) {
             return std::unexpected(spec.error());
+        }
+        for (const auto* names : {&spec->ambient.water_terrains, &spec->ambient.forest_terrains}) {
+            for (const std::string& n : *names) {
+                if (std::ranges::none_of(data.terrain.types, [&](const TerrainInfo& t) { return t.name == n; })) {
+                    return std::unexpected(std::format("{}: [ambient]: no hay ningún terreno \"{}\"", snd->path, n));
+                }
+            }
         }
         data.sound = std::move(*spec);
     }
