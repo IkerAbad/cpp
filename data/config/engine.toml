@@ -487,6 +487,8 @@ surgeon = "cirujano"
 tower = "torre_madera"
 # Herrería (módulo herreria).
 forge = "herreria"
+# Mercado (módulo mercado).
+market = "mercado"
 dropoff = { comida = "molino", madera = "aserradero", piedra = "campamento_minero", oro = "campamento_minero", hierro = "campamento_minero" }
 
 # Perfiles: cada jugador de la IA elige uno con ai_profile en [[player]]. La
@@ -561,6 +563,10 @@ tower_offset_tiles = 0
 retreat_morale = 0
 formation_engage_tiles = 0
 forge_at_villagers = 0
+market_at_villagers = 0
+market_keep_gold = 0
+market_sell_above = 0
+market_max_price = 0
 defend_forced_march = false
 think_every = 1
 siege_front_tiles = 0
@@ -660,6 +666,10 @@ tower_offset_tiles = 10
 retreat_morale = 400
 formation_engage_tiles = 8
 forge_at_villagers = 18
+market_at_villagers = 0
+market_keep_gold = 0
+market_sell_above = 0
+market_max_price = 0
 # Volver a defender a paso forzado: medido en el torneo, la tropa llega agotada (cansa
 # el triple) y pierde más de lo que gana llegando antes. Desactivado.
 defend_forced_march = false
@@ -750,6 +760,10 @@ tower_offset_tiles = 10
 retreat_morale = 400
 formation_engage_tiles = 8
 forge_at_villagers = 18
+market_at_villagers = 0
+market_keep_gold = 0
+market_sell_above = 0
+market_max_price = 0
 # Volver a defender a paso forzado: medido en el torneo, la tropa llega agotada (cansa
 # el triple) y pierde más de lo que gana llegando antes. Desactivado.
 defend_forced_march = false
@@ -842,6 +856,10 @@ tower_offset_tiles = 10
 retreat_morale = 400
 formation_engage_tiles = 8
 forge_at_villagers = 18
+market_at_villagers = 0
+market_keep_gold = 0
+market_sell_above = 0
+market_max_price = 0
 # Volver a defender a paso forzado: medido en el torneo, la tropa llega agotada (cansa
 # el triple) y pierde más de lo que gana llegando antes. Desactivado.
 defend_forced_march = false

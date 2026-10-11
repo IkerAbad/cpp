@@ -479,7 +479,7 @@ void World::step() {
     // de los jugadores humanos y siguen el mismo camino (se validan igual).
     ai_orders_.clear();
     vision_.update(registry_, tick_);
-    ai_.think(registry_, economy_, movement_.grid(), tick_, ai_orders_, &vision_);
+    ai_.think(registry_, economy_, movement_.grid(), tick_, ai_orders_, &vision_, &market_);
     for (Command& c : ai_orders_) {
         pending_.push_back(std::move(c));
     }

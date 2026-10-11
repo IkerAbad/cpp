@@ -43,6 +43,7 @@ constexpr std::array<std::string_view, static_cast<std::size_t>(sim::AiBehavior:
     "recoleccion", "ejercito", "ataque", "ejercito_contra", "ataque_fuerza", "concentrar",
     "taller",      "apagar",   "incendiar",     "abastecer",     "logistica",     "explorar",
     "asalto",      "sanidad",  "emboscada",     "torres",        "tactica",       "herreria",
+    "mercado",
 };
 
 constexpr std::array<std::string_view, sim::kResourceCount> kResourceKeys{"comida", "madera", "piedra", "oro", "hierro"};
@@ -1542,6 +1543,12 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
             r.fail(std::format("'ai.forge' = \"{}\": no está en buildings.toml", forge));
         }
     }
+    if (const std::string market = r.get_string("ai.market"); !error && !market.empty()) {
+        ai.market = catalogs.buildings.find(market);
+        if (!ai.market || !catalogs.buildings.types[*ai.market].type.market) {
+            r.fail(std::format("'ai.market' = \"{}\": no es un mercado de buildings.toml", market));
+        }
+    }
     if (const std::string tower = r.get_string("ai.tower"); !error && !tower.empty()) {
         ai.tower = catalogs.buildings.find(tower);
         if (!ai.tower || catalogs.buildings.types[*ai.tower].type.garrison <= 0) {
@@ -1648,6 +1655,10 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
         p.retreat_morale = pr.get_i32("retreat_morale", 0, sim::kFullMorale);
         p.formation_engage_tiles = pr.get_i32("formation_engage_tiles", 0, 64);
         p.forge_at_villagers = pr.get_i32("forge_at_villagers", 0, 1000);
+        p.market_at_villagers = pr.get_i32("market_at_villagers", 0, 1000);
+        p.market_keep_gold = pr.get_i32("market_keep_gold", 0, 100'000);
+        p.market_sell_above = pr.get_i32("market_sell_above", 0, 100'000);
+        p.market_max_price = pr.get_i32("market_max_price", 0, 100'000);
         p.defend_forced_march = pr.get_bool("defend_forced_march");
         p.think_every = pr.get_i32("think_every", 1, 100);
         p.resupply_percent = pr.get_i32("resupply_percent", 0, 100);

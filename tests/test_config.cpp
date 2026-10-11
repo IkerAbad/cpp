@@ -468,6 +468,7 @@ medical_post = ""
 surgeon = ""
 tower = ""
 forge = ""
+market = ""
 dropoff = { comida = "fuerte", madera = "fuerte", piedra = "fuerte", oro = "fuerte", hierro = "fuerte" }
 
 [[ai.profile]]
@@ -522,6 +523,10 @@ tower_offset_tiles = 0
 retreat_morale = 0
 formation_engage_tiles = 0
 forge_at_villagers = 0
+market_at_villagers = 0
+market_keep_gold = 0
+market_sell_above = 0
+market_max_price = 0
 defend_forced_march = false
 think_every = 1
 siege_front_tiles = 0

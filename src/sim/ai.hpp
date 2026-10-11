@@ -21,6 +21,8 @@
 
 namespace rts::sim {
 
+class MarketSystem;
+
 class StateHasher;
 
 // Módulos de comportamiento. Un perfil de IA es la lista ordenada de los que usa: la
@@ -53,6 +55,7 @@ enum class AiBehavior : std::uint8_t {
     Towers,          // torres hacia el enemigo; si atacan la base, se guarnecen
     Tactics,         // formaciones según la situación y paso forzado para volver a defender
     Forge,           // herrería y mejoras para su ejército
+    Market,          // mercado: vende lo que sobra y compra lo que falta con el oro parado
     Count,
 };
 
@@ -124,6 +127,14 @@ struct AiProfile {
     std::int32_t retreat_morale = 0;
     std::int32_t formation_engage_tiles = 0;
     std::int32_t forge_at_villagers = 0;
+    // Mercado (C3): lo levanta con market_at_villagers aldeanos (0 = nunca). Vende un lote
+    // de lo que pase de market_sell_above (0 = nunca vende) y, con el oro que pase de
+    // market_keep_gold, compra lo que menos tiene según su reparto, si el lote no cuesta
+    // más de market_max_price. Lo ahorrado no se convierte en nada; cambiado, sí.
+    std::int32_t market_at_villagers = 0;
+    std::int32_t market_keep_gold = 0;
+    std::int32_t market_sell_above = 0;
+    std::int32_t market_max_price = 0;
     bool defend_forced_march = false;  // vuelve a paso forzado si atacan la base
     // Niveles (D4): decide solo una de cada think_every veces que le toca (tiempo de
     // reacción; 1 = siempre). Pensar más despacio no es hacer trampas al revés.
@@ -177,6 +188,7 @@ struct AiParams {
     std::optional<UnitTypeId> surgeon;           // módulo sanidad
     std::optional<BuildingTypeId> tower;         // módulo torres
     std::optional<BuildingTypeId> forge;         // módulo herreria
+    std::optional<BuildingTypeId> market;        // módulo mercado
     ArmorClassId cavalry_class = 0;              // módulo tactica (de [formation])
     std::vector<AiProfile> profiles;
 };
@@ -209,8 +221,9 @@ public:
     // Decide para los jugadores a los que les toca este tick y añade sus órdenes a out
     // (se aplican en este mismo tick, después de las del jugador humano).
     // vision: niebla de guerra (la IA solo sabe lo que ve y recuerda); null = lo ve todo.
+    // market: precios del mercado (los mismos para todos); null = no hay comercio.
     void think(const entt::registry& registry, const EconomySystem& economy, const PassGrid& grid, Tick tick,
-               std::vector<Command>& out, const VisionSystem* vision = nullptr);
+               std::vector<Command>& out, const VisionSystem* vision = nullptr, const MarketSystem* market = nullptr);
 
     [[nodiscard]] const std::vector<AiPlayerState>& players() const noexcept { return players_; }
     // Un jugador más pasa a la IA (relevo de quien abandona). Se ignora si ya lo es, si

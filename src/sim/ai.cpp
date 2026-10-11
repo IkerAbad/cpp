@@ -11,6 +11,7 @@
 #include "sim/climb.hpp"
 #include "sim/formation.hpp"
 #include "sim/garrison.hpp"
+#include "sim/market.hpp"
 #include "sim/state_hash.hpp"
 
 namespace rts::sim {
@@ -192,6 +193,7 @@ struct Decision {
     Stock budget{};
     std::int32_t population = 0;
     const VisionSystem* vision = nullptr;  // niebla de guerra; null = lo ve todo
+    const MarketSystem* market = nullptr;  // precios del mercado; null = no hay comercio
 
     [[nodiscard]] PlayerId me() const noexcept { return ai.player; }
     [[nodiscard]] const EconomyCatalog& catalog() const noexcept { return economy.catalog(); }
@@ -1951,11 +1953,88 @@ void forge(Decision& d) {
     }
 }
 
+// Mercado (C3): con aldeanos de sobra, un mercado; en él, una operación por decisión
+// (los precios se mueven con cada una). Vende un lote de lo que pasa de su umbral y, con
+// el oro que no guarda, compra lo que menos tiene en proporción a su reparto de
+// recolección. El oro y la piedra parados no hacen aldeanos ni tropa; cambiados, sí.
+void market(Decision& d) {
+    constexpr std::size_t kGold = resource_index(Resource::Gold);
+    const AiView& v = d.v;
+    if (!d.params.market || d.market == nullptr || !d.market->enabled() || v.own_type_count.empty() ||
+        v.threatened || d.profile.market_at_villagers <= 0) {
+        return;
+    }
+    const BuildingTypeId type = *d.params.market;
+    if (v.own_type_count[type] == 0) {
+        if (std::cmp_greater_equal(v.workers.size(), d.profile.market_at_villagers) && v.barracks_complete) {
+            const Stock& cost = d.catalog().buildings[type].cost;
+            if (affordable(d.budget, cost)) {
+                d.place(type, v.base);
+            } else {
+                // Ahorra para él: lo que cuesta no se gasta en otra cosa hasta tenerlo.
+                for (std::size_t r = 0; r < kResourceCount; ++r) {
+                    d.budget[r] = std::max(d.budget[r] - cost[r], 0);
+                }
+            }
+        }
+        return;
+    }
+    entt::entity at = entt::null;
+    for (const auto [e, b, o] : d.registry.view<const Building, const Owner>().each()) {
+        if (o.player == d.me() && b.type == type && b.working()) {
+            at = e;
+            break;
+        }
+    }
+    if (at == entt::null) {
+        return;  // aún en obra
+    }
+    const MarketParams& mp = d.market->params();
+    const auto trade = [&](std::size_t r, bool sell) {
+        Command c = d.order(CommandType::Trade);
+        c.object = entt::to_integral(at);
+        c.kind = static_cast<std::uint8_t>(r | (sell ? kSellBit : 0U));
+        d.out.push_back(std::move(c));
+    };
+    if (d.profile.market_sell_above > 0) {
+        for (std::size_t r = 0; r < kResourceCount; ++r) {
+            if (r != kGold && mp.base_price[r] > 0 && d.budget[r] >= d.profile.market_sell_above + mp.lot) {
+                trade(r, true);
+                d.budget[r] -= mp.lot;
+                d.budget[kGold] += d.market->sell_price(r);
+                return;
+            }
+        }
+    }
+    // Lo que menos tiene para lo que quiere recoger de ello (sin reparto, no lo compra).
+    std::optional<std::size_t> want;
+    std::int64_t want_score = std::numeric_limits<std::int64_t>::max();
+    for (std::size_t r = 0; r < kResourceCount; ++r) {
+        const std::int32_t share = d.profile.gather_percent[r];
+        if (r == kGold || mp.base_price[r] <= 0 || share <= 0) {
+            continue;
+        }
+        const std::int64_t score = std::int64_t{d.budget[r]} * kPercent / share;
+        if (score < want_score) {
+            want_score = score;
+            want = r;
+        }
+    }
+    if (!want) {
+        return;
+    }
+    const std::int32_t price = d.market->prices()[*want];
+    if (price <= d.profile.market_max_price && d.budget[kGold] >= d.profile.market_keep_gold + price) {
+        trade(*want, false);
+        d.budget[kGold] -= price;
+    }
+}
+
 using BehaviorFn = void (*)(Decision&);
 constexpr std::array<BehaviorFn, static_cast<std::size_t>(AiBehavior::Count)> kBehaviors{
     defend, villagers, houses, barracks, farms, dropoffs, builders, gather, army, attack,
     army_counter, attack_strength, focus_fire, workshop, extinguish, raid, resupply, logistics, explore,
-    assault, medicine, ambush, towers, tactics, forge,
+    assault, medicine, ambush, towers, tactics, forge, market,
 };
 
 }  // namespace
@@ -1984,7 +2063,7 @@ void AiSystem::add_seat(AiSeat seat, std::size_t player_count) {
 }
 
 void AiSystem::think(const entt::registry& registry, const EconomySystem& economy, const PassGrid& grid, Tick tick,
-                     std::vector<Command>& out, const VisionSystem* vision) {
+                     std::vector<Command>& out, const VisionSystem* vision, const MarketSystem* market) {
     const auto interval = static_cast<std::uint32_t>(std::max(params_.think_interval_ticks, 1));
     for (std::size_t i = 0; i < players_.size(); ++i) {
         AiPlayerState& ai = players_[i];
@@ -2000,6 +2079,7 @@ void AiSystem::think(const entt::registry& registry, const EconomySystem& econom
         Decision d{registry, economy,  grid, params_, supply_, params_.profiles[profiles_[i]], ai, tick, out, ps, {},
                    ps.stock, ps.population};
         d.vision = vision;
+        d.market = market;
         if (!perceive(d)) {
             continue;  // derrotado
         }
