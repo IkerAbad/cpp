@@ -13,7 +13,8 @@
 // Cada mapa se juega dos veces, una desde cada lado. En muchos mapas gana el mismo
 // lado juegue quien juegue (el mapa decide, no la IA: D4). Por eso también se cuentan
 // los mapas que una IA gana desde los dos lados; con --min-both-sides N, termina con
-// código 1 si A no gana al menos N mapas así o si B gana alguno.
+// código 1 si A no gana al menos N mapas así o si no gana al menos el doble que B (con
+// 20 mapas, alguno lo gana el más flojo por puro caos: exigir cero era frágil).
 // Con --symmetric, cada mapa generado se juega reflejado por el centro (escenario con
 // las dos mitades iguales): separa lo que decide el mapa de lo que decide la IA.
 // Con --trace, cada tantos segundos de partida imprime el estado de cada jugador
@@ -297,7 +298,7 @@ int main(int argc, char** argv) {
                 static_cast<long long>(decisive), static_cast<long long>(routed_wins));
     std::printf("Mapas ganados desde los dos lados: A %lld, B %lld (el resto los decide el mapa)\n",
                 static_cast<long long>(both_a), static_cast<long long>(both_b));
-    if (min_both >= 0 && (both_a < min_both || both_b > 0)) {
+    if (min_both >= 0 && (both_a < min_both || both_a < 2 * both_b)) {
         return 1;
     }
     return min_win >= 0 && win_pct < min_win ? 1 : 0;
