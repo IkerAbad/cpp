@@ -593,7 +593,10 @@ army = ["leva", "hombre_armas", "arquero"]
 name = "normal"
 behaviors = ["defensa", "explorar", "abastecer", "aldeanos", "casas", "cuartel", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "ataque_fuerza", "concentrar"]
 villager_target = 30
-gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
+# D4 (con caminos por terreno): la comida hace los niveles. Aldeanos y raciones salen
+# de ella; los niveles de abajo recogen menos (30, 40, 45). Más de 45 ya no ayuda: el
+# experto a 50 perdía con el difícil a 45 (17 de 40).
+gather_percent = { comida = 30, madera = 50, oro = 5, piedra = 0, hierro = 15 }
 house_margin = 5
 barracks_at_villagers = 8
 dropoff_distance_tiles = 12
@@ -687,7 +690,7 @@ army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", 
 name = "dificil"
 behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "logistica"]
 villager_target = 30
-gather_percent = { comida = 35, madera = 45, oro = 5, piedra = 0, hierro = 15 }
+gather_percent = { comida = 40, madera = 45, oro = 5, piedra = 0, hierro = 10 }
 house_margin = 5
 barracks_at_villagers = 8
 dropoff_distance_tiles = 12
@@ -781,9 +784,9 @@ army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", 
 name = "experto"
 behaviors = ["defensa", "emboscada", "tactica", "explorar", "apagar", "concentrar", "abastecer", "ataque_fuerza", "incendiar", "aldeanos", "casas", "cuartel", "taller", "granjas", "almacenes", "obras", "recoleccion", "ejercito_contra", "asalto", "sanidad", "herreria", "logistica"]
 villager_target = 30
-# D4: medio ejército de aldeanos a la comida (aldeanos y raciones salen de ella; el
-# hierro se acumulaba sin usar). Medido: gana al difícil 15 de 20 (antes, 6 de 10).
-gather_percent = { comida = 50, madera = 35, oro = 5, piedra = 0, hierro = 10 }
+# D4: la comida más alta de la escalera (45; con 50 rinde menos). Medido con 40
+# partidas: gana al difícil 27 (67 %), 7 mapas desde los dos lados y él ninguno.
+gather_percent = { comida = 45, madera = 40, oro = 5, piedra = 0, hierro = 10 }
 house_margin = 5
 barracks_at_villagers = 8
 dropoff_distance_tiles = 12

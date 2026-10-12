@@ -272,13 +272,15 @@ jobs:
       - name: Campaña (equilibrio de Las Navas)
         run: build/linux-clang-release/tests/rts_tests -tc="Campaña*"
 
-      # La IA "normal" debe ganar a la "básica" en al menos el 70 % de 10 partidas de 30
-      # minutos (5 semillas con los lados cambiados). Determinista: no hay suerte.
+      # Cada nivel contra el de debajo en 40 partidas de 30 minutos (20 mapas, cada uno
+      # desde los dos lados). Determinista: no hay suerte, pero cada partida es caótica y
+      # con 20 partidas el ruido (unos 11 puntos) tapaba diferencias reales. Medido: normal
+      # 77 % (12 mapas a 1), difícil 65 % (9 a 3), experto 67 % (7 a 0).
       - name: Torneo de IA (cada nivel contra el de debajo, D4)
         run: |
-          build/linux-clang-release/bench/rts_ai_match --data data --a normal --b facil --games 20 --min-win-percent 70 --min-both-sides 3
-          build/linux-clang-release/bench/rts_ai_match --data data --a dificil --b normal --games 20 --min-both-sides 2
-          build/linux-clang-release/bench/rts_ai_match --data data --a experto --b dificil --games 20 --min-win-percent 70 --min-both-sides 3
+          build/linux-clang-release/bench/rts_ai_match --data data --a normal --b facil --games 40 --min-win-percent 70 --min-both-sides 6
+          build/linux-clang-release/bench/rts_ai_match --data data --a dificil --b normal --games 40 --min-win-percent 60 --min-both-sides 4
+          build/linux-clang-release/bench/rts_ai_match --data data --a experto --b dificil --games 40 --min-win-percent 60 --min-both-sides 4
 
       # Criterio de M5: una partida de 30 minutos grabada se reproduce con los mismos
       # 180 hashes intermedios y el mismo hash final.

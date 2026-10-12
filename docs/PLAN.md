@@ -161,8 +161,10 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   tanto un mismo lado: en mapas reflejados (idénticos para los dos) y con la misma IA,
   cada mapa sigue teniendo un ganador claro; lo decide el caos de la partida (desempates
   que no son simétricos y que crecen en 30 minutos), no el mapa. Se añadió el tipo de
-  mapa «Espejo» para partidas de dos justas. Falta: un experto que le saque más al
-  normal (4 a 1).
+  mapa «Espejo» para partidas de dos justas. Con la búsqueda de caminos por terreno
+  la escalera se aplanó y se rehízo: la comida separa los niveles (normal 30 %,
+  difícil 40 %, experto 45 %) y se mide con 40 partidas: 77 %, 65 % y 67 % (mapas
+  desde los dos lados 12 a 1, 9 a 3 y 7 a 0). Falta: niveles que se noten más que eso.
 - [x] **E1. Lockstep.** Las órdenes viajan, no el estado. Se confirma el hash cada
   segundo (5 turnos de 200 ms; cada tick sería caro para nada) y, si alguien se
   desincroniza, se detecta y se dice en qué tick y con quién. Hecho: turnos con
