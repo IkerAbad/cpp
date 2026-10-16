@@ -953,6 +953,11 @@ collision_weight = 60
 # Atasco: 40 ticks (2 s) casi parada junto a una compañera ya llegada = llegada;
 # 160 ticks (8 s) atascada = desiste.
 stuck_arrive_ticks = 40
+# Atasco de frente en un paso de una casilla (dos columnas que se cruzan en un puente):
+# tras 1 s casi parada lejos del destino, se cruza 2 s con las suyas que vienen de cara.
+# Nunca con enemigas, con paradas ni con quien pelea.
+pass_friends_after_ticks = 20
+pass_friends_ticks = 40
 # Llegada: a 0,25 casillas del destino; en ruta, a 0,45 casillas de una casilla del
 # tramo se pasa a la siguiente.
 arrive_radius_milli_tiles = 250

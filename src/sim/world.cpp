@@ -617,6 +617,9 @@ std::uint64_t World::state_hash() const {
             h.add_u32(g->order_id);
             h.add_i32(g->flow_field);
             h.add_i32(g->stuck_ticks);
+            if (g->passing_ticks != 0) {
+                h.add_i32(g->passing_ticks);  // solo mientras se cruza: si no, el hash de siempre
+            }
             h.add_i32(g->group_size);
             h.add_u32(g->arrived ? 1U : 0U);
         }

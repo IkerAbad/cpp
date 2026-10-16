@@ -280,3 +280,50 @@ TEST_CASE("Movimiento: al llegar no conserva el camino") {
     CHECK(world.registry().get<MoveGoal>(e).arrived);
     CHECK_FALSE(world.registry().all_of<rts::sim::PathFollow>(e));
 }
+
+TEST_CASE("Movimiento: dos grupos que se cruzan de frente en un puente de una casilla pasan los dos") {
+    // 48x24: agua en las columnas 20..27 salvo la fila 12, el puente (8 casillas de largo,
+    // una de ancho). Seis soldados van de la orilla oeste a la este y seis de la este a la
+    // oeste, todos del mismo dueño: de frente en el puente, alguno ha de dejar pasar.
+    WorldParams p = test_world_params(0);
+    p.movement.pass_friends_after_ticks = 20;  // los de data/config/engine.toml
+    p.movement.pass_friends_ticks = 40;
+    p.scenario.width = 48;
+    p.scenario.height = 24;
+    p.scenario.players = 1;
+    p.scenario.terrain.assign(48 * 24, 1);
+    p.scenario.elevation.assign(48 * 24, 0);
+    for (std::int32_t y = 0; y < 24; ++y) {
+        for (std::int32_t x = 20; x <= 27; ++x) {
+            if (y != 12) {
+                p.scenario.terrain[static_cast<std::size_t>(y * 48 + x)] = 0;
+            }
+        }
+    }
+    World world(p);
+    std::vector<std::uint32_t> west;
+    std::vector<std::uint32_t> east;
+    for (std::int32_t i = 0; i < 6; ++i) {
+        west.push_back(world.spawn_unit(0, rts::test::kSoldier, {14 + i % 2, 10 + i / 2 * 2}));
+        east.push_back(world.spawn_unit(0, rts::test::kSoldier, {33 - i % 2, 10 + i / 2 * 2}));
+    }
+    world.issue(move_order(world.tick(), west, {40, 12}));
+    world.issue(move_order(world.tick(), east, {6, 12}));
+    const auto crossed = [&] {
+        int n = 0;
+        for (const auto id : west) {
+            n += world.registry().get<Position>(static_cast<entt::entity>(id)).x > Fixed::from_int(28) ? 1 : 0;
+        }
+        for (const auto id : east) {
+            n += world.registry().get<Position>(static_cast<entt::entity>(id)).x < Fixed::from_int(20) ? 1 : 0;
+        }
+        return n;
+    };
+    int t = 0;
+    for (; t < 3000 && crossed() < 12; ++t) {
+        world.step();
+        REQUIRE(all_on_passable_tiles(world));
+    }
+    MESSAGE("cruzaron ", crossed(), " de 12 en ", t, " ticks");
+    CHECK(crossed() == 12);
+}

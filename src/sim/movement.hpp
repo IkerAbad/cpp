@@ -94,6 +94,8 @@ private:
         std::vector<std::uint32_t> order;   // 0 = sin orden
         std::vector<std::uint8_t> arrived;
         std::vector<std::int32_t> stuck;
+        std::vector<std::int32_t> passing;   // ticks que le quedan cruzándose con las suyas
+        std::vector<std::uint8_t> fighting;  // con un blanco o en ataque-movimiento
         std::vector<std::uint8_t> waiting;  // esperando camino del planificador
         std::vector<Fixed> blob_radius;  // radio esperado del racimo de su orden
         std::vector<FVec2> goal_point;
@@ -116,6 +118,13 @@ private:
     void build_spatial_grid(std::size_t n);
     void gather_neighbors(std::size_t n);
     FVec2 choose_velocity(std::size_t i) const;
+    // ¿Atraviesa ahora i a j? Solo un cruce de frente entre dos del mismo dueño que van
+    // en sentidos contrarios y no pelean: a un guardia parado, a una primera línea o a
+    // quien va delante en la misma cola no se los atraviesa.
+    [[nodiscard]] bool passes_through(std::size_t i, std::size_t j) const noexcept {
+        return s_.passing[i] > 0 && s_.owner[i] == s_.owner[j] && s_.owner[i] != kNoGate && s_.fighting[i] == 0 &&
+               s_.fighting[j] == 0 && dot_wide(s_.pref[i], s_.pref[j]) < 0;
+    }
     void integrate_and_separate(std::size_t n);
 
     [[nodiscard]] TileCoord tile_of(FVec2 p) const noexcept { return {p.x.floor_to_int(), p.y.floor_to_int()}; }

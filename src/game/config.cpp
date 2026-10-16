@@ -1762,6 +1762,8 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
     mv.preference_weight = r.get_i32("movement.preference_weight", 0, 10'000);
     mv.collision_weight = r.get_i32("movement.collision_weight", 0, 10'000);
     mv.stuck_arrive_ticks = r.get_i32("movement.stuck_arrive_ticks", 1, 10'000);
+    mv.pass_friends_after_ticks = r.get_i32("movement.pass_friends_after_ticks", 1, 10'000);
+    mv.pass_friends_ticks = r.get_i32("movement.pass_friends_ticks", 0, 10'000);
     mv.arrive_radius = sim::Fixed::from_ratio(r.get_i32("movement.arrive_radius_milli_tiles", 10, 4 * kMilli), kMilli);
     mv.waypoint_radius =
         sim::Fixed::from_ratio(r.get_i32("movement.waypoint_radius_milli_tiles", 10, 4 * kMilli), kMilli);
