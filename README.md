@@ -38,9 +38,16 @@ Paquetes de sistema en Ubuntu 24.04:
 sudo apt-get install ninja-build clang-20 g++-14 pkg-config \
   libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
   libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
-  libdbus-1-dev libibus-1.0-dev
+  libdbus-1-dev libibus-1.0-dev \
+  libasound2-dev libpulse-dev libpipewire-0.3-dev libdecor-0-dev
 # opcional, para ejecutar con ventana sin GPU (como la CI): xvfb mesa-vulkan-drivers
 ```
+
+SDL3 sale de vcpkg con un *overlay port* (`vcpkg-ports/sdl3`, activado en `vcpkg-configuration.json`): el port de serie apaga en Linux PipeWire, PulseAudio, libdecor y casi todas las extensiones de X11, y el juego quedaba mudo y, en Wayland, sin bordes de ventana. El overlay es la misma receta con eso encendido y cargado al arrancar; por eso hacen falta las cabeceras de sonido y de libdecor de la lista de arriba (sin ellas, SDL compila igual, pero sin esos soportes).
+
+### Jugar sin compilar
+
+Cada cambio en la CI deja dos paquetes listos para jugar en los artefactos de su ejecución (30 días): `rts-windows` (una carpeta con `rts.exe`) y `rts-linux` (`rts-linux-x86_64.tar.gz`, para cualquier Linux x86_64 con glibc 2.39 o posterior: Arch, Ubuntu 24.04, Fedora 40, Debian 13...). El de Linux se descomprime y se juega con `./rts`; su `LEEME.txt` dice qué hace falta (Vulkan y el controlador de la gráfica) y lo que hacer si no arranca. El trabajo comprueba antes que el ejecutable sabe cargar el sonido y la ventana de Linux y que juega 2 minutos sin ventana.
 
 ## Compilar y ejecutar
 

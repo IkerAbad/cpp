@@ -43,6 +43,7 @@ jobs:
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
             libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
             libdbus-1-dev libibus-1.0-dev \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev libdecor-0-dev \
             xvfb mesa-vulkan-drivers
 
       - name: Entorno de MSVC (Windows)
@@ -207,7 +208,8 @@ jobs:
           sudo apt-get install -y ninja-build clang-20 g++-14 pkg-config \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
             libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
-            libdbus-1-dev libibus-1.0-dev
+            libdbus-1-dev libibus-1.0-dev \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev libdecor-0-dev
 
       - name: vcpkg en el commit del baseline
         run: |
@@ -406,4 +408,85 @@ jobs:
         with:
           name: rts-windows
           path: paquete
+          retention-days: 30
+
+  # Lo mismo para Linux: un .tar.gz (conserva el permiso de ejecución, que el zip del
+  # artefacto perdería) que se descomprime y se juega. Compilado en Ubuntu 24.04: su
+  # glibc 2.39 vale para Arch y para cualquier distribución de 2024 en adelante.
+  paquete-linux:
+    name: Paquete para jugar en Linux
+    runs-on: ubuntu-24.04
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias del sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang-20 pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
+            libdbus-1-dev libibus-1.0-dev \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev libdecor-0-dev
+
+      - name: vcpkg en el commit del baseline
+        run: |
+          VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
+          echo "VCPKG_ROOT=$VCPKG_ROOT" >> "$GITHUB_ENV"
+          baseline=$(python3 -c "import json; print(json.load(open('vcpkg.json'))['builtin-baseline'])")
+          git clone --filter=tree:0 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$baseline"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
+      # Mismo triplet que el trabajo linux-clang: reutiliza su caché binaria.
+      - name: Restaurar caché binaria de vcpkg
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-linux-clang-${{ hashFiles('vcpkg.json') }}-
+          restore-keys: |
+            vcpkg-linux-clang-${{ hashFiles('vcpkg.json') }}-
+            vcpkg-linux-clang-
+
+      - name: Compilar (linux-clang-release)
+        run: |
+          cmake --preset linux-clang-release -DRTS_BUILD_TESTS=OFF -DRTS_BUILD_BENCH=OFF
+          cmake --build --preset linux-clang-release --target rts
+
+      # Que lleve sonido y ventana de Linux (SDL los carga al arrancar: sin ellos el
+      # juego quedaría mudo), que no pida bibliotecas raras y que juegue.
+      - name: Comprobar el ejecutable
+        run: |
+          exe=build/linux-clang-release/src/rts
+          for lib in libpipewire-0.3.so.0 libpulse.so.0 libasound.so.2 libdecor-0.so.0 \
+                     libwayland-client.so.0 libX11.so.6 libvulkan.so.1; do
+            grep -q "$lib" "$exe" || { echo "SDL3 no sabe cargar $lib"; exit 1; }
+          done
+          ldd "$exe"
+          if ldd "$exe" | grep -q "not found"; then exit 1; fi
+          "$exe" --data data --headless --ticks 2400
+
+      - name: Preparar el paquete
+        run: |
+          r=paquete/rts
+          mkdir -p "$r/licencias"
+          cp build/linux-clang-release/src/rts "$r/"
+          strip "$r/rts"
+          cp -r data "$r/data"
+          cp LICENSE packaging/linux/crear-acceso-directo.sh "$r/"
+          sed "s/@VERSION@/commit ${GITHUB_SHA::7}/" packaging/linux/LEEME.txt > "$r/LEEME.txt"
+          # Las licencias de todo lo que trae vcpkg (lo que va dentro del ejecutable).
+          for c in build/linux-clang-release/vcpkg_installed/x64-linux/share/*/copyright; do
+            cp "$c" "$r/licencias/$(basename "$(dirname "$c")").txt"
+          done
+          chmod +x "$r/rts" "$r/crear-acceso-directo.sh"
+          tar -C paquete -czf rts-linux-x86_64.tar.gz --owner=0 --group=0 rts
+          ls -l rts-linux-x86_64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rts-linux
+          path: rts-linux-x86_64.tar.gz
           retention-days: 30
