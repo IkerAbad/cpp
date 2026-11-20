@@ -2,7 +2,7 @@
 
 #include <SDL3/SDL.h>
 
-namespace rts::platform {
+namespace reinos::platform {
 
 namespace {
 constexpr int kChannels = 2;
@@ -53,4 +53,4 @@ void AudioOut::pump(audio::Mixer& mixer) {
     SDL_PutAudioStreamData(stream_, buffer_.data(), missing * kFrameBytes);
 }
 
-}  // namespace rts::platform
+}  // namespace reinos::platform

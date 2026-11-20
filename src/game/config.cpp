@@ -11,7 +11,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -2074,4 +2074,4 @@ std::expected<GameData, std::string> load_game_data(const std::filesystem::path&
     return parse_game_data(std::move(*files));
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

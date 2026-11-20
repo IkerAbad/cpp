@@ -16,7 +16,7 @@
 #include "render/projection.hpp"
 #include "render/view_params.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 using Rgb = std::array<std::uint8_t, 3>;
 
@@ -147,4 +147,4 @@ inline constexpr std::size_t kPoseCount = static_cast<std::size_t>(Pose::Count);
 // Elipse 2:1 hueca a los pies de una unidad seleccionada, en blanco.
 [[nodiscard]] Image paint_ground_ring(std::int32_t width_px);
 
-}  // namespace rts::render
+}  // namespace reinos::render

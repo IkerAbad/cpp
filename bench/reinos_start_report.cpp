@@ -1,8 +1,8 @@
 // Inicios de partida (mejora tras D4): qué rodea a cada inicio en cada mapa, para saber
 // por qué en muchos mapas gana el mismo lado juegue quien juegue. Mismas semillas que
-// rts_ai_match (la del mapa + n), así que se puede cruzar con sus resultados.
+// reinos_ai_match (la del mapa + n), así que se puede cruzar con sus resultados.
 //
-// Uso: rts_start_report --data <carpeta> [--maps N] [--radius R]
+// Uso: reinos_start_report --data <carpeta> [--maps N] [--radius R]
 // Una línea por mapa y jugador: comida, madera, oro, piedra y hierro a R casillas o
 // menos (cantidad), casillas transitables, de colina y de bosque a R, altura media del
 // entorno y de su edificio inicial.
@@ -41,11 +41,11 @@ int main(int argc, char** argv) {
         } else if (a == "--radius") {
             radius = number(argv[i + 1]);
         } else {
-            std::fprintf(stderr, "Uso: rts_start_report --data <carpeta> [--maps N] [--radius R]\n");
+            std::fprintf(stderr, "Uso: reinos_start_report --data <carpeta> [--maps N] [--radius R]\n");
             return 2;
         }
     }
-    const auto data = rts::game::load_game_data(data_dir);
+    const auto data = reinos::game::load_game_data(data_dir);
     if (!data) {
         std::fprintf(stderr, "%s\n", data.error().c_str());
         return 2;
@@ -55,27 +55,27 @@ int main(int argc, char** argv) {
     const auto r = static_cast<std::int32_t>(radius);
     std::printf("mapa jugador comida madera oro piedra hierro transitables colinas bosque altura_media altura_inicio\n");
     for (std::int64_t m = 0; m < maps; ++m) {
-        rts::sim::WorldParams params = data->engine.world;
+        reinos::sim::WorldParams params = data->engine.world;
         params.map.seed += static_cast<std::uint64_t>(m);
         params.setup.seed += static_cast<std::uint64_t>(m);
-        const rts::sim::World world(params);
-        rts::sim::Snapshot s;
+        const reinos::sim::World world(params);
+        reinos::sim::Snapshot s;
         world.write_snapshot(s);
-        const rts::sim::TileMap& map = world.map();
-        for (const rts::sim::SnapshotObject& start : s.objects) {
-            if (start.kind != rts::sim::ObjectKind::Building) {
+        const reinos::sim::TileMap& map = world.map();
+        for (const reinos::sim::SnapshotObject& start : s.objects) {
+            if (start.kind != reinos::sim::ObjectKind::Building) {
                 continue;
             }
-            const rts::sim::TileCoord c{start.origin.x + start.size / 2, start.origin.y + start.size / 2};
-            std::array<std::int64_t, rts::sim::kResourceCount> res{};
-            for (const rts::sim::SnapshotObject& o : s.objects) {
-                if (o.kind != rts::sim::ObjectKind::Resource) {
+            const reinos::sim::TileCoord c{start.origin.x + start.size / 2, start.origin.y + start.size / 2};
+            std::array<std::int64_t, reinos::sim::kResourceCount> res{};
+            for (const reinos::sim::SnapshotObject& o : s.objects) {
+                if (o.kind != reinos::sim::ObjectKind::Resource) {
                     continue;
                 }
                 const std::int32_t dx = o.origin.x - c.x;
                 const std::int32_t dy = o.origin.y - c.y;
                 if (dx * dx + dy * dy <= r * r) {
-                    res[rts::sim::resource_index(data->nodes.types[o.type].type.kind)] += o.amount;
+                    res[reinos::sim::resource_index(data->nodes.types[o.type].type.kind)] += o.amount;
                 }
             }
             std::int64_t passable = 0;

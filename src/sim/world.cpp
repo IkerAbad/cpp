@@ -9,7 +9,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -830,4 +830,4 @@ void World::write_snapshot(Snapshot& out) const {
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

@@ -15,7 +15,7 @@
 
 #include "render/view_params.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 struct Vec2 {
     float x = 0.0f;
@@ -118,4 +118,4 @@ void for_each_visible_tile(const IsoProjection& proj, const Camera& cam, Vec2 sc
     }
 }
 
-}  // namespace rts::render
+}  // namespace reinos::render

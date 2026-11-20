@@ -18,26 +18,26 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Combatant;
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::GridSearch;
-using rts::sim::Health;
-using rts::sim::HpaGraph;
-using rts::sim::Position;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using rts::test::kArcher;
-using rts::test::kCenter;
-using rts::test::kSoldier;
-using rts::test::kVillager;
+using reinos::sim::Combatant;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::GridSearch;
+using reinos::sim::Health;
+using reinos::sim::HpaGraph;
+using reinos::sim::Position;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using reinos::test::kArcher;
+using reinos::test::kCenter;
+using reinos::test::kSoldier;
+using reinos::test::kVillager;
 
 namespace {
 
 WorldParams open_field() {
-    WorldParams p = rts::test::test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    WorldParams p = reinos::test::test_world_params(0, 16);
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;  // dos jugadores (sin unidades de demostración: count = 0)
     return p;
 }
@@ -46,8 +46,8 @@ entt::entity ent(std::uint32_t id) {
     return static_cast<entt::entity>(id);
 }
 
-Command order(CommandType type, rts::sim::PlayerId player, std::vector<std::uint32_t> units,
-              std::uint32_t object = rts::sim::kNoObject) {
+Command order(CommandType type, reinos::sim::PlayerId player, std::vector<std::uint32_t> units,
+              std::uint32_t object = reinos::sim::kNoObject) {
     Command c;
     c.type = type;
     c.player = player;
@@ -72,7 +72,7 @@ TEST_CASE("Combate: la fórmula de daño resta armadura por tipo, suma bonus y n
     const auto archer = world.spawn_unit(0, kArcher, {100, 104});
     const auto villager = world.spawn_unit(1, kVillager, {110, 100});
     const auto enemy_soldier = world.spawn_unit(1, kSoldier, {110, 104});
-    const auto house = world.spawn_building(1, rts::test::kHouse, {120, 120}, true);
+    const auto house = world.spawn_building(1, reinos::test::kHouse, {120, 120}, true);
     REQUIRE(house);
     (void)soldier;
     (void)archer;
@@ -176,7 +176,7 @@ TEST_CASE("Combate: la experiencia sube de nivel, da vida y en el último nivel 
     const auto dummy_far = world.spawn_unit(1, kVillager, {140, 100});
     // El héroe se queda quieto y sin perseguir, para no tocar a los blancos de prueba.
     Command hold = order(CommandType::SetStance, 0, {soldier});
-    hold.kind = static_cast<std::uint8_t>(rts::sim::Stance::HoldGround);
+    hold.kind = static_cast<std::uint8_t>(reinos::sim::Stance::HoldGround);
     world.issue(hold);
     world.issue(order(CommandType::Attack, 0, {near_ally}, dummy_near));
     world.issue(order(CommandType::Attack, 0, {far_ally}, dummy_far));
@@ -186,7 +186,7 @@ TEST_CASE("Combate: la experiencia sube de nivel, da vida y en el último nivel 
 }
 
 TEST_CASE("Combate: con mantener posición no persigue; agresiva sí") {
-    auto chases = [](rts::sim::Stance stance) {
+    auto chases = [](reinos::sim::Stance stance) {
         World world(open_field());
         const auto guard = world.spawn_unit(0, kSoldier, {100, 100});
         world.spawn_unit(1, kVillager, {104, 100});  // a 4 casillas: dentro de la vista (6)
@@ -199,8 +199,8 @@ TEST_CASE("Combate: con mantener posición no persigue; agresiva sí") {
         const Position& p = world.registry().get<Position>(ent(guard));
         return p.x.floor_to_int() != 100;
     };
-    CHECK(chases(rts::sim::Stance::Aggressive));
-    CHECK_FALSE(chases(rts::sim::Stance::HoldGround));
+    CHECK(chases(reinos::sim::Stance::Aggressive));
+    CHECK_FALSE(chases(reinos::sim::Stance::HoldGround));
 }
 
 TEST_CASE("Combate: ataque-movimiento pelea por el camino y sigue hasta el destino") {
@@ -235,7 +235,7 @@ TEST_CASE("Combate: ataque-movimiento pelea por el camino y sigue hasta el desti
 TEST_CASE("Combate: un edificio destruido libera sus casillas y el grafo coincide con uno nuevo") {
     WorldParams p = open_field();
     World world(p);
-    const auto house = world.spawn_building(1, rts::test::kHouse, {110, 110}, true);
+    const auto house = world.spawn_building(1, reinos::test::kHouse, {110, 110}, true);
     REQUIRE(house);
     std::vector<std::uint32_t> army;
     for (int i = 0; i < 8; ++i) {
@@ -310,7 +310,7 @@ TEST_CASE("Regresión: hash de una batalla de 30 contra 30 tras 600 ticks") {
 
 TEST_CASE("Combate: al alcance del blanco la unidad se detiene, aunque viniera en ataque-movimiento") {
     World world(open_field());
-    const auto house = world.spawn_building(1, rts::test::kHouse, {102, 99}, true);
+    const auto house = world.spawn_building(1, reinos::test::kHouse, {102, 99}, true);
     REQUIRE(house.has_value());
     const auto soldier = world.spawn_unit(0, kSoldier, {100, 100});
     Command c = order(CommandType::AttackMove, 0, {soldier});
@@ -333,7 +333,7 @@ TEST_CASE("Combate: un ataque-movimiento sin camino a su destino termina en vez 
     // Un bolsillo de 2x2 casillas cerrado por casas: nada fuera es alcanzable.
     for (const TileCoord o : {TileCoord{98, 98}, TileCoord{100, 98}, TileCoord{102, 98}, TileCoord{98, 100},
                               TileCoord{102, 100}, TileCoord{98, 102}, TileCoord{100, 102}, TileCoord{102, 102}}) {
-        REQUIRE(world.spawn_building(1, rts::test::kHouse, o, true).has_value());
+        REQUIRE(world.spawn_building(1, reinos::test::kHouse, o, true).has_value());
     }
     world.step();
     Command c = order(CommandType::AttackMove, 0, {soldier});
@@ -345,13 +345,13 @@ TEST_CASE("Combate: un ataque-movimiento sin camino a su destino termina en vez 
 }
 
 TEST_CASE("Combate: el daño de un golpe no desborda con ataques y niveles extremos") {
-    rts::sim::CombatStats a;
+    reinos::sim::CombatStats a;
     a.attack_melee = 1'000'000;
     a.attack_pierce = 1'000'000;
     // 64 niveles a +1000 % y aura: más de 650 veces el ataque base.
-    CHECK(rts::sim::hit_damage(a, 65'100, 0, 0, 0) == 1'000'000);
-    CHECK(rts::sim::hit_damage(a, 100, 0, 0, 0) == 1'000'000);
-    rts::sim::CombatStats weak;
+    CHECK(reinos::sim::hit_damage(a, 65'100, 0, 0, 0) == 1'000'000);
+    CHECK(reinos::sim::hit_damage(a, 100, 0, 0, 0) == 1'000'000);
+    reinos::sim::CombatStats weak;
     weak.attack_melee = 1;
-    CHECK(rts::sim::hit_damage(weak, 100, 50, 0, 0) == 1);  // el mínimo se mantiene
+    CHECK(reinos::sim::hit_damage(weak, 100, 50, 0, 0) == 1);  // el mínimo se mantiene
 }

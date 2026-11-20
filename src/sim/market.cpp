@@ -6,7 +6,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -186,4 +186,4 @@ void MarketSystem::hash_into(StateHasher& h, const entt::registry& registry) con
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

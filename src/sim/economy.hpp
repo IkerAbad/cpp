@@ -21,7 +21,7 @@
 #include "sim/tile_map.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -377,4 +377,4 @@ private:
     EconomyTickStats stats_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

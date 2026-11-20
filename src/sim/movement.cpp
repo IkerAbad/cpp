@@ -9,7 +9,7 @@
 #include "sim/formation.hpp"
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -867,4 +867,4 @@ void MovementSystem::hash_into(StateHasher& h) const {
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

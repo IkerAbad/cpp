@@ -7,7 +7,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -418,4 +418,4 @@ void MedicineSystem::hash_into(StateHasher& h, const entt::registry& registry) c
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

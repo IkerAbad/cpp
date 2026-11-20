@@ -11,7 +11,7 @@
 #include "render/view_params.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 struct MinimapDot {
     sim::TileCoord origin;
@@ -25,4 +25,4 @@ struct MinimapDot {
                                                    const std::vector<render::Rgba>& player_colors,
                                                    const std::vector<render::Rgba>& node_colors);
 
-}  // namespace rts::game
+}  // namespace reinos::game

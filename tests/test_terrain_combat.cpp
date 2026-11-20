@@ -12,14 +12,14 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::Fixed;
-using rts::sim::Stance;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::Fixed;
+using reinos::sim::Stance;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
@@ -27,7 +27,7 @@ namespace {
 // (max_levels = 0) salvo que la prueba lo pida.
 WorldParams terrain_params() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;
     auto& t = p.combat.terrain;
     t.enabled = true;
@@ -45,7 +45,7 @@ entt::entity ent(std::uint32_t id) {
     return static_cast<entt::entity>(id);
 }
 
-Command attack(rts::sim::PlayerId player, std::uint32_t unit, std::uint32_t target) {
+Command attack(reinos::sim::PlayerId player, std::uint32_t unit, std::uint32_t target) {
     Command c;
     c.type = CommandType::Attack;
     c.player = player;
@@ -54,7 +54,7 @@ Command attack(rts::sim::PlayerId player, std::uint32_t unit, std::uint32_t targ
     return c;
 }
 
-void hold_ground(World& w, rts::sim::PlayerId player, std::vector<std::uint32_t> units) {
+void hold_ground(World& w, reinos::sim::PlayerId player, std::vector<std::uint32_t> units) {
     Command c;
     c.type = CommandType::SetStance;
     c.player = player;
@@ -64,7 +64,7 @@ void hold_ground(World& w, rts::sim::PlayerId player, std::vector<std::uint32_t>
 }
 
 std::int32_t hp(const World& w, std::uint32_t id) {
-    return w.registry().get<rts::sim::Health>(ent(id)).hp;
+    return w.registry().get<reinos::sim::Health>(ent(id)).hp;
 }
 
 // Daño del primer golpe de un soldado (que carga al 300 %) a un aldeano que no se
@@ -88,17 +88,17 @@ std::int32_t first_blow(WorldParams p, std::int32_t start_gap) {
 TEST_CASE("Terreno: la altura alarga el tiro cuesta abajo y lo acorta cuesta arriba, sin bajar de la mitad") {
     const Fixed range = Fixed::from_int(4);
     const Fixed per = Fixed::from_ratio(1, 2);
-    CHECK(rts::sim::slope_range(range, per, 0) == range);
-    CHECK(rts::sim::slope_range(range, per, 2) == Fixed::from_int(5));
-    CHECK(rts::sim::slope_range(range, per, -2) == Fixed::from_int(3));
-    CHECK(rts::sim::slope_range(range, per, -10) == Fixed::from_int(2));  // la mitad, como mucho
+    CHECK(reinos::sim::slope_range(range, per, 0) == range);
+    CHECK(reinos::sim::slope_range(range, per, 2) == Fixed::from_int(5));
+    CHECK(reinos::sim::slope_range(range, per, -2) == Fixed::from_int(3));
+    CHECK(reinos::sim::slope_range(range, per, -10) == Fixed::from_int(2));  // la mitad, como mucho
 }
 
 TEST_CASE("Terreno: la altura da daño cuesta abajo y lo quita cuesta arriba") {
-    CHECK(rts::sim::slope_percent(100, 10, 0) == 100);
-    CHECK(rts::sim::slope_percent(100, 10, 3) == 130);
-    CHECK(rts::sim::slope_percent(100, 10, -3) == 70);
-    CHECK(rts::sim::slope_percent(100, 50, -5) == 0);  // nunca negativo
+    CHECK(reinos::sim::slope_percent(100, 10, 0) == 100);
+    CHECK(reinos::sim::slope_percent(100, 10, 3) == 130);
+    CHECK(reinos::sim::slope_percent(100, 10, -3) == 70);
+    CHECK(reinos::sim::slope_percent(100, 50, -5) == 0);  // nunca negativo
 }
 
 TEST_CASE("Terreno: entre árboles las flechas hacen la mitad") {
@@ -115,7 +115,7 @@ TEST_CASE("Terreno: entre árboles las flechas hacen la mitad") {
         for (int t = 0; t < 400; ++t) {
             w.step();
         }
-        return w.registry().get<rts::sim::Health>(ent(soldier)).max_hp - hp(w, soldier);
+        return w.registry().get<reinos::sim::Health>(ent(soldier)).max_hp - hp(w, soldier);
     };
     const std::int32_t open = damage_taken(100);
     const std::int32_t forest = damage_taken(50);
@@ -127,7 +127,7 @@ TEST_CASE("Terreno: entre árboles las flechas hacen la mitad") {
 TEST_CASE("Terreno: el terreno frena la marcha y a la carreta todavía más fuera de llano") {
     WorldParams p = terrain_params();
     p.unit_types[kSoldier].rough_speed_percent = 50;  // como una carreta
-    const auto ticks_to_arrive = [&](std::vector<std::int32_t> speeds, rts::sim::UnitTypeId type) {
+    const auto ticks_to_arrive = [&](std::vector<std::int32_t> speeds, reinos::sim::UnitTypeId type) {
         WorldParams q = p;
         q.movement.speed_percent_by_terrain = std::move(speeds);
         World w(q);
@@ -135,8 +135,8 @@ TEST_CASE("Terreno: el terreno frena la marcha y a la carreta todavía más fuer
         w.issue(move_order(w.tick(), {u}, {32, 30}));
         for (int t = 0; t < 5000; ++t) {
             w.step();
-            const auto& pos = w.registry().get<rts::sim::Position>(ent(u));
-            if (rts::sim::tile_of(pos) == TileCoord{32, 30}) {
+            const auto& pos = w.registry().get<reinos::sim::Position>(ent(u));
+            if (reinos::sim::tile_of(pos) == TileCoord{32, 30}) {
                 return t;
             }
         }

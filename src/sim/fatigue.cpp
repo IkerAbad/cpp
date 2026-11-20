@@ -4,7 +4,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 FatigueSystem::FatigueSystem(const FatigueParams& params, std::vector<UnitType> units)
     : params_(params), units_(std::move(units)) {}
@@ -93,4 +93,4 @@ void FatigueSystem::hash_into(StateHasher& h, const entt::registry& registry) co
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

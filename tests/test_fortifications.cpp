@@ -13,11 +13,11 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::BuildingTypeId;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::BuildingTypeId;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
@@ -31,19 +31,19 @@ struct Walled {
     BuildingTypeId gate = 0;
 
     Walled() {
-        params.map.bands = {{rts::sim::kElevationRange, 1}};
+        params.map.bands = {{reinos::sim::kElevationRange, 1}};
         params.demo.player = 1;
-        rts::sim::BuildingType w = params.building_types[kHouse];
+        reinos::sim::BuildingType w = params.building_types[kHouse];
         w.size = 1;
         w.population = 0;
-        w.material = rts::sim::Material::Stone;
+        w.material = reinos::sim::Material::Stone;
         w.hp = 2000;
         w.climbable = true;
         wall = static_cast<BuildingTypeId>(params.building_types.size());
         params.building_types.push_back(w);
         w.climbable = false;
         w.gate = true;
-        w.material = rts::sim::Material::Wood;
+        w.material = reinos::sim::Material::Wood;
         gate = static_cast<BuildingTypeId>(params.building_types.size());
         params.building_types.push_back(w);
     }
@@ -66,7 +66,7 @@ struct Walled {
 };
 
 TileCoord tile(const World& w, std::uint32_t id) {
-    return rts::sim::tile_of(w.registry().get<rts::sim::Position>(static_cast<entt::entity>(id)));
+    return reinos::sim::tile_of(w.registry().get<reinos::sim::Position>(static_cast<entt::entity>(id)));
 }
 
 bool inside(TileCoord t) {
@@ -122,7 +122,7 @@ TEST_CASE("Fortificaciones: quien se queda ante la puerta enemiga acaba atacánd
     bool attacked = false;
     for (int t = 0; t < 3000 && !attacked; ++t) {
         w.step();
-        const auto& c = w.registry().get<rts::sim::Combatant>(static_cast<entt::entity>(soldier));
+        const auto& c = w.registry().get<reinos::sim::Combatant>(static_cast<entt::entity>(soldier));
         attacked = c.target == static_cast<entt::entity>(gate);
     }
     CHECK(attacked);
@@ -137,16 +137,16 @@ struct Towered {
     BuildingTypeId tower = 0;
 
     explicit Towered(std::int32_t places = 2) {
-        params.map.bands = {{rts::sim::kElevationRange, 1}};
+        params.map.bands = {{reinos::sim::kElevationRange, 1}};
         params.demo.player = 1;
-        params.garrison.enter_reach = rts::sim::Fixed::from_ratio(4, 5);
+        params.garrison.enter_reach = reinos::sim::Fixed::from_ratio(4, 5);
         auto& t = params.combat.terrain;
         t.enabled = true;
-        t.range_per_level = rts::sim::Fixed::from_ratio(1, 2);
+        t.range_per_level = reinos::sim::Fixed::from_ratio(1, 2);
         t.max_levels = 0;  // el terreno no cuenta: solo la torre
         t.ranged_percent_per_level = 10;
         t.charge_run_ticks = 20;
-        rts::sim::BuildingType b = params.building_types[kHouse];
+        reinos::sim::BuildingType b = params.building_types[kHouse];
         b.size = 1;
         b.population = 0;
         b.garrison = places;
@@ -158,19 +158,20 @@ struct Towered {
 };
 
 void hold_ground_both(World& w, std::uint32_t mine, std::uint32_t theirs) {
-    for (const auto& [player, id] : {std::pair{rts::sim::PlayerId{0}, mine}, std::pair{rts::sim::PlayerId{1}, theirs}}) {
-        rts::sim::Command c;
-        c.type = rts::sim::CommandType::SetStance;
+    for (const auto& [player, id] :
+         {std::pair{reinos::sim::PlayerId{0}, mine}, std::pair{reinos::sim::PlayerId{1}, theirs}}) {
+        reinos::sim::Command c;
+        c.type = reinos::sim::CommandType::SetStance;
         c.player = player;
         c.units = {id};
-        c.kind = static_cast<std::uint8_t>(rts::sim::Stance::HoldGround);
+        c.kind = static_cast<std::uint8_t>(reinos::sim::Stance::HoldGround);
         w.issue(c);
     }
 }
 
-rts::sim::Command garrison_order(std::vector<std::uint32_t> units, std::uint32_t tower, std::uint8_t kind = 0) {
-    rts::sim::Command c;
-    c.type = rts::sim::CommandType::Garrison;
+reinos::sim::Command garrison_order(std::vector<std::uint32_t> units, std::uint32_t tower, std::uint8_t kind = 0) {
+    reinos::sim::Command c;
+    c.type = reinos::sim::CommandType::Garrison;
     c.player = 0;
     c.units = std::move(units);
     c.object = tower;
@@ -178,8 +179,8 @@ rts::sim::Command garrison_order(std::vector<std::uint32_t> units, std::uint32_t
     return c;
 }
 
-const rts::sim::Garrisoned* garrisoned(const World& w, std::uint32_t id) {
-    return w.registry().try_get<rts::sim::Garrisoned>(static_cast<entt::entity>(id));
+const reinos::sim::Garrisoned* garrisoned(const World& w, std::uint32_t id) {
+    return w.registry().try_get<reinos::sim::Garrisoned>(static_cast<entt::entity>(id));
 }
 
 bool inside_tower(const World& w, std::uint32_t id) {
@@ -199,23 +200,23 @@ TEST_CASE("Torres: los tiradores entran hasta llenar las plazas y dentro no se l
     run(w, 300);
     CHECK(inside_tower(w, a) != inside_tower(w, b));  // una plaza: entra uno
     const auto in = inside_tower(w, a) ? a : b;
-    CHECK_FALSE(w.registry().all_of<rts::sim::Velocity>(static_cast<entt::entity>(in)));
-    rts::sim::Snapshot snap;
+    CHECK_FALSE(w.registry().all_of<reinos::sim::Velocity>(static_cast<entt::entity>(in)));
+    reinos::sim::Snapshot snap;
     w.write_snapshot(snap);
-    const auto it = std::ranges::find(snap.objects, tower, &rts::sim::SnapshotObject::id);
+    const auto it = std::ranges::find(snap.objects, tower, &reinos::sim::SnapshotObject::id);
     REQUIRE(it != snap.objects.end());
     CHECK(it->garrison == 1);
 
     // Un enemigo no puede tomarlo por blanco.
     const auto foe = w.spawn_unit(1, kSoldier, {62, 60});
-    rts::sim::Command atk;
-    atk.type = rts::sim::CommandType::Attack;
+    reinos::sim::Command atk;
+    atk.type = reinos::sim::CommandType::Attack;
     atk.player = 1;
     atk.units = {foe};
     atk.object = in;
     w.issue(atk);
     w.step();
-    CHECK(w.registry().get<rts::sim::Combatant>(static_cast<entt::entity>(foe)).target !=
+    CHECK(w.registry().get<reinos::sim::Combatant>(static_cast<entt::entity>(foe)).target !=
           static_cast<entt::entity>(in));
 }
 
@@ -231,7 +232,7 @@ TEST_CASE("Torres: desde lo alto se alcanza más lejos que a pie") {
             w.issue(garrison_order({archer}, tower));
         }
         run(w, 400);
-        const auto& h = w.registry().get<rts::sim::Health>(static_cast<entt::entity>(target));
+        const auto& h = w.registry().get<reinos::sim::Health>(static_cast<entt::entity>(target));
         return h.max_hp - h.hp;
     };
     CHECK(damage(false) == 0);  // a pie, 4 de alcance: no llega
@@ -248,10 +249,10 @@ TEST_CASE("Torres: vaciar la torre o cualquier otra orden saca a la guarnición"
     run(w, 300);
     REQUIRE(inside_tower(w, a));
     REQUIRE(inside_tower(w, b));
-    w.issue(garrison_order({}, tower, rts::sim::kUngarrison));
+    w.issue(garrison_order({}, tower, reinos::sim::kUngarrison));
     w.step();
     CHECK(garrisoned(w, a) == nullptr);
-    CHECK(w.registry().all_of<rts::sim::Velocity>(static_cast<entt::entity>(a)));
+    CHECK(w.registry().all_of<reinos::sim::Velocity>(static_cast<entt::entity>(a)));
     w.issue(garrison_order({a}, tower));
     run(w, 200);
     REQUIRE(inside_tower(w, a));
@@ -264,9 +265,9 @@ TEST_CASE("Torres: vaciar la torre o cualquier otra orden saca a la guarnición"
 
 namespace {
 
-rts::sim::Command climb_order(std::vector<std::uint32_t> units, std::uint32_t wall) {
-    rts::sim::Command c;
-    c.type = rts::sim::CommandType::Climb;
+reinos::sim::Command climb_order(std::vector<std::uint32_t> units, std::uint32_t wall) {
+    reinos::sim::Command c;
+    c.type = reinos::sim::CommandType::Climb;
     c.player = 1;
     c.units = std::move(units);
     c.object = wall;
@@ -278,7 +279,7 @@ Walled climbing_params() {
     f.params.unit_types[kSoldier].climbs = true;
     f.params.climb.ladder_cost = stock(0, 15, 0, 0);
     f.params.climb.climb_ticks = 60;
-    f.params.climb.reach = rts::sim::Fixed::from_ratio(4, 5);
+    f.params.climb.reach = reinos::sim::Fixed::from_ratio(4, 5);
     f.params.climb.exposed_percent = 150;
     return f;
 }
@@ -294,11 +295,11 @@ TEST_CASE("Escalas: la infantería toma el muro y baja al otro lado, pagando la 
     const auto wall = *w.object_at({42, kLo});
     w.issue(climb_order({s}, wall));
     w.step();
-    CHECK(w.player_state(1).stock[rts::sim::resource_index(rts::sim::Resource::Wood)] == 5);
+    CHECK(w.player_state(1).stock[reinos::sim::resource_index(reinos::sim::Resource::Wood)] == 5);
     bool was_climbing = false;
     for (int t = 0; t < 600 && !inside(tile(w, s)); ++t) {
         w.step();
-        was_climbing = was_climbing || w.registry().all_of<rts::sim::Climbing>(static_cast<entt::entity>(s));
+        was_climbing = was_climbing || w.registry().all_of<reinos::sim::Climbing>(static_cast<entt::entity>(s));
     }
     CHECK(was_climbing);
     CHECK(inside(tile(w, s)));
@@ -315,9 +316,9 @@ TEST_CASE("Escalas: sin madera para la escala no hay escalada, y quien no sabe n
     const auto wall = *w.object_at({42, kLo});
     w.issue(climb_order({s, archer}, wall));
     w.step();
-    CHECK_FALSE(w.registry().all_of<rts::sim::Climbing>(static_cast<entt::entity>(s)));
-    CHECK_FALSE(w.registry().all_of<rts::sim::Climbing>(static_cast<entt::entity>(archer)));
-    CHECK(w.player_state(1).stock[rts::sim::resource_index(rts::sim::Resource::Wood)] == 10);
+    CHECK_FALSE(w.registry().all_of<reinos::sim::Climbing>(static_cast<entt::entity>(s)));
+    CHECK_FALSE(w.registry().all_of<reinos::sim::Climbing>(static_cast<entt::entity>(archer)));
+    CHECK(w.player_state(1).stock[reinos::sim::resource_index(reinos::sim::Resource::Wood)] == 10);
 }
 
 TEST_CASE("Escalas: si al otro lado no hay sitio, la escalada fracasa") {
@@ -331,5 +332,5 @@ TEST_CASE("Escalas: si al otro lado no hay sitio, la escalada fracasa") {
     run(w, 600);
     CHECK_FALSE(inside(tile(w, s)));
     CHECK(w.climb().last_stats().failed == 0);  // ya pasó el tick del fracaso
-    CHECK_FALSE(w.registry().all_of<rts::sim::Climbing>(static_cast<entt::entity>(s)));
+    CHECK_FALSE(w.registry().all_of<reinos::sim::Climbing>(static_cast<entt::entity>(s)));
 }

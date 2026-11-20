@@ -5,12 +5,12 @@
 #include "game/camera_control.hpp"
 #include "game/selection.hpp"
 
-using rts::game::CameraConfig;
-using rts::game::CameraInput;
-using rts::game::ScreenEntity;
-using rts::game::Selection;
-using rts::game::SelectionConfig;
-using rts::render::Vec2;
+using reinos::game::CameraConfig;
+using reinos::game::CameraInput;
+using reinos::game::ScreenEntity;
+using reinos::game::Selection;
+using reinos::game::SelectionConfig;
+using reinos::render::Vec2;
 
 namespace {
 
@@ -85,25 +85,25 @@ TEST_CASE("Cámara: teclado, borde y tope de velocidad") {
     CameraInput keys;
     keys.right = true;
     keys.up = true;
-    Vec2 d = rts::game::camera_scroll(cfg, keys, screen, 0.5f);
+    Vec2 d = reinos::game::camera_scroll(cfg, keys, screen, 0.5f);
     CHECK(static_cast<double>(d.x) == doctest::Approx(500.0));
     CHECK(static_cast<double>(d.y) == doctest::Approx(-500.0));
 
     CameraInput edge;
     edge.mouse = {2.0f, 300.0f};  // pegado al borde izquierdo
     edge.mouse_in_window = true;
-    d = rts::game::camera_scroll(cfg, edge, screen, 1.0f);
+    d = reinos::game::camera_scroll(cfg, edge, screen, 1.0f);
     CHECK(static_cast<double>(d.x) == doctest::Approx(-500.0));
     CHECK(static_cast<double>(d.y) == doctest::Approx(0.0));
 
     edge.mouse_in_window = false;  // ratón fuera de la ventana: el borde no cuenta
-    d = rts::game::camera_scroll(cfg, edge, screen, 1.0f);
+    d = reinos::game::camera_scroll(cfg, edge, screen, 1.0f);
     CHECK(static_cast<double>(d.x) == doctest::Approx(0.0));
 
     CameraInput both = edge;  // teclado y borde en el mismo sentido: tope en la mayor
     both.mouse_in_window = true;
     both.left = true;
-    d = rts::game::camera_scroll(cfg, both, screen, 1.0f);
+    d = reinos::game::camera_scroll(cfg, both, screen, 1.0f);
     CHECK(static_cast<double>(d.x) == doctest::Approx(-1000.0));
 }
 

@@ -1,6 +1,6 @@
 #include "audio/bank.hpp"
 
-namespace rts::audio {
+namespace reinos::audio {
 
 Bank::Bank(const SoundSpec& spec, Mixer& mixer, bool with_music) {
     for (std::size_t r = 0; r < spec.recipes.size(); ++r) {
@@ -61,4 +61,4 @@ std::int32_t Bank::sound(std::int32_t recipe) const noexcept {
     return variants_[static_cast<std::size_t>(recipe)].front();
 }
 
-}  // namespace rts::audio
+}  // namespace reinos::audio

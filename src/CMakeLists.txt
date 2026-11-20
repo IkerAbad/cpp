@@ -1,16 +1,16 @@
 # Grafo de dependencias. Las flechas solo van hacia abajo:
 #
-#   rts (ejecutable)
-#    ├── rts_render ──── rts_platform ── SDL3
+#   reinos (ejecutable)
+#    ├── reinos_render ──── reinos_platform ── SDL3
 #    │      ├── imgui, shaders (dxc)
-#    │      └── rts_render_core          <- proyección, atlas, escena: sin SDL
-#    ├── rts_game_core ── toml++, rts_render_core, rts_net (sockets: sin SDL)
-#    └── rts_sim ── EnTT                  <- sin SDL, sin E/S, sin coma flotante
+#    │      └── reinos_render_core          <- proyección, atlas, escena: sin SDL
+#    ├── reinos_game_core ── toml++, reinos_render_core, reinos_net (sockets: sin SDL)
+#    └── reinos_sim ── EnTT                  <- sin SDL, sin E/S, sin coma flotante
 #
-# rts_sim no enlaza SDL: un #include <SDL3/...> en src/sim/ no compila.
+# reinos_sim no enlaza SDL: un #include <SDL3/...> en src/sim/ no compila.
 
 # --- Simulación pura -----------------------------------------------------------
-add_library(rts_sim STATIC
+add_library(reinos_sim STATIC
     sim/ai.cpp
     sim/combat.cpp
     sim/economy.cpp
@@ -32,37 +32,37 @@ add_library(rts_sim STATIC
     sim/tile_map.cpp
     sim/objectives.cpp
     sim/world.cpp)
-target_include_directories(rts_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(rts_sim PUBLIC EnTT::EnTT)
-rts_set_warnings(rts_sim)
+target_include_directories(reinos_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(reinos_sim PUBLIC EnTT::EnTT)
+reinos_set_warnings(reinos_sim)
 
 # --- Sonido (F2): síntesis y mezcla, sin SDL ------------------------------------
-add_library(rts_audio STATIC
+add_library(reinos_audio STATIC
     audio/synth.cpp
     audio/mixer.cpp
     audio/bank.cpp)
-target_include_directories(rts_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-rts_set_warnings(rts_audio)
+target_include_directories(reinos_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+reinos_set_warnings(reinos_audio)
 
 # --- Red (E1): sockets TCP propios, sin dependencias ------------------------------
-add_library(rts_net STATIC
+add_library(reinos_net STATIC
     net/socket.cpp)
-target_include_directories(rts_net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(reinos_net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 if(WIN32)
-    target_link_libraries(rts_net PRIVATE ws2_32)
+    target_link_libraries(reinos_net PRIVATE ws2_32)
 endif()
-rts_set_warnings(rts_net)
+reinos_set_warnings(reinos_net)
 
 # --- Presentación sin GPU (se prueba sin ventana) -------------------------------
-add_library(rts_render_core STATIC
+add_library(reinos_render_core STATIC
     render/art.cpp
     render/atlas.cpp
     render/scene.cpp)
-target_link_libraries(rts_render_core PUBLIC rts_sim)
-rts_set_warnings(rts_render_core)
+target_link_libraries(reinos_render_core PUBLIC reinos_sim)
+reinos_set_warnings(reinos_render_core)
 
 # --- Núcleo de juego sin plataforma (paso fijo, configuración, cámara, selección)
-add_library(rts_game_core STATIC
+add_library(reinos_game_core STATIC
     game/camera_control.cpp
     game/config.cpp
     game/fixed_step.cpp
@@ -79,56 +79,56 @@ add_library(rts_game_core STATIC
     game/alerts.cpp
     game/minimap.cpp
     game/selection.cpp)
-target_link_libraries(rts_game_core
-    PUBLIC rts_sim rts_render_core rts_net rts_audio
+target_link_libraries(reinos_game_core
+    PUBLIC reinos_sim reinos_render_core reinos_net reinos_audio
     PRIVATE tomlplusplus::tomlplusplus)
-rts_set_warnings(rts_game_core)
+reinos_set_warnings(reinos_game_core)
 
 # --- Perfilado -----------------------------------------------------------------
-add_library(rts_profile INTERFACE)
-if(RTS_TRACY)
-    target_compile_definitions(rts_profile INTERFACE RTS_TRACY)
-    target_link_libraries(rts_profile INTERFACE Tracy::TracyClient)
+add_library(reinos_profile INTERFACE)
+if(REINOS_TRACY)
+    target_compile_definitions(reinos_profile INTERFACE REINOS_TRACY)
+    target_link_libraries(reinos_profile INTERFACE Tracy::TracyClient)
 endif()
 
-# Sin RTS_BUILD_GAME acaba aquí: lo que sigue necesita SDL3, imgui, spdlog y dxc.
-if(NOT RTS_BUILD_GAME)
+# Sin REINOS_BUILD_GAME acaba aquí: lo que sigue necesita SDL3, imgui, spdlog y dxc.
+if(NOT REINOS_BUILD_GAME)
     return()
 endif()
 
 include(Shaders)
 
 # --- Plataforma ----------------------------------------------------------------
-add_library(rts_platform STATIC
+add_library(reinos_platform STATIC
     platform/window.cpp
     platform/audio.cpp)
-target_include_directories(rts_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(rts_platform PUBLIC SDL3::SDL3 rts_profile rts_audio)
-rts_set_warnings(rts_platform)
+target_include_directories(reinos_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(reinos_platform PUBLIC SDL3::SDL3 reinos_profile reinos_audio)
+reinos_set_warnings(reinos_platform)
 
 # --- Presentación con GPU ------------------------------------------------------
-add_library(rts_render STATIC
+add_library(reinos_render STATIC
     render/renderer.cpp)
-rts_add_shaders(rts_render
-    NAMESPACE rts::render::shaders
+reinos_add_shaders(reinos_render
+    NAMESPACE reinos::render::shaders
     SHADERS
         sprite_vert:render/shaders/sprite.vert.hlsl:vs
         sprite_frag:render/shaders/sprite.frag.hlsl:ps)
-target_link_libraries(rts_render
-    PUBLIC rts_render_core rts_platform
+target_link_libraries(reinos_render
+    PUBLIC reinos_render_core reinos_platform
     PRIVATE imgui::imgui spdlog::spdlog)
-rts_set_warnings(rts_render)
+reinos_set_warnings(reinos_render)
 
 # --- Ejecutable ----------------------------------------------------------------
-add_executable(rts
+add_executable(reinos
     game/main.cpp
     game/app.cpp)
-target_link_libraries(rts PRIVATE rts_game_core rts_render rts_platform imgui::imgui spdlog::spdlog)
-rts_set_warnings(rts)
+target_link_libraries(reinos PRIVATE reinos_game_core reinos_render reinos_platform imgui::imgui spdlog::spdlog)
+reinos_set_warnings(reinos)
 
 # data/ se copia junto al ejecutable: el binario encuentra sus datos sin depender
 # del directorio de trabajo.
-add_custom_command(TARGET rts POST_BUILD
+add_custom_command(TARGET reinos POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${PROJECT_SOURCE_DIR}/data $<TARGET_FILE_DIR:rts>/data
+            ${PROJECT_SOURCE_DIR}/data $<TARGET_FILE_DIR:reinos>/data
     COMMENT "Copiando data/ junto al ejecutable")

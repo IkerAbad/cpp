@@ -217,7 +217,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   batalla de 2000 contra 2000, media 18,8 ms y máximo 37,8 ms. La CI lo comprueba en
   cada cambio (pasa también en su máquina).
 - [x] **G2. Pruebas aleatorias de órdenes.** Órdenes al azar sobre partidas reales
-  sin que nada se rompa ni se desincronice. Hecho: `rts_fuzz` (y pruebas cortas)
+  sin que nada se rompa ni se desincronice. Hecho: `reinos_fuzz` (y pruebas cortas)
   con órdenes válidas y mal formadas, invariantes, dos mundos a la par y la
   repetición verificada. Encontró una caída real (una unidad repetida en una orden,
   posible por la red), ya arreglada. Medido: 672 000 órdenes en Release y 63 000 con

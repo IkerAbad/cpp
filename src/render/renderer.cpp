@@ -16,7 +16,7 @@
 #include "platform/profile.hpp"
 #include "render/embedded_shaders.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 namespace {
 
@@ -363,12 +363,12 @@ void Renderer::begin_frame() {
 }
 
 SceneStats Renderer::draw_scene(const Scene& scene) {
-    RTS_PROFILE_ZONE();
+    REINOS_PROFILE_ZONE();
     return scene_builder_.build(scene, batch_);
 }
 
 void Renderer::end_frame() {
-    RTS_PROFILE_ZONE();
+    REINOS_PROFILE_ZONE();
     ImGui::Render();
     ImDrawData* draw_data = ImGui::GetDrawData();
     const bool minimized = draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f;
@@ -433,4 +433,4 @@ void Renderer::end_frame() {
     SDL_SubmitGPUCommandBuffer(cmd);
 }
 
-}  // namespace rts::render
+}  // namespace reinos::render

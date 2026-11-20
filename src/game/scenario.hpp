@@ -45,7 +45,7 @@
 #include "game/i18n.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 inline constexpr std::string_view kScenarioFile = "config/escenario.toml";
 
@@ -88,4 +88,4 @@ void raise(sim::ScenarioParams& s, sim::TileCoord center, std::int32_t radius, s
 // Quita lo último colocado que ocupa la casilla (las unidades primero). Falso si no hay nada.
 bool erase_at(sim::ScenarioParams& s, sim::TileCoord tile, const GameData& data);
 
-}  // namespace rts::game
+}  // namespace reinos::game

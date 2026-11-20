@@ -5,7 +5,7 @@
 
 #include "sim/units.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 using Rgba = std::array<std::uint8_t, 4>;
 
@@ -73,4 +73,4 @@ struct ViewParams {
     std::int32_t construction_min_percent = 0;  // alto visible de un edificio recién empezado
 };
 
-}  // namespace rts::render
+}  // namespace reinos::render

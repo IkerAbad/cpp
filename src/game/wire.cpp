@@ -1,6 +1,6 @@
 #include "game/wire.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -78,4 +78,4 @@ bool read_command(ByteReader& r, sim::Command& c) {
     return r.ok();
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

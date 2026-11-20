@@ -10,11 +10,11 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
@@ -23,22 +23,22 @@ constexpr std::size_t kGold = 3;
 
 struct MarketSetup {
     WorldParams params = test_world_params(0, 16);
-    rts::sim::BuildingTypeId market = 0;
-    rts::sim::UnitTypeId mule = 0;
+    reinos::sim::BuildingTypeId market = 0;
+    reinos::sim::UnitTypeId mule = 0;
 
     MarketSetup() {
-        params.map.bands = {{rts::sim::kElevationRange, 1}};
+        params.map.bands = {{reinos::sim::kElevationRange, 1}};
         params.demo.player = 1;
-        rts::sim::BuildingType m = params.building_types[kHouse];
+        reinos::sim::BuildingType m = params.building_types[kHouse];
         m.population = 0;
         m.market = true;
-        market = static_cast<rts::sim::BuildingTypeId>(params.building_types.size());
+        market = static_cast<reinos::sim::BuildingTypeId>(params.building_types.size());
         params.building_types.push_back(m);
-        rts::sim::UnitType u = params.unit_types[kVillager];
+        reinos::sim::UnitType u = params.unit_types[kVillager];
         u.worker = false;
         u.carry_capacity = 0;
         u.convoy_capacity = 20;
-        mule = static_cast<rts::sim::UnitTypeId>(params.unit_types.size());
+        mule = static_cast<reinos::sim::UnitTypeId>(params.unit_types.size());
         params.unit_types.push_back(u);
         auto& mk = params.market;
         mk.enabled = true;
@@ -50,16 +50,16 @@ struct MarketSetup {
         mk.sell_fee_percent = 30;
         mk.recover_interval_ticks = 10;
         mk.caravan_gold_milli_per_tile = 1000;  // 1 de oro por casilla
-        mk.caravan_reach = rts::sim::Fixed::from_ratio(4, 5);
+        mk.caravan_reach = reinos::sim::Fixed::from_ratio(4, 5);
     }
 };
 
-Command trade(std::uint32_t market, std::size_t r, bool sell, rts::sim::PlayerId player = 0) {
+Command trade(std::uint32_t market, std::size_t r, bool sell, reinos::sim::PlayerId player = 0) {
     Command c;
     c.type = CommandType::Trade;
     c.player = player;
     c.object = market;
-    c.kind = static_cast<std::uint8_t>(r | (sell ? rts::sim::kSellBit : 0U));
+    c.kind = static_cast<std::uint8_t>(r | (sell ? reinos::sim::kSellBit : 0U));
     return c;
 }
 

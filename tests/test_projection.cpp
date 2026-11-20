@@ -9,10 +9,10 @@
 #include "render/projection.hpp"
 #include "sim/rng.hpp"
 
-using rts::render::Camera;
-using rts::render::IsoProjection;
-using rts::render::Vec2;
-using rts::render::ViewParams;
+using reinos::render::Camera;
+using reinos::render::IsoProjection;
+using reinos::render::Vec2;
+using reinos::render::ViewParams;
 
 namespace {
 
@@ -70,7 +70,7 @@ TEST_CASE("Proyección: ida y vuelta en las 65 536 casillas") {
 
 TEST_CASE("Recorte: coincide con la fuerza bruta en 200 cámaras aleatorias") {
     const IsoProjection p(view_64x32());
-    rts::sim::Xoshiro256pp rng(123);
+    reinos::sim::Xoshiro256pp rng(123);
     const Vec2 world_lo = p.world_min(kMap, kMap);
     const Vec2 world_hi = p.world_max(kMap, kMap);
     for (int trial = 0; trial < 200; ++trial) {
@@ -86,7 +86,7 @@ TEST_CASE("Recorte: coincide con la fuerza bruta en 200 cámaras aleatorias") {
         std::set<std::pair<int, int>> iterated;
         int last_row = -1;
         bool ordered = true;
-        rts::render::for_each_visible_tile(p, cam, screen, kMap, kMap, [&](int i, int j) {
+        reinos::render::for_each_visible_tile(p, cam, screen, kMap, kMap, [&](int i, int j) {
             iterated.insert({i, j});
             ordered = ordered && (i + j) >= last_row;
             last_row = i + j;
@@ -102,7 +102,7 @@ TEST_CASE("Recorte: a 1920x1080 se visitan unas 2 200 casillas, no las 65 536") 
     Camera cam;
     cam.center_on(p.tile_to_world({128.0f, 128.0f}), screen);
     int count = 0;
-    rts::render::for_each_visible_tile(p, cam, screen, kMap, kMap, [&](int, int) { ++count; });
+    reinos::render::for_each_visible_tile(p, cam, screen, kMap, kMap, [&](int, int) { ++count; });
     MESSAGE("casillas visibles a 1920x1080: " << count);
     CHECK(count > 1'900);
     CHECK(count < 2'400);

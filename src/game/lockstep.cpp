@@ -6,7 +6,7 @@
 
 #include "game/wire.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -743,4 +743,4 @@ void LockstepSession::check_done() {
     state_ = LockstepState::Finished;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

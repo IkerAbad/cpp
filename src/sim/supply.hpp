@@ -32,7 +32,7 @@
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -139,4 +139,4 @@ private:
     SupplyTickStats stats_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

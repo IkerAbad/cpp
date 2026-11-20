@@ -1,14 +1,14 @@
 #pragma once
 
-// Macros de perfilado. Sin RTS_TRACY se reducen a nada: coste cero en el binario.
+// Macros de perfilado. Sin REINOS_TRACY se reducen a nada: coste cero en el binario.
 
-#if defined(RTS_TRACY)
+#if defined(REINOS_TRACY)
 #include <tracy/Tracy.hpp>
-#define RTS_PROFILE_ZONE() ZoneScoped
-#define RTS_PROFILE_ZONE_NAMED(name) ZoneScopedN(name)
-#define RTS_PROFILE_FRAME() FrameMark
+#define REINOS_PROFILE_ZONE() ZoneScoped
+#define REINOS_PROFILE_ZONE_NAMED(name) ZoneScopedN(name)
+#define REINOS_PROFILE_FRAME() FrameMark
 #else
-#define RTS_PROFILE_ZONE()
-#define RTS_PROFILE_ZONE_NAMED(name)
-#define RTS_PROFILE_FRAME()
+#define REINOS_PROFILE_ZONE()
+#define REINOS_PROFILE_ZONE_NAMED(name)
+#define REINOS_PROFILE_FRAME()
 #endif

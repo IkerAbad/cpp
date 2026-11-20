@@ -9,11 +9,11 @@
 #include "sim/state_hash.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::generate_map;
-using rts::sim::StateHasher;
-using rts::sim::TileCoord;
-using rts::sim::TileMap;
-using rts::test::test_map_params;
+using reinos::sim::generate_map;
+using reinos::sim::StateHasher;
+using reinos::sim::TileCoord;
+using reinos::sim::TileMap;
+using reinos::test::test_map_params;
 
 namespace {
 
@@ -105,8 +105,8 @@ TEST_CASE("TileMap: la revisión crece con cada escritura") {
 
 namespace {
 
-rts::sim::MapGenParams river_params(std::int32_t rivers) {
-    auto p = rts::test::test_map_params();
+reinos::sim::MapGenParams river_params(std::int32_t rivers) {
+    auto p = reinos::test::test_map_params();
     p.rivers.count = rivers;
     p.rivers.width_tiles = 4;
     p.rivers.fords = 2;
@@ -126,9 +126,9 @@ rts::sim::MapGenParams river_params(std::int32_t rivers) {
 }  // namespace
 
 TEST_CASE("Ríos: sin ríos, el mapa es exactamente el de siempre") {
-    const auto base = rts::sim::generate_map(rts::test::test_map_params());
+    const auto base = reinos::sim::generate_map(reinos::test::test_map_params());
     auto p = river_params(0);
-    const auto same = rts::sim::generate_map(p);
+    const auto same = reinos::sim::generate_map(p);
     for (std::int32_t y = 0; y < base.height(); ++y) {
         for (std::int32_t x = 0; x < base.width(); ++x) {
             REQUIRE(base.terrain({x, y}) == same.terrain({x, y}));
@@ -139,8 +139,8 @@ TEST_CASE("Ríos: sin ríos, el mapa es exactamente el de siempre") {
 
 TEST_CASE("Ríos: cruzan el mapa de borde a borde, lejos de los inicios, con vados y siempre igual") {
     const auto p = river_params(2);
-    const auto a = rts::sim::generate_map(p);
-    const auto b = rts::sim::generate_map(p);
+    const auto a = reinos::sim::generate_map(p);
+    const auto b = reinos::sim::generate_map(p);
     std::int32_t fords = 0;
     for (std::int32_t y = 0; y < a.height(); ++y) {
         for (std::int32_t x = 0; x < a.width(); ++x) {

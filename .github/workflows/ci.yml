@@ -117,7 +117,7 @@ jobs:
         env:
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
           SDL_VIDEO_DRIVER: x11
-        run: xvfb-run -a -s "-screen 0 1600x900x24" "build/${{ matrix.preset }}/src/rts" --frames 120
+        run: xvfb-run -a -s "-screen 0 1600x900x24" "build/${{ matrix.preset }}/src/reinos" --frames 120
 
       # E2: la partida en red con ventana (sin pasar por el menú), anfitrión e invitado.
       - name: Humo en red con ventana (Vulkan por software)
@@ -126,7 +126,7 @@ jobs:
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
           SDL_VIDEO_DRIVER: x11
         run: |
-          exe="build/${{ matrix.preset }}/src/rts"
+          exe="build/${{ matrix.preset }}/src/reinos"
           xvfb-run -a -s "-screen 0 1280x720x24" "$exe" --host 47100 --frames 300 > net-win-host.log 2>&1 &
           host_pid=$!
           xvfb-run -a -s "-screen 0 1280x720x24" "$exe" --join 127.0.0.1:47100 --frames 300 | tee net-win-guest.log
@@ -142,13 +142,13 @@ jobs:
       # plataformas (trabajo replay-cross).
       - name: Hash de estado (2 minutos de juego sin ventana)
         run: |
-          exe="build/${{ matrix.preset }}/src/rts"
+          exe="build/${{ matrix.preset }}/src/reinos"
           [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
-          "$exe" --headless --ticks 2400 --record replay-${{ matrix.name }}.rtsrep | tee headless.log
+          "$exe" --headless --ticks 2400 --record replay-${{ matrix.name }}.rep | tee headless.log
           grep -o 'state_hash=[0-9a-f]*' headless.log > hash-${{ matrix.name }}.txt
           cat hash-${{ matrix.name }}.txt
           # La repetición recién grabada se reproduce igual en la misma máquina.
-          "$exe" --verify-replay replay-${{ matrix.name }}.rtsrep
+          "$exe" --verify-replay replay-${{ matrix.name }}.rep
 
       - uses: actions/upload-artifact@v4
         with:
@@ -160,25 +160,25 @@ jobs:
       # ser idénticas byte a byte y verificarse solas.
       - name: Partida en red (anfitrión e invitado por bucle local)
         run: |
-          exe="build/${{ matrix.preset }}/src/rts"
-          "$exe" --headless --ticks 2400 --host 47000 --record net-host.rtsrep > net-host.log 2>&1 &
+          exe="build/${{ matrix.preset }}/src/reinos"
+          "$exe" --headless --ticks 2400 --host 47000 --record net-host.rep > net-host.log 2>&1 &
           host_pid=$!
-          "$exe" --headless --join 127.0.0.1:47000 --record net-guest.rtsrep | tee net-guest.log
+          "$exe" --headless --join 127.0.0.1:47000 --record net-guest.rep | tee net-guest.log
           wait "$host_pid" || { cat net-host.log; exit 1; }
           cat net-host.log
           h1=$(grep -o 'state_hash=[0-9a-f]*' net-host.log)
           h2=$(grep -o 'state_hash=[0-9a-f]*' net-guest.log)
           echo "anfitrión $h1, invitado $h2"
           test -n "$h1" && test "$h1" = "$h2"
-          cmp net-host.rtsrep net-guest.rtsrep
-          "$exe" --verify-replay net-guest.rtsrep
+          cmp net-host.rep net-guest.rep
+          "$exe" --verify-replay net-guest.rep
 
       - name: Subir la repetición grabada en Linux
         if: matrix.name == 'linux-gcc'
         uses: actions/upload-artifact@v4
         with:
           name: replay-linux
-          path: replay-linux-gcc.rtsrep
+          path: replay-linux-gcc.rep
 
       # Solo el ejecutable: en Linux, vcpkg enlaza estático; en Windows, el triplet es
       # x64-windows-static-md. Lo usa replay-cross sin volver a compilar.
@@ -186,8 +186,8 @@ jobs:
         with:
           name: exe-${{ matrix.name }}
           path: |
-            build/${{ matrix.preset }}/src/rts
-            build/${{ matrix.preset }}/src/rts.exe
+            build/${{ matrix.preset }}/src/reinos
+            build/${{ matrix.preset }}/src/reinos.exe
           if-no-files-found: error
           retention-days: 3
 
@@ -234,45 +234,45 @@ jobs:
       - name: Configurar y compilar (RelWithDebInfo)
         run: |
           cmake --preset linux-clang-release
-          cmake --build --preset linux-clang-release --target rts_bench rts_ai_match rts_tests rts_fuzz
+          cmake --build --preset linux-clang-release --target reinos_bench reinos_ai_match reinos_tests reinos_fuzz
 
       # Criterio de M2: ningún tick por encima de 50 ms (el presupuesto de un tick a
       # 20 Hz). El runner es compartido: un fallo aislado se reproduce antes de culpar
       # al código, pero el umbral es el máximo, no un percentil.
       - name: 1000 unidades
-        run: build/linux-clang-release/bench/rts_bench --units 1000 --ticks 1200 --max-ms 50
+        run: build/linux-clang-release/bench/reinos_bench --units 1000 --ticks 1200 --max-ms 50
 
       - name: 2000 unidades
-        run: build/linux-clang-release/bench/rts_bench --units 2000 --ticks 1200 --max-ms 50
+        run: build/linux-clang-release/bench/reinos_bench --units 2000 --ticks 1200 --max-ms 50
 
       # Criterio de M4: batalla de dos ejércitos (500 contra 500 y 1000 contra 1000) en
       # ataque-movimiento, con el mismo umbral de 50 ms por tick.
       - name: Batalla de 1000 unidades
-        run: build/linux-clang-release/bench/rts_bench --units 1000 --ticks 1200 --max-ms 50 --combat 1
+        run: build/linux-clang-release/bench/reinos_bench --units 1000 --ticks 1200 --max-ms 50 --combat 1
 
       - name: Batalla de 2000 unidades
-        run: build/linux-clang-release/bench/rts_bench --units 2000 --ticks 1200 --max-ms 50 --combat 1
+        run: build/linux-clang-release/bench/reinos_bench --units 2000 --ticks 1200 --max-ms 50 --combat 1
 
       # Criterio de G1: 4000 unidades (movimiento y batalla de 2000 contra 2000), mismo
       # umbral de 50 ms por tick.
       - name: 4000 unidades
-        run: build/linux-clang-release/bench/rts_bench --units 4000 --ticks 1200 --max-ms 50
+        run: build/linux-clang-release/bench/reinos_bench --units 4000 --ticks 1200 --max-ms 50
 
       - name: Batalla de 4000 unidades
-        run: build/linux-clang-release/bench/rts_bench --units 4000 --ticks 1200 --max-ms 50 --combat 1
+        run: build/linux-clang-release/bench/reinos_bench --units 4000 --ticks 1200 --max-ms 50 --combat 1
 
       # 30 minutos de partida por defecto con la IA en todos los jugadores.
       - name: IA contra IA, 30 minutos
-        run: build/linux-clang-release/bench/rts_bench --ticks 36000 --max-ms 50 --ai-data data
+        run: build/linux-clang-release/bench/reinos_bench --ticks 36000 --max-ms 50 --ai-data data
 
       # Órdenes al azar (G2): 3 semillas x 6000 ticks en partidas de 2 y 4 jugadores,
       # con y sin niebla, y en cada capítulo; sin caídas, invariantes rotas ni divergencias.
       - name: Órdenes al azar
-        run: build/linux-clang-release/bench/rts_fuzz --data data --seeds 3 --ticks 6000
+        run: build/linux-clang-release/bench/reinos_fuzz --data data --seeds 3 --ticks 6000
 
       # Equilibrio de la campaña (F4): lo que es lento sin optimizar, aquí.
       - name: Campaña (equilibrio de Las Navas)
-        run: build/linux-clang-release/tests/rts_tests -tc="Campaña*"
+        run: build/linux-clang-release/tests/reinos_tests -tc="Campaña*"
 
       # Cada nivel contra el de debajo en 40 partidas de 30 minutos (20 mapas, cada uno
       # desde los dos lados). Determinista: no hay suerte, pero cada partida es caótica y
@@ -280,18 +280,18 @@ jobs:
       # 77 % (12 mapas a 1), difícil 65 % (9 a 3), experto 67 % (7 a 0).
       - name: Torneo de IA (cada nivel contra el de debajo, D4)
         run: |
-          build/linux-clang-release/bench/rts_ai_match --data data --a normal --b facil --games 40 --min-win-percent 70 --min-both-sides 6
-          build/linux-clang-release/bench/rts_ai_match --data data --a dificil --b normal --games 40 --min-win-percent 60 --min-both-sides 4
-          build/linux-clang-release/bench/rts_ai_match --data data --a experto --b dificil --games 40 --min-win-percent 60 --min-both-sides 4
+          build/linux-clang-release/bench/reinos_ai_match --data data --a normal --b facil --games 40 --min-win-percent 70 --min-both-sides 6
+          build/linux-clang-release/bench/reinos_ai_match --data data --a dificil --b normal --games 40 --min-win-percent 60 --min-both-sides 4
+          build/linux-clang-release/bench/reinos_ai_match --data data --a experto --b dificil --games 40 --min-win-percent 60 --min-both-sides 4
 
       # Criterio de M5: una partida de 30 minutos grabada se reproduce con los mismos
       # 180 hashes intermedios y el mismo hash final.
       - name: Repetición de 30 minutos
         run: |
-          cmake --build --preset linux-clang-release --target rts
-          exe=build/linux-clang-release/src/rts
-          "$exe" --headless --ticks 36000 --record r30.rtsrep | tee record.log
-          "$exe" --verify-replay r30.rtsrep | tee verify.log
+          cmake --build --preset linux-clang-release --target reinos
+          exe=build/linux-clang-release/src/reinos
+          "$exe" --headless --ticks 36000 --record r30.rep | tee record.log
+          "$exe" --verify-replay r30.rep | tee verify.log
           recorded=$(grep -o 'state_hash=[0-9a-f]*' record.log)
           verified=$(grep -o 'state_hash=[0-9a-f]*' verify.log)
           echo "grabada: $recorded · reproducida: $verified"
@@ -342,12 +342,12 @@ jobs:
           name: replay-linux
       - name: Verificar
         run: |
-          exe=exe/rts
+          exe=exe/reinos
           [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
           chmod +x "$exe"
-          "$exe" --verify-replay replay-linux-gcc.rtsrep
+          "$exe" --verify-replay replay-linux-gcc.rep
 
-  # Paquete listo para jugar en Windows: rts.exe (Release) y data/ en un zip. Se
+  # Paquete listo para jugar en Windows: reinos.exe (Release) y data/ en un zip. Se
   # descarga desde la pestaña Actions de la ejecución, apartado Artifacts.
   paquete-windows:
     name: Paquete para jugar en Windows
@@ -388,25 +388,25 @@ jobs:
       - name: Compilar (Release)
         run: |
           cmake --preset windows-msvc-release -DRTS_BUILD_TESTS=OFF -DRTS_BUILD_BENCH=OFF
-          cmake --build --preset windows-msvc-release --target rts
+          cmake --build --preset windows-msvc-release --target reinos
 
       - name: Preparar la carpeta
         run: |
-          mkdir -p paquete/rts
-          cp build/windows-msvc-release/src/rts.exe paquete/rts/
-          cp -r data paquete/rts/data
-          cat > paquete/rts/LEEME.txt <<'TXT'
-          Doble clic en rts.exe para jugar (tú eres el jugador azul contra la IA).
+          mkdir -p paquete/reinos
+          cp build/windows-msvc-release/src/reinos.exe paquete/reinos/
+          cp -r data paquete/reinos/data
+          cat > paquete/reinos/LEEME.txt <<'TXT'
+          Doble clic en reinos.exe para jugar (tú eres el jugador azul contra la IA).
           Las partidas se graban solas en la carpeta replays.
-          Para ver una repetición: arrastra el fichero .rtsrep sobre rts.exe o
-          ejecuta en una consola: rts.exe --replay replays\partida-....rtsrep
+          Para ver una repetición: arrastra el fichero .rep sobre reinos.exe o
+          ejecuta en una consola: reinos.exe --replay replays\partida-....rep
           Si Windows dice que falta VCRUNTIME140.dll, instala el "Microsoft Visual
           C++ Redistributable" (x64) desde la web de Microsoft.
           TXT
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rts-windows
+          name: reinos-windows
           path: paquete
           retention-days: 30
 
@@ -453,13 +453,13 @@ jobs:
       - name: Compilar (linux-clang-release)
         run: |
           cmake --preset linux-clang-release -DRTS_BUILD_TESTS=OFF -DRTS_BUILD_BENCH=OFF
-          cmake --build --preset linux-clang-release --target rts
+          cmake --build --preset linux-clang-release --target reinos
 
       # Que lleve sonido y ventana de Linux (SDL los carga al arrancar: sin ellos el
       # juego quedaría mudo), que no pida bibliotecas raras y que juegue.
       - name: Comprobar el ejecutable
         run: |
-          exe=build/linux-clang-release/src/rts
+          exe=build/linux-clang-release/src/reinos
           for lib in libpipewire-0.3.so.0 libpulse.so.0 libasound.so.2 libdecor-0.so.0 \
                      libwayland-client.so.0 libX11.so.6 libvulkan.so.1; do
             grep -q "$lib" "$exe" || { echo "SDL3 no sabe cargar $lib"; exit 1; }
@@ -470,10 +470,10 @@ jobs:
 
       - name: Preparar el paquete
         run: |
-          r=paquete/rts
+          r=paquete/reinos
           mkdir -p "$r/licencias"
-          cp build/linux-clang-release/src/rts "$r/"
-          strip "$r/rts"
+          cp build/linux-clang-release/src/reinos "$r/"
+          strip "$r/reinos"
           cp -r data "$r/data"
           cp LICENSE packaging/linux/crear-acceso-directo.sh "$r/"
           sed "s/@VERSION@/commit ${GITHUB_SHA::7}/" packaging/linux/LEEME.txt > "$r/LEEME.txt"
@@ -481,12 +481,12 @@ jobs:
           for c in build/linux-clang-release/vcpkg_installed/x64-linux/share/*/copyright; do
             cp "$c" "$r/licencias/$(basename "$(dirname "$c")").txt"
           done
-          chmod +x "$r/rts" "$r/crear-acceso-directo.sh"
-          tar -C paquete -czf rts-linux-x86_64.tar.gz --owner=0 --group=0 rts
-          ls -l rts-linux-x86_64.tar.gz
+          chmod +x "$r/reinos" "$r/crear-acceso-directo.sh"
+          tar -C paquete -czf reinos-linux-x86_64.tar.gz --owner=0 --group=0 reinos
+          ls -l reinos-linux-x86_64.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rts-linux
-          path: rts-linux-x86_64.tar.gz
+          name: reinos-linux
+          path: reinos-linux-x86_64.tar.gz
           retention-days: 30

@@ -33,7 +33,7 @@
 
 #include "game/i18n.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 inline constexpr std::string_view kCampaignDir = "campaigns";
 inline constexpr std::string_view kCampaignFile = "campana.toml";
@@ -83,4 +83,4 @@ struct CampaignProgress {
 [[nodiscard]] CampaignProgress parse_progress(std::string_view text);
 [[nodiscard]] std::string progress_toml(const CampaignProgress& p);
 
-}  // namespace rts::game
+}  // namespace reinos::game

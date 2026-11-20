@@ -6,7 +6,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 ObjectiveSystem::ObjectiveSystem(const ObjectiveParams& params, std::vector<Objective> objectives,
                                  std::vector<UnitType> unit_types, std::size_t player_count)
@@ -133,4 +133,4 @@ void ObjectiveSystem::hash_into(StateHasher& h) const {
     h.add_i32(winner_ ? static_cast<std::int32_t>(*winner_) : -1);
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

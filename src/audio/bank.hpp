@@ -9,7 +9,7 @@
 #include "audio/mixer.hpp"
 #include "audio/sound_spec.hpp"
 
-namespace rts::audio {
+namespace reinos::audio {
 
 // Un sonido a reproducir: receta (índice en SoundSpec::recipes), volumen 0..1 y panorama.
 struct SoundCue {
@@ -40,4 +40,4 @@ private:
     std::vector<std::int32_t> pieces_;
 };
 
-}  // namespace rts::audio
+}  // namespace reinos::audio

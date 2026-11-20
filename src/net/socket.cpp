@@ -29,7 +29,7 @@
 #include <cstring>
 #endif
 
-namespace rts::net {
+namespace reinos::net {
 
 namespace {
 
@@ -351,4 +351,4 @@ void wait(std::span<const Socket::Handle> read, std::span<const Socket::Handle> 
     sys_poll(fds.data(), fds.size(), timeout_ms);
 }
 
-}  // namespace rts::net
+}  // namespace reinos::net

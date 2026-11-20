@@ -4,7 +4,7 @@
 #include <cmath>
 #include <numbers>
 
-namespace rts::audio {
+namespace reinos::audio {
 
 std::int32_t Mixer::add(std::vector<float> samples) {
     sounds_.push_back(std::move(samples));
@@ -118,4 +118,4 @@ void Mixer::mix(std::span<float> out) {
     }
 }
 
-}  // namespace rts::audio
+}  // namespace reinos::audio

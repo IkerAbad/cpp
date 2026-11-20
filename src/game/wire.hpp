@@ -14,7 +14,7 @@
 
 #include "sim/units.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 class ByteWriter {
 public:
@@ -63,4 +63,4 @@ void write_command(ByteWriter& w, const sim::Command& c);
 // Falso si los bytes no forman una orden válida (truncada o de un tipo desconocido).
 bool read_command(ByteReader& r, sim::Command& c);
 
-}  // namespace rts::game
+}  // namespace reinos::game

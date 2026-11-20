@@ -32,7 +32,7 @@
 #include "sim/units.hpp"
 #include "sim/vision.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 // Unidades de prueba sueltas (movimiento, banco): count unidades de un tipo del jugador
 // indicado, repartidas en un cuadrado de area_tiles casillas centrado en el mapa.
@@ -323,4 +323,4 @@ private:
     Tick tick_ = 0;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

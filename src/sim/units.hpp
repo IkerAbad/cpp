@@ -14,7 +14,7 @@
 #include "sim/tick.hpp"
 #include "sim/tile_map.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 inline constexpr std::int32_t kPercent = 100;
 
@@ -351,4 +351,4 @@ struct MovementParams {
     std::vector<std::int32_t> speed_percent_by_terrain;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

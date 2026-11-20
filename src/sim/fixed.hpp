@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class Fixed {
 public:
@@ -96,4 +96,4 @@ private:
     return std::int64_t{a.raw()} * b.raw();
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

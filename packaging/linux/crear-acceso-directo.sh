@@ -4,14 +4,14 @@ set -eu
 dir=$(cd "$(dirname "$0")" && pwd)
 apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 mkdir -p "$apps"
-cat > "$apps/rts.desktop" <<EOF
+cat > "$apps/reinos.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=RTS (nombre provisional)
+Name=Reinos (nombre provisional)
 Comment=Estrategia en tiempo real con logística
-Exec="$dir/rts"
+Exec="$dir/reinos"
 Path=$dir
 Terminal=false
 Categories=Game;StrategyGame;
 EOF
-echo "Acceso directo creado en $apps/rts.desktop"
+echo "Acceso directo creado en $apps/reinos.desktop"

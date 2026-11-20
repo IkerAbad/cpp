@@ -24,7 +24,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rts::game {
+namespace reinos::game {
 
 inline constexpr std::string_view kLangDir = "lang";
 inline constexpr std::string_view kDefaultLanguage = "es";
@@ -101,4 +101,4 @@ private:
     std::map<std::string, std::string, std::less<>> by_lang_;
 };
 
-}  // namespace rts::game
+}  // namespace reinos::game

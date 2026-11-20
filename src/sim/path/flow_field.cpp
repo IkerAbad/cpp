@@ -1,6 +1,6 @@
 #include "sim/path/flow_field.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 FlowField::FlowField(const PassGrid& grid, TileCoord goal, const SectorMask& corridor, GridSearch& search)
     : goal_(goal) {
@@ -61,4 +61,4 @@ std::optional<TileCoord> FlowField::next_step(const PassGrid& grid, TileCoord fr
     return best;
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

@@ -8,7 +8,7 @@
 #include "sim/fire.hpp"
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 VisionSystem::VisionSystem(const VisionParams& params, const TileMap& map, std::vector<UnitType> units,
                            std::vector<BuildingType> buildings, std::vector<ResourceNodeType> nodes, std::int32_t players)
@@ -264,4 +264,4 @@ void VisionSystem::hash_into(StateHasher& h) const {
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

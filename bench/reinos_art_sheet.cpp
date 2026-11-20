@@ -2,7 +2,7 @@
 // de un vistazo, sin abrir el juego. Escribe un PAM (Netpbm, RGBA sin comprimir) que
 // cualquier visor o `convert hoja.pam hoja.png` abre.
 //
-//   rts_art_sheet --data data --out hoja.pam
+//   reinos_art_sheet --data data --out hoja.pam
 
 #include <algorithm>
 #include <cstdint>
@@ -17,7 +17,7 @@
 
 namespace {
 
-using rts::render::Image;
+using reinos::render::Image;
 
 constexpr std::int32_t kGap = 6;
 constexpr std::int32_t kSheetWidth = 1400;
@@ -107,44 +107,44 @@ int main(int argc, char** argv) {
             out = argv[i + 1];
         }
     }
-    const auto data = rts::game::load_game_data(data_dir);
+    const auto data = reinos::game::load_game_data(data_dir);
     if (!data) {
         std::fprintf(stderr, "%s\n", data.error().c_str());
         return 1;
     }
-    const rts::render::ArtSpec& art = data->art;
-    const rts::render::ViewParams& view = data->engine.view;
+    const reinos::render::ArtSpec& art = data->art;
+    const reinos::render::ViewParams& view = data->engine.view;
     Sheet sheet;
     for (const auto& u : art.units) {
-        for (std::size_t p = 0; p < rts::render::kPoseCount; ++p) {
-            const auto s = rts::render::paint_unit(u, art.style, static_cast<rts::render::Pose>(p));
+        for (std::size_t p = 0; p < reinos::render::kPoseCount; ++p) {
+            const auto s = reinos::render::paint_unit(u, art.style, static_cast<reinos::render::Pose>(p));
             sheet.put(s.body, &s.team);
         }
         sheet.put({});
     }
     sheet.new_row();
     for (const auto& b : art.buildings) {
-        const auto s = rts::render::paint_building(b, art.style, view);
+        const auto s = reinos::render::paint_building(b, art.style, view);
         sheet.put(s.body, &s.team);
     }
     sheet.new_row();
     for (const auto& n : art.nodes) {
         for (std::int32_t v = 0; v < n.variants; ++v) {
-            sheet.put(rts::render::paint_node(n, art.style, view, v));
+            sheet.put(reinos::render::paint_node(n, art.style, view, v));
         }
     }
     sheet.new_row();
     for (std::size_t t = 0; t < art.terrain.size(); ++t) {
         for (std::int32_t v = 0; v < art.terrain_variants; ++v) {
-            sheet.put(rts::render::paint_terrain(art.terrain[t], view, v), nullptr, data->terrain.types[t].color);
+            sheet.put(reinos::render::paint_terrain(art.terrain[t], view, v), nullptr, data->terrain.types[t].color);
         }
     }
     sheet.new_row();
     for (std::int32_t f = 0; f < art.flame_frames; ++f) {
-        sheet.put(rts::render::paint_flame(art.effects, f, art.flame_frames));
+        sheet.put(reinos::render::paint_flame(art.effects, f, art.flame_frames));
     }
-    sheet.put(rts::render::paint_smoke(art.effects), nullptr, art.effects.smoke);
-    sheet.put(rts::render::paint_ground_ring(view.tile_width_px / 2));
+    sheet.put(reinos::render::paint_smoke(art.effects), nullptr, art.effects.smoke);
+    sheet.put(reinos::render::paint_ground_ring(view.tile_width_px / 2));
     if (!sheet.write(out)) {
         std::fprintf(stderr, "no se pudo escribir %s\n", out.c_str());
         return 1;

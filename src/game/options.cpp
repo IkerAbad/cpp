@@ -4,7 +4,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -87,4 +87,4 @@ std::string options_toml(const Options& o) {
     return out;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

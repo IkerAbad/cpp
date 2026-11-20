@@ -5,8 +5,8 @@
 
 #include <cstdint>
 
-namespace rts::sim {
+namespace reinos::sim {
 
 enum class Fog : std::uint8_t { Unexplored = 0, Explored = 1, Visible = 2 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

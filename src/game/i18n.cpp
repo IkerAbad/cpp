@@ -8,7 +8,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -122,4 +122,4 @@ const Translations& current_translations() {
     return *current();
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

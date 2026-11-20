@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace rts::audio {
+namespace reinos::audio {
 
 enum class Wave : std::uint8_t { Sine, Triangle, Square, Saw, Noise };
 
@@ -71,4 +71,4 @@ struct MusicPiece {
 // Una vuelta entera de la pieza (pensada para repetirse sin corte).
 [[nodiscard]] std::vector<float> compose(const MusicPiece& piece, std::int32_t sample_rate);
 
-}  // namespace rts::audio
+}  // namespace reinos::audio

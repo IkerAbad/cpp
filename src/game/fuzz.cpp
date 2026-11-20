@@ -4,7 +4,7 @@
 
 #include "game/replay.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -163,4 +163,4 @@ FuzzResult run_fuzz(const GameData& data, std::uint64_t seed, std::int32_t ticks
     return r;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

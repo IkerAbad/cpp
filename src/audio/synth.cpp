@@ -5,7 +5,7 @@
 #include <cmath>
 #include <numbers>
 
-namespace rts::audio {
+namespace reinos::audio {
 
 namespace {
 
@@ -457,4 +457,4 @@ std::vector<float> compose(const MusicPiece& piece, std::int32_t sample_rate) {
     return out;
 }
 
-}  // namespace rts::audio
+}  // namespace reinos::audio

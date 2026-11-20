@@ -15,15 +15,15 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::game::DataFile;
-using rts::game::Replay;
-using rts::game::ReplayCommand;
-using rts::game::ReplayRecorder;
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::game::DataFile;
+using reinos::game::Replay;
+using reinos::game::ReplayCommand;
+using reinos::game::ReplayRecorder;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
@@ -49,8 +49,8 @@ WorldParams replay_game() {
     return p;
 }
 
-std::vector<std::uint32_t> units_of(const World& world, rts::sim::PlayerId player) {
-    rts::sim::Snapshot s;
+std::vector<std::uint32_t> units_of(const World& world, reinos::sim::PlayerId player) {
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
     std::vector<std::uint32_t> ids;
     for (const auto& e : s.entities) {
@@ -61,15 +61,15 @@ std::vector<std::uint32_t> units_of(const World& world, rts::sim::PlayerId playe
     return ids;
 }
 
-std::uint32_t own_building(const World& world, rts::sim::PlayerId player) {
-    rts::sim::Snapshot s;
+std::uint32_t own_building(const World& world, reinos::sim::PlayerId player) {
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
     for (const auto& o : s.objects) {
-        if (o.kind == rts::sim::ObjectKind::Building && o.owner == player) {
+        if (o.kind == reinos::sim::ObjectKind::Building && o.owner == player) {
             return o.id;
         }
     }
-    return rts::sim::kNoObject;
+    return reinos::sim::kNoObject;
 }
 
 // Graba ticks ticks: órdenes de movimiento, de producción y una programada a futuro.
@@ -132,8 +132,8 @@ TEST_CASE("Repetición: codificar y decodificar no pierde nada") {
     r.end_tick = 401;
     r.end_hash = 0xdead'beefULL;
 
-    const auto bytes = rts::game::encode_replay(r);
-    const auto back = rts::game::decode_replay(bytes);
+    const auto bytes = reinos::game::encode_replay(r);
+    const auto back = reinos::game::decode_replay(bytes);
     REQUIRE_MESSAGE(back.has_value(), (back ? std::string() : back.error()));
     CHECK(back->data == r.data);
     REQUIRE(back->commands.size() == 2);
@@ -152,11 +152,11 @@ TEST_CASE("Repetición: se rechazan ficheros ajenos, truncados, corruptos o de o
     r.data = {{"a.toml", "a = 1"}};
     r.commands = {{0, Command{}}};
     r.end_tick = 10;
-    const auto good = rts::game::encode_replay(r);
-    REQUIRE(rts::game::decode_replay(good).has_value());
+    const auto good = reinos::game::encode_replay(r);
+    REQUIRE(reinos::game::decode_replay(good).has_value());
 
     const auto error_of = [](std::vector<std::uint8_t> bytes) {
-        const auto d = rts::game::decode_replay(bytes);
+        const auto d = reinos::game::decode_replay(bytes);
         return d ? std::string() : d.error();
     };
     CHECK(error_of({}).find("no es una repetición") != std::string::npos);
@@ -178,8 +178,28 @@ TEST_CASE("Repetición: se rechazan ficheros ajenos, truncados, corruptos o de o
     CHECK(error_of(corrupt).find("corrupta") != std::string::npos);
 
     auto other_version = good;
-    other_version[8] = static_cast<std::uint8_t>(rts::game::kReplayFormatVersion + 1);
+    other_version[8] = static_cast<std::uint8_t>(reinos::game::kReplayFormatVersion + 1);
     CHECK(error_of(other_version).find("versión") != std::string::npos);
+}
+
+TEST_CASE("Repetición: las de antes del cambio de nombre a Reinos se siguen abriendo") {
+    using reinos::game::has_extension;
+    using reinos::game::kReplayExtensions;
+    using reinos::game::kSaveExtensions;
+
+    // La firma del formato no cambió con el nombre: una .rtsrep vieja empieza igual.
+    const auto bytes = reinos::game::encode_replay(Replay{});
+    REQUIRE(bytes.size() >= 8);
+    const std::vector<std::uint8_t> signature(bytes.begin(), bytes.begin() + 8);
+    CHECK(signature == std::vector<std::uint8_t>{'R', 'T', 'S', 'R', 'E', 'P', 0, 0});
+
+    CHECK(has_extension("replays/partida-2026-11-20_10-00-00.rep", kReplayExtensions));
+    CHECK(has_extension("replays/partida-2026-09-25_18-30-05.rtsrep", kReplayExtensions));
+    CHECK(has_extension("guardada-2026-11-20_10-00-00.sav", kSaveExtensions));
+    CHECK(has_extension("guardada-2026-09-25_18-30-05.rtssav", kSaveExtensions));
+    CHECK_FALSE(has_extension("partida.rep", kSaveExtensions));
+    CHECK_FALSE(has_extension("guardada.sav", kReplayExtensions));
+    CHECK_FALSE(has_extension("escenario.toml", kReplayExtensions));
 }
 
 TEST_CASE("Repetición: una partida grabada se reproduce con los mismos hashes") {
@@ -189,9 +209,9 @@ TEST_CASE("Repetición: una partida grabada se reproduce con los mismos hashes")
     CHECK(recorded.checkpoints.size() == 2000 / kInterval);
     CHECK(recorded.end_hash == final_hash);
     // Pasa por el formato: lo que se verifica es lo que se leería de disco.
-    const auto decoded = rts::game::decode_replay(rts::game::encode_replay(recorded));
+    const auto decoded = reinos::game::decode_replay(reinos::game::encode_replay(recorded));
     REQUIRE(decoded.has_value());
-    const auto result = rts::game::verify_replay(*decoded, params);
+    const auto result = reinos::game::verify_replay(*decoded, params);
     CHECK(result.ok);
     CHECK(result.ticks == 2000);
     CHECK(result.checkpoints == recorded.checkpoints.size());
@@ -203,10 +223,10 @@ TEST_CASE("Repetición: una orden alterada se detecta en el primer checkpoint po
     const Replay recorded = record_game(params, 2000);
     // Órdenes de movimiento en los ticks 100, 450, 800, 1150...: se altera la del 800.
     Replay tampered = recorded;
-    auto it = std::ranges::find(tampered.commands, rts::sim::Tick{800}, &ReplayCommand::issued_at);
+    auto it = std::ranges::find(tampered.commands, reinos::sim::Tick{800}, &ReplayCommand::issued_at);
     REQUIRE(it != tampered.commands.end());
     it->command.target.x += 3;
-    const auto result = rts::game::verify_replay(tampered, params);
+    const auto result = reinos::game::verify_replay(tampered, params);
     CHECK_FALSE(result.ok);
     REQUIRE(result.diverged_at.has_value());
     // Se aplica en el step del tick 800; el primer hash grabado después es el de 1000.
@@ -215,11 +235,11 @@ TEST_CASE("Repetición: una orden alterada se detecta en el primer checkpoint po
     // Quitar una orden también se nota.
     Replay dropped = recorded;
     dropped.commands.erase(dropped.commands.begin() + 1);
-    CHECK_FALSE(rts::game::verify_replay(dropped, params).ok);
+    CHECK_FALSE(reinos::game::verify_replay(dropped, params).ok);
 }
 
 TEST_CASE("Repetición: con los datos del repositorio, grabada y reproducida desde sus datos copiados") {
-    auto data = rts::game::load_game_data(RTS_DATA_DIR);
+    auto data = reinos::game::load_game_data(REINOS_DATA_DIR);
     REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
     World world(data->engine.world);
     ReplayRecorder rec(data->files, data->engine.replay.checkpoint_interval_ticks);
@@ -233,17 +253,17 @@ TEST_CASE("Repetición: con los datos del repositorio, grabada y reproducida des
         world.step();
         rec.after_step(world);
     }
-    const auto decoded = rts::game::decode_replay(rts::game::encode_replay(rec.finish(world)));
+    const auto decoded = reinos::game::decode_replay(reinos::game::encode_replay(rec.finish(world)));
     REQUIRE(decoded.has_value());
-    const auto replayed_data = rts::game::parse_game_data(decoded->data);
+    const auto replayed_data = reinos::game::parse_game_data(decoded->data);
     REQUIRE(replayed_data.has_value());
-    const auto result = rts::game::verify_replay(*decoded, replayed_data->engine.world);
+    const auto result = reinos::game::verify_replay(*decoded, replayed_data->engine.world);
     CHECK(result.ok);
     CHECK(result.actual_hash == world.state_hash());
 }
 
 TEST_CASE("Partida guardada: cargar y seguir da el mismo estado que no haber parado") {
-    auto data = rts::game::load_game_data(RTS_DATA_DIR);
+    auto data = reinos::game::load_game_data(REINOS_DATA_DIR);
     REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
     constexpr std::int32_t kSaveAt = 600;
     constexpr std::int32_t kEnd = 1200;
@@ -263,18 +283,18 @@ TEST_CASE("Partida guardada: cargar y seguir da el mismo estado que no haber par
         rec.after_step(world);
         if (world.tick() == kSaveAt) {
             // Guardar = la repetición hasta aquí, y por el formato binario de ida y vuelta.
-            save = rts::game::decode_replay(rts::game::encode_replay(rec.finish(world))).value();
+            save = reinos::game::decode_replay(reinos::game::encode_replay(rec.finish(world))).value();
         }
     }
     const std::uint64_t uninterrupted = world.state_hash();
     REQUIRE(save.has_value());
 
-    auto loaded_data = rts::game::parse_game_data(save->data);
+    auto loaded_data = reinos::game::parse_game_data(save->data);
     REQUIRE(loaded_data.has_value());
     World resumed(loaded_data->engine.world);
     ReplayRecorder rec2(loaded_data->files, loaded_data->engine.replay.checkpoint_interval_ticks);
-    REQUIRE(rts::game::resume_saved_game(*save, resumed, rec2).has_value());
-    CHECK(resumed.tick() == static_cast<rts::sim::Tick>(kSaveAt));
+    REQUIRE(reinos::game::resume_saved_game(*save, resumed, rec2).has_value());
+    CHECK(resumed.tick() == static_cast<reinos::sim::Tick>(kSaveAt));
     // Se sigue jugando: la orden del tick 700, como la primera vez.
     for (std::int32_t t = kSaveAt; t < kEnd; ++t) {
         if (t == 700) {
@@ -291,7 +311,7 @@ TEST_CASE("Partida guardada: cargar y seguir da el mismo estado que no haber par
     CHECK(resumed.state_hash() == uninterrupted);
     // Y el grabador del cargado tiene la partida entera: se reproduce entera.
     const auto full = rec2.finish(resumed);
-    const auto verify = rts::game::verify_replay(full, loaded_data->engine.world);
+    const auto verify = reinos::game::verify_replay(full, loaded_data->engine.world);
     CHECK(verify.ok);
 
     // Una partida guardada manipulada se rechaza al cargar.
@@ -299,5 +319,5 @@ TEST_CASE("Partida guardada: cargar y seguir da el mismo estado que no haber par
     bad.end_hash ^= 1U;
     World other(loaded_data->engine.world);
     ReplayRecorder rec3(loaded_data->files, loaded_data->engine.replay.checkpoint_interval_ticks);
-    CHECK_FALSE(rts::game::resume_saved_game(bad, other, rec3).has_value());
+    CHECK_FALSE(reinos::game::resume_saved_game(bad, other, rec3).has_value());
 }

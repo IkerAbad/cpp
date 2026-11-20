@@ -9,7 +9,7 @@
 
 #include "sim/fixed.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 // Raíz cuadrada entera por defecto: el mayor r con r*r <= n. Newton sobre enteros con
 // estimación inicial por el número de bits: converge en <= 6 iteraciones para 64 bits.
@@ -71,4 +71,4 @@ struct FVec2 {
     return length_sq_wide(v) > max_sq ? with_length(v, max_len) : v;
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

@@ -11,7 +11,7 @@
 
 struct SDL_AudioStream;
 
-namespace rts::platform {
+namespace reinos::platform {
 
 class AudioOut {
 public:
@@ -35,4 +35,4 @@ private:
     std::vector<float> buffer_;
 };
 
-}  // namespace rts::platform
+}  // namespace reinos::platform

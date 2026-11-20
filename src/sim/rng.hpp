@@ -12,7 +12,7 @@
 #include <cassert>
 #include <cstdint>
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class SplitMix64 {
 public:
@@ -91,4 +91,4 @@ private:
     State s_{};
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

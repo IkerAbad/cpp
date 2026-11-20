@@ -5,7 +5,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 GarrisonSystem::GarrisonSystem(const GarrisonParams& params, std::vector<UnitType> units,
                                std::vector<BuildingType> buildings)
@@ -183,4 +183,4 @@ void GarrisonSystem::hash_into(StateHasher& h, const entt::registry& registry) c
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

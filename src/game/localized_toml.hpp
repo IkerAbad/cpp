@@ -10,7 +10,7 @@
 
 #include "game/i18n.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 // Texto como cadena básica de TOML.
 [[nodiscard]] inline std::string toml_quote(std::string_view text) {
@@ -70,4 +70,4 @@ namespace rts::game {
     return out + " }";
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

@@ -15,7 +15,7 @@
 #include "sim/path/hpa.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -141,4 +141,4 @@ private:
     MovementTickStats stats_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

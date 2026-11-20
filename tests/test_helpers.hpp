@@ -8,7 +8,7 @@
 
 #include "sim/world.hpp"
 
-namespace rts::test {
+namespace reinos::test {
 
 inline sim::MapGenParams test_map_params() {
     sim::MapGenParams p;
@@ -343,4 +343,4 @@ inline sim::Command move_order(sim::Tick tick, std::vector<std::uint32_t> units,
     return c;
 }
 
-}  // namespace rts::test
+}  // namespace reinos::test

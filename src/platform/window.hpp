@@ -12,7 +12,7 @@
 struct SDL_Window;
 union SDL_Event;
 
-namespace rts::platform {
+namespace reinos::platform {
 
 struct WindowDesc {
     std::string title;
@@ -80,4 +80,4 @@ private:
 // Carpeta del ejecutable, con separador final. Vacía si la plataforma no la sabe.
 [[nodiscard]] std::string executable_dir();
 
-}  // namespace rts::platform
+}  // namespace reinos::platform

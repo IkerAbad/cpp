@@ -19,7 +19,7 @@
 #include "render/view_params.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 // --- data/terrain.toml ---------------------------------------------------------
 
@@ -303,4 +303,4 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
 // read_data_files + parse_game_data.
 std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir);
 
-}  // namespace rts::game
+}  // namespace reinos::game

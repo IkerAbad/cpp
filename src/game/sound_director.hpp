@@ -18,7 +18,7 @@
 #include "render/projection.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 enum class WorkSound : std::uint8_t { Chop, Mine, Build };
 
@@ -75,4 +75,4 @@ private:
     double last_view_ms_ = -1.0;
 };
 
-}  // namespace rts::game
+}  // namespace reinos::game

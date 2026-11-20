@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-  "name": "rts",
+  "name": "reinos",
   "version-semver": "0.0.1",
   "builtin-baseline": "dc1232a6e05dcc49703091e83743e3b4df9b9b7c",
   "dependencies": [

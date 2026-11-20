@@ -6,21 +6,21 @@
 
 #include "game/config.hpp"
 
-using rts::game::BuildingCatalog;
-using rts::game::Catalogs;
-using rts::game::load_game_data;
-using rts::game::NodeCatalog;
-using rts::game::parse_building_catalog;
-using rts::game::parse_engine_config;
-using rts::game::parse_node_catalog;
-using rts::game::parse_scenario;
-using rts::game::parse_terrain_catalog;
-using rts::game::parse_unit_catalog;
-using rts::game::ScenarioAction;
-using rts::game::TerrainCatalog;
-using rts::game::UnitCatalog;
-using rts::sim::Fixed;
-using rts::sim::Resource;
+using reinos::game::BuildingCatalog;
+using reinos::game::Catalogs;
+using reinos::game::load_game_data;
+using reinos::game::NodeCatalog;
+using reinos::game::parse_building_catalog;
+using reinos::game::parse_engine_config;
+using reinos::game::parse_node_catalog;
+using reinos::game::parse_scenario;
+using reinos::game::parse_terrain_catalog;
+using reinos::game::parse_unit_catalog;
+using reinos::game::ScenarioAction;
+using reinos::game::TerrainCatalog;
+using reinos::game::UnitCatalog;
+using reinos::sim::Fixed;
+using reinos::sim::Resource;
 
 namespace {
 
@@ -804,16 +804,16 @@ TEST_CASE("Configuración: TOML mal formado da error, no excepción") {
 }
 
 TEST_CASE("Configuración: los datos del repositorio son válidos") {
-    const auto data = load_game_data(RTS_DATA_DIR);
+    const auto data = load_game_data(REINOS_DATA_DIR);
     CHECK_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
 }
 
 TEST_CASE("Configuración: las mejoras de la herrería se leen con su requisito y sus clases") {
-    const auto data = load_game_data(RTS_DATA_DIR);
+    const auto data = load_game_data(REINOS_DATA_DIR);
     REQUIRE(data.has_value());
     const auto& ups = data->buildings.upgrades;
     const auto find = [&](std::string_view name) {
-        return std::ranges::find(ups, name, &rts::game::UpgradeInfo::name);
+        return std::ranges::find(ups, name, &reinos::game::UpgradeInfo::name);
     };
     const auto plate = find("arnes_placas");
     const auto mail = find("cota_reforzada");
@@ -824,7 +824,7 @@ TEST_CASE("Configuración: las mejoras de la herrería se leen con su requisito 
     CHECK(plate->type.at == data->buildings.find("herreria"));
     CHECK(data->engine.world.upgrades.size() == ups.size());
     // Un requisito que no existe se rechaza.
-    CHECK(rts::game::parse_building_catalog(R"(
+    CHECK(reinos::game::parse_building_catalog(R"(
 [[building]]
 name = "h"
 size_tiles = 1
@@ -938,11 +938,11 @@ TEST_CASE("Economía: costes, almacenes y producción se leen de los catálogos"
     const auto& peon = c.unit_catalog.types[1].type;
     CHECK(peon.worker);
     CHECK(peon.carry_capacity == 10);
-    CHECK(peon.cost[rts::sim::resource_index(Resource::Food)] == 50);
-    CHECK(c.unit_catalog.types[0].type.cost[rts::sim::resource_index(Resource::Gold)] == 20);
+    CHECK(peon.cost[reinos::sim::resource_index(Resource::Food)] == 50);
+    CHECK(c.unit_catalog.types[0].type.cost[reinos::sim::resource_index(Resource::Gold)] == 20);
     const auto& fuerte = c.building_catalog.types[0].type;
     CHECK(fuerte.accepts == 0x1F);
-    CHECK(fuerte.trains == std::vector<rts::sim::UnitTypeId>{1});
+    CHECK(fuerte.trains == std::vector<reinos::sim::UnitTypeId>{1});
     CHECK(c.building_catalog.types[1].type.accepts == 0);
     CHECK(c.node_catalog.types[1].type.kind == Resource::Gold);
     CHECK(c.node_catalog.types[1].type.size == 2);
@@ -974,16 +974,16 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
     REQUIRE(w.setup.starts.size() == 2);
     CHECK(w.setup.starts[1].x == 50);
     CHECK(cfg->player_colors[1][0] == 255);
-    CHECK(w.economy.gather_ticks[rts::sim::resource_index(Resource::Stone)] == 70);
+    CHECK(w.economy.gather_ticks[reinos::sim::resource_index(Resource::Stone)] == 70);
     CHECK(w.economy.interact_range == Fixed::from_ratio(1, 2));
     CHECK(w.setup.start_building == 0);
     CHECK(w.setup.start_unit == 1);
-    CHECK(w.setup.start_stock[rts::sim::resource_index(Resource::Wood)] == 150);
-    CHECK(w.setup.start_stock[rts::sim::resource_index(Resource::Gold)] == 0);
+    CHECK(w.setup.start_stock[reinos::sim::resource_index(Resource::Wood)] == 150);
+    CHECK(w.setup.start_stock[reinos::sim::resource_index(Resource::Gold)] == 0);
     REQUIRE(w.setup.near_start.size() == 1);
     CHECK(w.setup.near_start[0].type == 1);
     CHECK(w.building_types.size() == 2);
-    CHECK(cfg->view.resource_colors[rts::sim::resource_index(Resource::Stone)][0] == 3);
+    CHECK(cfg->view.resource_colors[reinos::sim::resource_index(Resource::Stone)][0] == 3);
     CHECK(w.combat.level_thresholds == std::vector<std::int32_t>{30, 70, 120});
     CHECK(w.combat.hero_name_count == 2);
     CHECK(w.combat.building_reach == Fixed::from_ratio(3, 5));
@@ -994,10 +994,10 @@ TEST_CASE("Configuración: jugadores, economía y preparación") {
     CHECK(w.ai.worker_type == 1);
     CHECK(w.ai.house == 1);
     REQUIRE(w.ai.profiles.size() == 1);
-    CHECK(w.ai.profiles[0].gather_percent[rts::sim::resource_index(Resource::Food)] == 40);
+    CHECK(w.ai.profiles[0].gather_percent[reinos::sim::resource_index(Resource::Food)] == 40);
     CHECK(w.ai.profiles[0].behaviors ==
-          std::vector<rts::sim::AiBehavior>{rts::sim::AiBehavior::Defend, rts::sim::AiBehavior::Villagers,
-                                            rts::sim::AiBehavior::Attack});
+          std::vector<reinos::sim::AiBehavior>{reinos::sim::AiBehavior::Defend, reinos::sim::AiBehavior::Villagers,
+                                            reinos::sim::AiBehavior::Attack});
     SUBCASE("módulo de IA desconocido") {
         const auto bad = parse_engine(replaced(kEngine, "\"aldeanos\", \"ataque\"", "\"aldeanos\", \"trampas\""));
         REQUIRE_FALSE(bad.has_value());
@@ -1041,7 +1041,7 @@ TEST_CASE("Edificios: los requisitos nombran otros edificios y no forman ciclos"
     text.replace(first, std::string("requires = []").size(), "requires = [\"choza\"]");
     const auto ok = parse_building_catalog(text, u);
     REQUIRE_MESSAGE(ok.has_value(), (ok ? std::string() : ok.error()));
-    CHECK(ok->types[0].type.required == std::vector<rts::sim::BuildingTypeId>{1});
+    CHECK(ok->types[0].type.required == std::vector<reinos::sim::BuildingTypeId>{1});
     const auto second = text.find("requires = []");
     REQUIRE(second != std::string::npos);
     text.replace(second, std::string("requires = []").size(), "requires = [\"fuerte\"]");
@@ -1056,13 +1056,13 @@ TEST_CASE("Configuración: un fuego necesita una intensidad de sostén de al men
 }
 
 TEST_CASE("Configuración: los ajustes de partida del menú viajan como un fichero de datos más") {
-    auto base = rts::game::load_game_data(RTS_DATA_DIR);
+    auto base = reinos::game::load_game_data(REINOS_DATA_DIR);
     REQUIRE(base.has_value());
-    rts::game::MatchSettings s;
+    reinos::game::MatchSettings s;
     s.seed = 12345;
     s.rival = "facil";
     s.fog = false;
-    const auto d = rts::game::with_match_settings(*base, s);
+    const auto d = reinos::game::with_match_settings(*base, s);
     REQUIRE_MESSAGE(d.has_value(), (d ? std::string() : d.error()));
     CHECK(d->engine.world.map.seed == 12345);
     CHECK(d->engine.world.setup.seed == 12345);
@@ -1070,16 +1070,16 @@ TEST_CASE("Configuración: los ajustes de partida del menú viajan como un fiche
     REQUIRE_FALSE(d->engine.world.ai_players.empty());
     CHECK(d->engine.ai_profile_names[d->engine.world.ai_players.front().profile] == "facil");
     // Van en los ficheros (y por tanto en la repetición), una sola vez.
-    CHECK(std::ranges::count(d->files, rts::game::kMatchSettingsFile, &rts::game::DataFile::path) == 1);
-    const auto again = rts::game::with_match_settings(*d, s);
+    CHECK(std::ranges::count(d->files, reinos::game::kMatchSettingsFile, &reinos::game::DataFile::path) == 1);
+    const auto again = reinos::game::with_match_settings(*d, s);
     REQUIRE(again.has_value());
-    CHECK(std::ranges::count(again->files, rts::game::kMatchSettingsFile, &rts::game::DataFile::path) == 1);
+    CHECK(std::ranges::count(again->files, reinos::game::kMatchSettingsFile, &reinos::game::DataFile::path) == 1);
     s.rival = "inexistente";
-    CHECK_FALSE(rts::game::with_match_settings(*base, s).has_value());
+    CHECK_FALSE(reinos::game::with_match_settings(*base, s).has_value());
 }
 
 TEST_CASE("Mapas (F3): con ríos, de 2 a 4 jugadores, todos los inicios se alcanzan por tierra") {
-    const auto base = load_game_data(RTS_DATA_DIR);
+    const auto base = load_game_data(REINOS_DATA_DIR);
     REQUIRE(base.has_value());
     REQUIRE(base->engine.map_presets.size() >= 3);
     for (const std::string map : {"Ríos", "Gran río"}) {
@@ -1088,22 +1088,22 @@ TEST_CASE("Mapas (F3): con ríos, de 2 a 4 jugadores, todos los inicios se alcan
                 CAPTURE(map);
                 CAPTURE(seed);
                 CAPTURE(players);
-                rts::game::MatchSettings ms;
+                reinos::game::MatchSettings ms;
                 ms.seed = seed;
                 ms.rival = base->engine.ai_profile_names.front();
                 ms.map = map;
                 ms.seats.assign(players, "ia");
-                const auto data = rts::game::with_match_settings(*base, ms);
+                const auto data = reinos::game::with_match_settings(*base, ms);
                 REQUIRE(data.has_value());
                 CHECK(data->engine.world.map.rivers.count > 0);
-                const rts::sim::World world(data->engine.world);
-                rts::sim::Snapshot snap;
+                const reinos::sim::World world(data->engine.world);
+                reinos::sim::Snapshot snap;
                 world.write_snapshot(snap);
                 // Un edificio inicial por jugador, y todos en la misma región de tierra.
                 std::vector<std::uint32_t> regions;
                 const auto& grid = world.movement().grid();
                 for (const auto& o : snap.objects) {
-                    if (o.kind != rts::sim::ObjectKind::Building) {
+                    if (o.kind != reinos::sim::ObjectKind::Building) {
                         continue;
                     }
                     // La región por la que se sale del edificio: la mayor de su contorno.
@@ -1125,10 +1125,10 @@ TEST_CASE("Mapas (F3): con ríos, de 2 a 4 jugadores, todos los inicios se alcan
             }
         }
     }
-    rts::game::MatchSettings bad;
+    reinos::game::MatchSettings bad;
     bad.rival = base->engine.ai_profile_names.front();
     bad.map = "Atlántida";
-    const auto err = rts::game::with_match_settings(*base, bad);
+    const auto err = reinos::game::with_match_settings(*base, bad);
     REQUIRE_FALSE(err.has_value());
     CHECK(err.error().find("Atlántida") != std::string::npos);
 }

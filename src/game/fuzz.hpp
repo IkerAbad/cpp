@@ -15,7 +15,7 @@
 #include "sim/rng.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 struct FuzzParams {
     std::int32_t orders_per_tick = 1;   // órdenes que se generan en cada tick
@@ -42,4 +42,4 @@ struct FuzzResult {
 // negativo...). Devuelve la primera violación, o nada.
 [[nodiscard]] std::optional<std::string> check_invariants(const sim::World& world);
 
-}  // namespace rts::game
+}  // namespace reinos::game

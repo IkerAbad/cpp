@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cstdlib>
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -290,4 +290,4 @@ std::int32_t GridSearch::cost_at(const PassGrid& grid, TileCoord c) const noexce
     return visited(i) ? g_[i] : kUnreached;
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

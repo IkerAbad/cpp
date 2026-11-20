@@ -9,7 +9,7 @@
 #include "sim/state_hash.hpp"
 #include "sim/supply.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -1230,4 +1230,4 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

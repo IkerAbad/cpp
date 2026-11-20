@@ -6,7 +6,7 @@
 #include <format>
 #include <stdexcept>
 
-namespace rts::render {
+namespace reinos::render {
 
 namespace {
 
@@ -262,4 +262,4 @@ Atlas build_atlas(const ViewParams& view, const ArtSpec& art) {
     return atlas;
 }
 
-}  // namespace rts::render
+}  // namespace reinos::render

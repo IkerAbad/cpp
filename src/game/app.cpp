@@ -44,7 +44,7 @@
 #include "render/renderer.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -150,11 +150,11 @@ float fixed_to_float(sim::Fixed v) noexcept {
 }
 
 void print_usage() {
-    spdlog::info("Uso: rts [--data <carpeta>] [--frames <N>] | [--headless --ticks <N> [--record <fichero>]]");
-    spdlog::info("     rts --replay <fichero> [--frames <N>] | --verify-replay <fichero>");
-    spdlog::info("     rts --load <partida.rtssav> [--frames <N>]  (F5 guarda durante la partida)");
-    spdlog::info("     rts --headless --ticks <N> --host <puerto> [--players <N>] [--record <fichero>]");
-    spdlog::info("     rts --headless --join <dirección>:<puerto> [--record <fichero>]");
+    spdlog::info("Uso: reinos [--data <carpeta>] [--frames <N>] | [--headless --ticks <N> [--record <fichero>]]");
+    spdlog::info("     reinos --replay <fichero> [--frames <N>] | --verify-replay <fichero>");
+    spdlog::info("     reinos --load <partida.sav> [--frames <N>]  (F5 guarda durante la partida)");
+    spdlog::info("     reinos --headless --ticks <N> --host <puerto> [--players <N>] [--record <fichero>]");
+    spdlog::info("     reinos --headless --join <dirección>:<puerto> [--record <fichero>]");
     spdlog::info("     [--report-dir <carpeta>]  informes de errores (por omisión, informes/ junto al ejecutable)");
 }
 
@@ -324,7 +324,7 @@ void issue_scenario(const GameData& data, sim::World& world, Issue&& issue) {
     }
 }
 
-// replays/partida-2026-09-25_18-30-05.rtsrep, con la hora local de inicio (UTC si el
+// replays/partida-2026-09-25_18-30-05.rep, con la hora local de inicio (UTC si el
 // sistema no tiene zona horaria).
 std::string time_stamp() {
     const auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
@@ -337,13 +337,13 @@ std::string time_stamp() {
 
 std::filesystem::path auto_replay_path(const GameData& data) {
     return std::filesystem::path(platform::executable_dir()) / data.engine.replay.directory /
-           std::format("partida-{}.rtsrep", time_stamp());
+           std::format("partida-{}{}", time_stamp(), kReplayExtension);
 }
 
-// Partida guardada con F5: guardada-<fecha>.rtssav junto a las repeticiones.
+// Partida guardada con F5: guardada-<fecha>.sav junto a las repeticiones.
 std::filesystem::path save_game_path(const GameData& data) {
     return std::filesystem::path(platform::executable_dir()) / data.engine.replay.directory /
-           std::format("guardada-{}.rtssav", time_stamp());
+           std::format("guardada-{}{}", time_stamp(), kSaveExtension);
 }
 
 // Métricas del panel de depuración.
@@ -518,7 +518,7 @@ public:
         std::uint64_t last_ns = platform::now_ns();
         std::int64_t frame = 0;
         for (; max_frames == 0 || frame < max_frames; ++frame) {
-            RTS_PROFILE_FRAME();
+            REINOS_PROFILE_FRAME();
             if (!handle_events() || back_to_menu_) {
                 break;
             }
@@ -1212,7 +1212,7 @@ private:
         const StepPlan plan = clock_.advance(sim_ns);
         const auto start = SteadyClock::now();
         for (std::int32_t i = 0; i < plan.ticks; ++i) {
-            RTS_PROFILE_ZONE_NAMED("sim_tick");
+            REINOS_PROFILE_ZONE_NAMED("sim_tick");
             if (player_ && player_->finished(*world_)) {
                 break;
             }
@@ -1908,7 +1908,7 @@ private:
         const auto path = save_game_path(data_);
         if (auto ok = save_replay(path, recorder_->finish(*world_)); !ok) {
             spdlog::error("No se pudo guardar: {}", ok.error());
-            notice_ = T("No se pudo guardar (detalles en rts.log)");
+            notice_ = T("No se pudo guardar (detalles en reinos.log)");
         } else {
             spdlog::info("Partida guardada en {}", path.string());
             notice_ = TF("Partida guardada: {}", path.filename().string());
@@ -2803,7 +2803,7 @@ private:
         std::ofstream out(path, std::ios::binary);
         out << scenario_doc_toml(*editor_, data_);
         if (!out) {
-            return T("No se pudo guardar (detalles en rts.log)");
+            return T("No se pudo guardar (detalles en reinos.log)");
         }
         spdlog::info("Escenario guardado en {}", path.string());
         return TF("Guardado: {}", path.filename().string());
@@ -3039,9 +3039,9 @@ std::optional<LaunchOptions> parse_arguments(int argc, char** argv) {
             }
         } else if (arg == "--load" && has_value) {
             options.load = argv[++i];
-        } else if (arg.ends_with(".rtsrep")) {
+        } else if (has_extension(arg, kReplayExtensions)) {
             options.replay = argv[i];  // arrastrar una repetición sobre el ejecutable
-        } else if (arg.ends_with(".rtssav")) {
+        } else if (has_extension(arg, kSaveExtensions)) {
             options.load = argv[i];  // arrastrar una partida guardada sobre el ejecutable
         } else {
             spdlog::error("Argumento no reconocido: '{}'", arg);
@@ -3308,12 +3308,13 @@ struct NetMenu {
 };
 
 // Ficheros con esa extensión en la carpeta de repeticiones, los más recientes primero.
-std::vector<std::filesystem::path> saved_files(const GameData& data, std::string_view ext, std::size_t max) {
+std::vector<std::filesystem::path> saved_files(const GameData& data, std::span<const std::string_view> extensions,
+                                               std::size_t max) {
     std::vector<std::filesystem::path> out;
     const auto dir = std::filesystem::path(platform::executable_dir()) / data.engine.replay.directory;
     std::error_code ec;
     for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
-        if (entry.is_regular_file() && entry.path().extension() == ext) {
+        if (entry.is_regular_file() && has_extension(entry.path().filename().string(), extensions)) {
             out.push_back(entry.path());
         }
     }
@@ -3351,8 +3352,8 @@ std::expected<ScenarioDoc, std::string> read_scenario(const std::filesystem::pat
 MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, NetMenu& net,
                     const std::vector<Campaign>& campaigns) {
     constexpr std::size_t kListed = 8;
-    const auto saves = saved_files(base, ".rtssav", kListed);
-    const auto replays = saved_files(base, ".rtsrep", kListed);
+    const auto saves = saved_files(base, kSaveExtensions, kListed);
+    const auto replays = saved_files(base, kReplayExtensions, kListed);
     const auto& profiles = base.engine.ai_profile_names;
     while (true) {
         d.pump_audio(base.sound.peace_music);
@@ -4141,4 +4142,4 @@ int run_replay(const std::filesystem::path& path, std::int64_t max_frames) {
     return run_windowed(*data, max_frames, &*replay);
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

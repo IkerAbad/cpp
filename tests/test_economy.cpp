@@ -17,43 +17,43 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Building;
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::GridSearch;
-using rts::sim::HpaGraph;
-using rts::sim::MoveGoal;
-using rts::sim::PassGrid;
-using rts::sim::Position;
-using rts::sim::ProductionQueue;
-using rts::sim::Resource;
-using rts::sim::ResourceNode;
-using rts::sim::TileCoord;
-using rts::sim::TileMap;
-using rts::sim::Unit;
-using rts::sim::Worker;
-using rts::sim::WorkerTask;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using rts::sim::Xoshiro256pp;
-using rts::test::kBerries;
-using rts::test::kCenter;
-using rts::test::kHouse;
-using rts::test::kSoldier;
-using rts::test::kTree;
-using rts::test::kVillager;
-using rts::test::stock;
+using reinos::sim::Building;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::GridSearch;
+using reinos::sim::HpaGraph;
+using reinos::sim::MoveGoal;
+using reinos::sim::PassGrid;
+using reinos::sim::Position;
+using reinos::sim::ProductionQueue;
+using reinos::sim::Resource;
+using reinos::sim::ResourceNode;
+using reinos::sim::TileCoord;
+using reinos::sim::TileMap;
+using reinos::sim::Unit;
+using reinos::sim::Worker;
+using reinos::sim::WorkerTask;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using reinos::sim::Xoshiro256pp;
+using reinos::test::kBerries;
+using reinos::test::kCenter;
+using reinos::test::kHouse;
+using reinos::test::kSoldier;
+using reinos::test::kTree;
+using reinos::test::kVillager;
+using reinos::test::stock;
 
 namespace {
 
-constexpr auto kWood = rts::sim::resource_index(Resource::Wood);
-constexpr auto kFood = rts::sim::resource_index(Resource::Food);
+constexpr auto kWood = reinos::sim::resource_index(Resource::Wood);
+constexpr auto kFood = reinos::sim::resource_index(Resource::Food);
 
 // Campo abierto (todo transitable), sin unidades de demostración: la geometría de
 // cada prueba la pone la propia prueba.
 WorldParams open_field() {
-    WorldParams p = rts::test::test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    WorldParams p = reinos::test::test_world_params(0, 16);
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     return p;
 }
 
@@ -61,7 +61,8 @@ entt::entity ent(std::uint32_t id) {
     return static_cast<entt::entity>(id);
 }
 
-Command command(CommandType type, std::vector<std::uint32_t> units = {}, std::uint32_t object = rts::sim::kNoObject) {
+Command command(CommandType type, std::vector<std::uint32_t> units = {},
+                std::uint32_t object = reinos::sim::kNoObject) {
     Command c;
     c.type = type;
     c.units = std::move(units);
@@ -75,7 +76,7 @@ void run(World& world, std::int32_t ticks) {
     }
 }
 
-std::int32_t units_of(const World& world, rts::sim::UnitTypeId type) {
+std::int32_t units_of(const World& world, reinos::sim::UnitTypeId type) {
     std::int32_t n = 0;
     const auto units = world.registry().view<const Unit>();
     for (const entt::entity e : units) {
@@ -98,11 +99,11 @@ bool all_on_passable_tiles(const World& world) {
 }  // namespace
 
 TEST_CASE("HPA*: la reconstrucción incremental es idéntica a construir desde cero") {
-    const TileMap map = rts::sim::generate_map(rts::test::test_map_params());
+    const TileMap map = reinos::sim::generate_map(reinos::test::test_map_params());
     const std::vector<std::uint8_t> passable{0, 1, 1};
     PassGrid grid(map, passable);
     GridSearch search(map.width(), map.height());
-    const rts::sim::HpaParams params{16, 8};
+    const reinos::sim::HpaParams params{16, 8};
     HpaGraph incremental(grid, params, search);
     Xoshiro256pp rng(99);
     std::int32_t recomputed_total = 0;
@@ -333,7 +334,7 @@ TEST_CASE("Economía: tres constructores terminan en un tercio del tiempo que un
             world.step();
             ++ticks;
         }
-        CHECK(world.registry().get<rts::sim::Health>(ent(*house)).hp == 500);
+        CHECK(world.registry().get<reinos::sim::Health>(ent(*house)).hp == 500);
         world.step();  // la población se recuenta al empezar cada tick
         CHECK(world.player_state(0).population_cap == 5);
         return ticks;
@@ -375,8 +376,8 @@ TEST_CASE("Economía: un edificio que corta el camino obliga a replanificar sin 
     for (std::int32_t i = 0; i < 12; ++i) {
         group.push_back(world.spawn_unit(0, kSoldier, {60 + i % 4, 110 + i / 4}));
     }
-    world.issue(rts::test::move_order(0, single, {100, 100}));
-    world.issue(rts::test::move_order(0, group, {100, 111}));
+    world.issue(reinos::test::move_order(0, single, {100, 100}));
+    world.issue(reinos::test::move_order(0, group, {100, 111}));
     run(world, 40);
     // Muros de 3x3 atravesados en ambas rutas cuando ya van de camino.
     for (std::int32_t y = 95; y <= 116; y += 3) {
@@ -409,7 +410,7 @@ TEST_CASE("Economía: Move cancela la tarea y Build sobre un almacén descarga")
     world.issue(command(CommandType::Gather, {v}, tree));
     run(world, 12 * 5);
     CHECK(world.registry().get<Worker>(ent(v)).carried == 5);
-    world.issue(rts::test::move_order(world.tick(), {v}, {110, 110}));
+    world.issue(reinos::test::move_order(world.tick(), {v}, {110, 110}));
     world.step();
     CHECK(world.registry().get<Worker>(ent(v)).task == WorkerTask::Idle);
     CHECK(world.registry().get<Worker>(ent(v)).carried == 5);  // la carga se conserva
@@ -426,7 +427,7 @@ TEST_CASE("Economía: Move cancela la tarea y Build sobre un almacén descarga")
 }
 
 TEST_CASE("Preparación: edificio inicial, aldeanos y recursos cerca de cada jugador") {
-    WorldParams p = rts::test::test_world_params(0, 16);
+    WorldParams p = reinos::test::test_world_params(0, 16);
     p.setup.seed = 11;
     p.setup.starts = {{60, 60}, {196, 196}};
     p.setup.start_search_radius = 60;
@@ -435,25 +436,25 @@ TEST_CASE("Preparación: edificio inicial, aldeanos y recursos cerca de cada jug
     p.setup.start_unit = kVillager;
     p.setup.start_units = 4;
     p.setup.start_stock = stock(200, 200, 100, 100);
-    p.setup.near_start = {{rts::test::kGoldMine, 1, 6, 10}, {kBerries, 5, 4, 7}};
+    p.setup.near_start = {{reinos::test::kGoldMine, 1, 6, 10}, {kBerries, 5, 4, 7}};
     p.setup.forest_terrain = 2;
     p.setup.tree_type = kTree;
     p.setup.tree_density_permille = 300;
     p.setup.clear_radius = 7;
     const World world(p);
-    rts::sim::Snapshot snap;
+    reinos::sim::Snapshot snap;
     world.write_snapshot(snap);
     REQUIRE(snap.players.size() == 2);
     std::int32_t centers = 0;
     std::int32_t trees = 0;
     for (const auto& o : snap.objects) {
-        if (o.kind == rts::sim::ObjectKind::Building) {
+        if (o.kind == reinos::sim::ObjectKind::Building) {
             ++centers;
             CHECK(o.complete);
             // Claro: ningún árbol a menos de clear_radius del centro del edificio.
             const TileCoord c{o.origin.x + 1, o.origin.y + 1};
             for (const auto& n : snap.objects) {
-                if (n.kind == rts::sim::ObjectKind::Resource && n.type == kTree) {
+                if (n.kind == reinos::sim::ObjectKind::Resource && n.type == kTree) {
                     CHECK(std::max(std::abs(n.origin.x - c.x), std::abs(n.origin.y - c.y)) > 7);
                 }
             }
@@ -471,16 +472,16 @@ TEST_CASE("Preparación: edificio inicial, aldeanos y recursos cerca de cada jug
 }
 
 TEST_CASE("Economía: una granja colocada ya terminada da comida desde el principio") {
-    WorldParams p = rts::test::test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    WorldParams p = reinos::test::test_world_params(0, 16);
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     World world(p);
-    const auto farm = world.spawn_building(0, rts::test::kFarm, {100, 100}, true);
+    const auto farm = world.spawn_building(0, reinos::test::kFarm, {100, 100}, true);
     REQUIRE(farm.has_value());
     world.step();
-    rts::sim::Snapshot s;
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
-    const auto it = std::ranges::find(s.objects, *farm, &rts::sim::SnapshotObject::id);
+    const auto it = std::ranges::find(s.objects, *farm, &reinos::sim::SnapshotObject::id);
     REQUIRE(it != s.objects.end());
-    CHECK(it->amount == p.building_types[rts::test::kFarm].farm_food);
-    CHECK(rts::sim::EconomySystem::can_gather(world.registry(), static_cast<entt::entity>(*farm), 0));
+    CHECK(it->amount == p.building_types[reinos::test::kFarm].farm_food);
+    CHECK(reinos::sim::EconomySystem::can_gather(world.registry(), static_cast<entt::entity>(*farm), 0));
 }

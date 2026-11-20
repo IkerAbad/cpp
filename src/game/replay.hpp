@@ -6,7 +6,7 @@
 // órdenes no se graban, se vuelven a generar. Cada checkpoint_interval_ticks se graba
 // el hash de estado; al reproducir, el primer hash distinto localiza la divergencia.
 //
-// Formato binario .rtsrep, todo en little-endian explícito:
+// Formato binario .rep, todo en little-endian explícito:
 //   "RTSREP\0\0", u32 versión, u64 hash de los datos,
 //   u32 ficheros { str ruta, str texto },
 //   u32 órdenes { u32 tick de emisión, orden },
@@ -16,12 +16,15 @@
 // Una orden: u32 tick, u8 jugador, u8 tipo, u32 n + n x u32 unidades, i32 x, i32 y,
 // u32 objeto, u8 kind. Un str: u32 longitud + bytes.
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "game/config.hpp"
@@ -29,9 +32,23 @@
 #include "sim/units.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 inline constexpr std::uint32_t kReplayFormatVersion = 1;
+
+// Extensiones: .rep para las repeticiones y .sav para las partidas guardadas con F5,
+// las dos con este formato. Las de antes del cambio de nombre a Reinos (.rtsrep y
+// .rtssav) se siguen reconociendo: el contenido no cambió y la firma sigue siendo
+// "RTSREP".
+inline constexpr std::string_view kReplayExtension = ".rep";
+inline constexpr std::string_view kSaveExtension = ".sav";
+inline constexpr std::array<std::string_view, 2> kReplayExtensions{kReplayExtension, ".rtsrep"};
+inline constexpr std::array<std::string_view, 2> kSaveExtensions{kSaveExtension, ".rtssav"};
+
+// ¿Acaba el nombre en alguna de las extensiones?
+inline bool has_extension(std::string_view name, std::span<const std::string_view> extensions) {
+    return std::ranges::any_of(extensions, [name](std::string_view e) { return name.ends_with(e); });
+}
 
 struct ReplayCommand {
     sim::Tick issued_at = 0;  // world.tick() cuando se emitió (antes del step de ese tick)
@@ -119,10 +136,10 @@ struct VerifyResult {
 // Reproduce la repetición entera sin ventana. Se detiene en la primera divergencia.
 [[nodiscard]] VerifyResult verify_replay(const Replay& replay, const sim::WorldParams& params);
 
-// Partidas guardadas (.rtssav): son la repetición hasta el momento de guardar. Cargar
+// Partidas guardadas (.sav): son la repetición hasta el momento de guardar. Cargar
 // es rehacerla a toda velocidad sobre world (recién creado con sus datos) volviendo a
 // grabar sus órdenes en recorder, que sigue grabando desde ahí. Al ser determinista,
 // se llega exactamente al mismo estado: se comprueba con el hash del final.
 std::expected<void, std::string> resume_saved_game(const Replay& save, sim::World& world, ReplayRecorder& recorder);
 
-}  // namespace rts::game
+}  // namespace reinos::game

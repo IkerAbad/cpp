@@ -1,13 +1,13 @@
-RTS (nombre provisional) - versión para Linux x86_64
+Reinos (nombre provisional) - versión para Linux x86_64
 Versión: @VERSION@
 
 Sirve en cualquier Linux x86_64 con glibc 2.39 o posterior: Arch, Ubuntu 24.04
 o posterior, Fedora 40 o posterior, Debian 13...
 
 JUGAR
-  tar xzf rts-linux-x86_64.tar.gz
-  cd rts
-  ./rts
+  tar xzf reinos-linux-x86_64.tar.gz
+  cd reinos
+  ./reinos
 
   Tú eres el jugador azul contra la IA. En el menú: semilla del mapa, rival
   (fácil, normal, difícil, experto), tipo de mapa, niebla de guerra, la campaña
@@ -30,8 +30,8 @@ LO QUE NECESITA EL SISTEMA
     (Arch: sudo pacman -S --needed libdecor).
 
 DÓNDE PONERLO
-  En una carpeta tuya donde puedas escribir (por ejemplo ~/Juegos/rts): el
-  juego guarda junto al ejecutable el registro (rts.log), las repeticiones
+  En una carpeta tuya donde puedas escribir (por ejemplo ~/Juegos/reinos): el
+  juego guarda junto al ejecutable el registro (reinos.log), las repeticiones
   (replays/), las partidas guardadas (F5), tus opciones (opciones.toml) y,
   si algo falla, un informe en informes/.
 
@@ -39,14 +39,14 @@ ACCESO DIRECTO EN EL MENÚ DE APLICACIONES
   ./crear-acceso-directo.sh
 
 REPETICIONES
-  ./rts --replay replays/partida-AAAA-MM-DD_HH-MM-SS.rtsrep
+  ./reinos --replay replays/partida-AAAA-MM-DD_HH-MM-SS.rep
 
 SI NO ARRANCA
-  Mira rts.log en esta carpeta.
+  Mira reinos.log en esta carpeta.
   - Un error que habla de Vulkan o del dispositivo gráfico: falta el
     controlador Vulkan (ver arriba).
-  - Problemas con la ventana en Wayland: prueba  SDL_VIDEO_DRIVER=x11 ./rts
-  - Sin sonido: prueba  SDL_AUDIO_DRIVER=pulseaudio ./rts  (o pipewire, o alsa).
+  - Problemas con la ventana en Wayland: prueba  SDL_VIDEO_DRIVER=x11 ./reinos
+  - Sin sonido: prueba  SDL_AUDIO_DRIVER=pulseaudio ./reinos  (o pipewire, o alsa).
 
 Licencias: LICENSE (el juego, MIT) y licencias/ (las bibliotecas que lleva el
 ejecutable). Todo el arte y el sonido se generan por código: no hay ningún

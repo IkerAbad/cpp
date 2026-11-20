@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace rts::audio {
+namespace reinos::audio {
 
 class Mixer {
 public:
@@ -74,4 +74,4 @@ private:
     float music_gain_ = 1.0f;
 };
 
-}  // namespace rts::audio
+}  // namespace reinos::audio

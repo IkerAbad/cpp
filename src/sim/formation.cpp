@@ -6,7 +6,7 @@
 #include "sim/economy.hpp"
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -199,4 +199,4 @@ void FormationSystem::hash_into(StateHasher& h, const entt::registry& registry) 
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

@@ -12,7 +12,7 @@
 #include <span>
 #include <vector>
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -64,4 +64,4 @@ private:
     std::uint32_t revision_ = 0;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

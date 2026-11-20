@@ -1,6 +1,6 @@
-# RTS medieval con capa de logística (nombre provisional)
+# Reinos (nombre provisional)
 
-RTS medieval en C++23, de la escuela de Tzar y Age of Empires II, con una capa de logística opcional modelada como grafo.
+Juego de estrategia medieval en tiempo real (RTS) en C++23, de la escuela de Tzar y Age of Empires II, con una capa de logística opcional modelada como grafo. «Reinos» es un nombre de trabajo; hasta noviembre de 2026 el proyecto se llamaba solo «rts».
 Todo el código y todos los recursos son originales o de licencia compatible. No se usa ningún contenido del juego original.
 
 ## Estado
@@ -47,7 +47,7 @@ SDL3 sale de vcpkg con un *overlay port* (`vcpkg-ports/sdl3`, activado en `vcpkg
 
 ### Jugar sin compilar
 
-Cada cambio en la CI deja dos paquetes listos para jugar en los artefactos de su ejecución (30 días): `rts-windows` (una carpeta con `rts.exe`) y `rts-linux` (`rts-linux-x86_64.tar.gz`, para cualquier Linux x86_64 con glibc 2.39 o posterior: Arch, Ubuntu 24.04, Fedora 40, Debian 13...). El de Linux se descomprime y se juega con `./rts`; su `LEEME.txt` dice qué hace falta (Vulkan y el controlador de la gráfica) y lo que hacer si no arranca. El trabajo comprueba antes que el ejecutable sabe cargar el sonido y la ventana de Linux y que juega 2 minutos sin ventana.
+Cada cambio en la CI deja dos paquetes listos para jugar en los artefactos de su ejecución (30 días): `reinos-windows` (una carpeta con `reinos.exe`) y `reinos-linux` (`reinos-linux-x86_64.tar.gz`, para cualquier Linux x86_64 con glibc 2.39 o posterior: Arch, Ubuntu 24.04, Fedora 40, Debian 13...). El de Linux se descomprime y se juega con `./reinos`; su `LEEME.txt` dice qué hace falta (Vulkan y el controlador de la gráfica) y lo que hacer si no arranca. El trabajo comprueba antes que el ejecutable sabe cargar el sonido y la ventana de Linux y que juega 2 minutos sin ventana.
 
 ## Compilar y ejecutar
 
@@ -56,16 +56,16 @@ cmake --preset linux-clang-debug         # o windows-msvc-debug, windows-clang-c
 cmake --build --preset linux-clang-debug
 ctest --preset linux-clang-debug
 
-./build/linux-clang-debug/src/rts                           # con ventana
-./build/linux-clang-debug/src/rts --frames 600              # con ventana, sale tras 600 fotogramas e imprime tiempos
-./build/linux-clang-debug/src/rts --headless --ticks 12000  # sin ventana: imprime el hash de estado
-./build/linux-clang-debug/src/rts --data <carpeta>          # otra carpeta de datos
-./build/linux-clang-debug/src/rts --replay <fichero.rtsrep>        # ver una repetición
-./build/linux-clang-debug/src/rts --verify-replay <fichero.rtsrep> # reproducirla sin ventana y comprobar sus hashes
-./build/linux-clang-debug/src/rts --headless --ticks 2400 --record r.rtsrep  # grabar el guion sin ventana
+./build/linux-clang-debug/src/reinos                           # con ventana
+./build/linux-clang-debug/src/reinos --frames 600              # con ventana, sale tras 600 fotogramas e imprime tiempos
+./build/linux-clang-debug/src/reinos --headless --ticks 12000  # sin ventana: imprime el hash de estado
+./build/linux-clang-debug/src/reinos --data <carpeta>          # otra carpeta de datos
+./build/linux-clang-debug/src/reinos --replay <fichero.rep>        # ver una repetición
+./build/linux-clang-debug/src/reinos --verify-replay <fichero.rep> # reproducirla sin ventana y comprobar sus hashes
+./build/linux-clang-debug/src/reinos --headless --ticks 2400 --record r.rep  # grabar el guion sin ventana
 ```
 
-Cada partida con ventana se graba sola al cerrar en `replays/partida-<fecha>_<hora>.rtsrep`, junto al ejecutable.
+Cada partida con ventana se graba sola al cerrar en `replays/partida-<fecha>_<hora>.rep`, junto al ejecutable.
 
 Controles:
 
@@ -85,11 +85,11 @@ Controles:
 | Postura | Botones «Agresiva» y «Mantener posición» del panel «Selección» |
 | Repetición: pausa y velocidad | Espacio; teclas 1-4 para x1, x2, x4 y x8 (o el panel «Repetición») |
 
-Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) `RTS_BUILD_TESTS` (ON), `RTS_BUILD_BENCH` (ON) y `RTS_BUILD_GAME` (ON).
+Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `REINOS_WERROR` (ON), `REINOS_TRACY` (OFF) `REINOS_BUILD_TESTS` (ON), `REINOS_BUILD_BENCH` (ON) y `REINOS_BUILD_GAME` (ON).
 
 #### Solo el núcleo, sin ventana
 
-Con `RTS_BUILD_GAME=OFF` se compilan la simulación, el sonido, la red, la configuración, las pruebas y los bancos (torneos de IA incluidos), sin SDL3, imgui, spdlog ni dxc. Basta con EnTT, toml++ y doctest, de vcpkg o del sistema. Por ejemplo, en Ubuntu 24.04 (EnTT no está en apt; sirve una copia de sus cabeceras):
+Con `REINOS_BUILD_GAME=OFF` se compilan la simulación, el sonido, la red, la configuración, las pruebas y los bancos (torneos de IA incluidos), sin SDL3, imgui, spdlog ni dxc. Basta con EnTT, toml++ y doctest, de vcpkg o del sistema. Por ejemplo, en Ubuntu 24.04 (EnTT no está en apt; sirve una copia de sus cabeceras):
 
 ```bash
 sudo apt install clang-20 g++-14 ninja-build libtomlplusplus-dev doctest-dev
@@ -117,14 +117,14 @@ tests/         doctest + pruebas de CTest
 Grafo de bibliotecas (las flechas solo bajan):
 
 ```
-rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
+reinos ─┬─ reinos_render ─┬─ reinos_platform ── SDL3
      │              ├─ imgui, shaders (dxc)
-     │              └─ rts_render_core     proyección, atlas, escena: sin SDL, se prueba sin GPU
-     ├─ rts_game_core ── toml++, rts_render_core   cámara, selección, configuración
-     └─ rts_sim ── EnTT                    sin SDL, sin E/S, sin coma flotante
+     │              └─ reinos_render_core     proyección, atlas, escena: sin SDL, se prueba sin GPU
+     ├─ reinos_game_core ── toml++, reinos_render_core   cámara, selección, configuración
+     └─ reinos_sim ── EnTT                    sin SDL, sin E/S, sin coma flotante
 ```
 
-`rts_sim` no enlaza SDL, así que un `#include <SDL3/...>` en `src/sim/` no compila.
+`reinos_sim` no enlaza SDL, así que un `#include <SDL3/...>` en `src/sim/` no compila.
 
 ### Render (M1)
 
@@ -265,7 +265,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - `ataque_fuerza`: ataca cuando la fuerza estimada de su ejército (vida × daño por tick) llega al 130 % de la enemiga conocida, y se retira si en la batalla baja del 60 %. Esa histéresis evita que oscile entre atacar y retirarse.
   - `concentrar`: cada unidad que pelea remata al enemigo armado que necesita menos golpes suyos. Los aldeanos enemigos no son prioridad: primero, lo que amenaza al ejército.
   - Economía: dos aldeanos en cola y casas con más margen.
-- **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `facil` 33 de 40 (82 %) y `experto` 36 de 40 (90 %). Casi todas se deciden a los puntos (valor vivo de unidades y edificios): rematar exige asedio.
+- **Medido** con `reinos_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `facil` 33 de 40 (82 %) y `experto` 36 de 40 (90 %). Casi todas se deciden a los puntos (valor vivo de unidades y edificios): rematar exige asedio.
 
 ### Arte propio (F1)
 
@@ -298,7 +298,7 @@ Ningún píxel viene de fuera: todo se pinta por código al arrancar (62 ms en R
   - Un edificio en obra enseña su parte de abajo, que crece con el trabajo. El fantasma de colocación es el edificio mismo, translúcido, en verde o rojo.
   - Un edificio en llamas lleva llamas animadas, más cuanto más arde, y bocanadas de humo que suben, crecen y se deshacen.
   - Todo eso es reloj de la presentación, no de la simulación.
-- **Ver el arte entero.** `rts_art_sheet --data data --out hoja.pam` lo pinta todo en una hoja (PAM de Netpbm; `convert hoja.pam hoja.png`). Esta es [docs/arte.png](docs/arte.png).
+- **Ver el arte entero.** `reinos_art_sheet --data data --out hoja.pam` lo pinta todo en una hoja (PAM de Netpbm; `convert hoja.pam hoja.png`). Esta es [docs/arte.png](docs/arte.png).
 - **Límites conocidos.**
   - Solo hay dos sentidos (derecha e izquierda en espejo), no ocho.
   - No hay animación de muerte.
@@ -339,8 +339,8 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
 - **Salida.**
   - SDL3 sin hilos propios: cada fotograma se mezclan las muestras justas para mantener 60 ms en cola.
   - Sin dispositivo de audio, como en la CI, el juego sigue en silencio.
-- **Oírlo sin jugar.** `rts_sound_wav --data data --out sonidos` escribe cada efecto y cada pieza en WAV.
-- **Límite conocido.** No he oído el resultado: el contenedor no tiene salida de sonido. Lo medido es la duración, la costura, que no sature y que el nivel quede por debajo de los efectos (`tests/test_audio.cpp`); `rts_sound_wav` escribe los bucles en WAV para oírlos.
+- **Oírlo sin jugar.** `reinos_sound_wav --data data --out sonidos` escribe cada efecto y cada pieza en WAV.
+- **Límite conocido.** No he oído el resultado: el contenedor no tiene salida de sonido. Lo medido es la duración, la costura, que no sature y que el nivel quede por debajo de los efectos (`tests/test_audio.cpp`); `reinos_sound_wav` escribe los bucles en WAV para oírlos.
 
 ### Mapas: ríos con vados, de 2 a 4 jugadores y editor de escenarios (F3)
 
@@ -386,7 +386,7 @@ Menú → «Opciones»: idioma, pantalla completa, tamaño de la ventana, volume
 - **Pruebas** (`tests/test_i18n.cpp`). Leen el código fuente: todo texto marcado tiene traducción con los mismos especificadores (`%d`, `{}`...), no sobra ninguna traducción, y todo tipo de los datos, perfil de IA y tipo de mapa tiene nombre en cada idioma.
 - **Opciones** (`data/opciones.toml` por omisión, `opciones.toml` del jugador junto al ejecutable). No son datos de la partida: no van en repeticiones ni por la red, así que cambiarlas no rompe nada.
 - **Textos de los datos.** La campaña y los escenarios (nombre, informe, objetivos, capítulos, notas, obras citadas) van en los dos idiomas: en el fichero, `clave.es = "..."` y `clave.en = "..."`, o una cadena sola (español). Se ven en el idioma elegido y, si falta, en español. Las citas de las fuentes quedan en su idioma original. Una prueba exige el inglés de cada texto propio de la campaña.
-- **Lo que no está traducido:** los mensajes del registro (`rts.log`) y el título provisional de la ventana.
+- **Lo que no está traducido:** los mensajes del registro (`reinos.log`) y el título provisional de la ventana.
 
 ### Campaña: Las Navas de Tolosa, 1212 (F4)
 
@@ -406,8 +406,8 @@ Los mapas, las cifras de cada ejército y los plazos son del juego, no datos his
 
 - **Qué se graba.** Una copia de los ficheros de `data/` (unos 20 KB) y las órdenes humanas, cada una con el tick en que se emitió. La IA vive dentro de la simulación y es determinista: sus órdenes no se graban, se regeneran. Una repetición se reproduce con los datos con que se jugó aunque luego cambien los de `data/`.
 - **Comprobación.** Cada 10 s de juego (`[replay]` en `engine.toml`) se graba el hash de estado, y al final el hash final. Al reproducir, el primer hash distinto localiza la divergencia con esa resolución.
-- **Formato `.rtsrep`.** Binario little-endian explícito: cabecera, versión del formato, hash de los datos, ficheros, órdenes, checkpoints y una suma FNV-1a de todo. Se rechaza un fichero ajeno, truncado o corrupto, o de otra versión, y el error dice cuál de los casos es.
-- **Reproductor.** `rts --replay`: pausa, x1/x2/x4/x8, sin órdenes, con el estado de la verificación en pantalla. No hay retroceso.
+- **Formato `.rep`.** Binario little-endian explícito: cabecera, versión del formato, hash de los datos, ficheros, órdenes, checkpoints y una suma FNV-1a de todo. Se rechaza un fichero ajeno, truncado o corrupto, o de otra versión, y el error dice cuál de los casos es.
+- **Reproductor.** `reinos --replay`: pausa, x1/x2/x4/x8, sin órdenes, con el estado de la verificación en pantalla. No hay retroceso.
 - **Límite conocido.** Si cambia el formato de los datos (por ejemplo, los perfiles de IA), las repeticiones anteriores no se pueden cargar y el error dice qué clave falta.
 - **Límite conocido.** El fichero no guarda la versión del código. Si cambia la simulación, las repeticiones antiguas divergen y se avisa; no se reproducen mal en silencio.
 
@@ -425,8 +425,8 @@ Lockstep, el esquema de Age of Empires: las máquinas no se mandan el estado, si
   - Si alguien se calla durante 30 s, la partida falla y nombra a quién se espera.
 - **Sin ventana.**
   - Para probarlo hay dos órdenes:
-    - `rts --headless --ticks 2400 --host 47000 [--players N]` abre la partida.
-    - `rts --headless --join 127.0.0.1:47000` se une a ella.
+    - `reinos --headless --ticks 2400 --host 47000 [--players N]` abre la partida.
+    - `reinos --headless --join 127.0.0.1:47000` se une a ella.
   - La duración la fija el anfitrión.
   - Cada proceso da a su jugador órdenes de prueba al azar (`[net.probe]`) que el otro solo conoce por la red, y la IA juega dentro de la simulación.
   - Con `--record`, cada uno graba su repetición, y las dos salen idénticas byte a byte.
@@ -512,13 +512,13 @@ Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipe
   - Ambos perfiles guardan comida para las raciones (`upkeep_reserve_percent`).
   - Asedio: solo con su ejército en campaña a 20 casillas o menos del objetivo (`siege_front_tiles`), campamento a 9 casillas de él, convoyes hacia allí y hasta 2 trabuquetes montados con lo que traen (`siege_engines`). Medido: un campamento sin el ejército delante se perdía enseguida; con esta condición, ni gana ni pierde partidas (10 a 10 contra la misma IA sin asedio): los convoyes rara vez reúnen un trabuquete antes de los 30 minutos.
   - `incendiar` va antes a por el bagaje enemigo sin escolta (cortar convoyes) que a quemar edificios.
-- **Torneo con traza:** `rts_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos, almacén y lo cerca que está su ejército del centro enemigo.
-- **Niveles (D4).** Cada mapa del torneo se juega desde los dos lados, y en muchos gana el mismo lado juegue quien juegue (decide el mapa, no la IA). Por eso `rts_ai_match` cuenta aparte los mapas que una IA gana desde los dos lados (`--min-both-sides N`: al menos N para la de arriba y al menos el doble que la de abajo).
+- **Torneo con traza:** `reinos_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos, almacén y lo cerca que está su ejército del centro enemigo.
+- **Niveles (D4).** Cada mapa del torneo se juega desde los dos lados, y en muchos gana el mismo lado juegue quien juegue (decide el mapa, no la IA). Por eso `reinos_ai_match` cuenta aparte los mapas que una IA gana desde los dos lados (`--min-both-sides N`: al menos N para la de arriba y al menos el doble que la de abajo).
   - Desde que la búsqueda de caminos pesa el terreno, la escalera se rehízo. La comida es lo que frena a las IAs (aldeanos y raciones), y es lo que separa los niveles: los de abajo recogen menos (normal 30 %, difícil 40 %, experto 45 %). Por encima de 45 ya no ayuda: el experto a 50 perdía con el difícil a 45 (17 de 40).
   - Medido con 40 partidas (20 mapas desde los dos lados): normal contra fácil 77 % (12 mapas a 1), difícil contra normal 65 % (9 a 3), experto contra difícil 67 % (7 a 0). La CI lo exige con 40 partidas: con 20, el ruido (unos 11 puntos) tapaba diferencias reales.
   - Lo que no movió los resultados (medido): más aldeanos objetivo (nunca se alcanzan: limita la comida), la paciencia para atacar, torres, el tiempo de reacción, quitar módulos (táctica, sanidad, logística, incendiar y apagar), mapas reflejados y un módulo de mercado (`mercado`, que vende lo que sobra y compra lo que falta con el oro parado; está en el código, pero ningún perfil lo usa porque no ganaba nada).
   - **Lo que no sé:** si para una persona los niveles se notan. Las diferencias entre IAs son pequeñas frente al caos de cada partida.
-- **¿Por qué gana tanto un mismo lado?** `rts_start_report` mide lo que rodea a cada inicio: comida, oro, piedra y hierro cercanos son siempre iguales (los recursos garantizados); madera, colinas, altura y terreno transitable varían, pero en 30 mapas ninguna diferencia predice al ganador (correlaciones entre −0,27 y +0,08) y ningún lado sale favorecido en conjunto. La prueba definitiva: con `rts_ai_match --symmetric` cada mapa se juega reflejado por el centro (idéntico para los dos) y, con la misma IA en los dos lados, cada mapa sigue teniendo un ganador claro (6 para un lado y 4 para el otro, con márgenes como 3200 contra 720). Lo decide el caos de la partida: desempates que no son simétricos al reflejar (caminos, orden de turnos) y que una economía con bola de nieve agranda en 30 minutos. Igualar más el generador no lo arreglaría; para eso se mide con muchos mapas.
+- **¿Por qué gana tanto un mismo lado?** `reinos_start_report` mide lo que rodea a cada inicio: comida, oro, piedra y hierro cercanos son siempre iguales (los recursos garantizados); madera, colinas, altura y terreno transitable varían, pero en 30 mapas ninguna diferencia predice al ganador (correlaciones entre −0,27 y +0,08) y ningún lado sale favorecido en conjunto. La prueba definitiva: con `reinos_ai_match --symmetric` cada mapa se juega reflejado por el centro (idéntico para los dos) y, con la misma IA en los dos lados, cada mapa sigue teniendo un ganador claro (6 para un lado y 4 para el otro, con márgenes como 3200 contra 720). Lo decide el caos de la partida: desempates que no son simétricos al reflejar (caminos, orden de turnos) y que una economía con bola de nieve agranda en 30 minutos. Igualar más el generador no lo arreglaría; para eso se mide con muchos mapas.
 - **Mapa Espejo.** En el menú, tipo de mapa «Espejo»: el generado con la mitad de un jugador reflejada sobre la del otro, para partidas de dos sin diferencias de terreno ni de recursos (`mirror = true` en `[[map.preset]]`; con más de dos jugadores no se refleja).
 - **Vados.** Se pasa por encima pero no se construye (`buildable = false` en `terrain.toml`): un muro o una casa taparían el único paso del río. Tampoco caminos: un vado ya se cruza.
 
@@ -726,7 +726,7 @@ Al terminar la partida se muestran las estadísticas de cada jugador: recogido, 
 
 ### Guardar y cargar
 
-F5 guarda la partida en `replays/guardada-<fecha>.rtssav`. Una partida guardada es su repetición hasta ese momento, con los datos y las órdenes. Cargarla (`rts --load fichero.rtssav`, o arrastrar el fichero sobre el ejecutable) la rehace a toda velocidad y sigue grabando desde ahí. Como la simulación es determinista, el estado es exactamente el mismo; se comprueba con el hash guardado y, si no coincide (fichero manipulado, datos distintos), se rechaza. Una prueba guarda a mitad de una partida con IA y niebla, carga, sigue y obtiene el mismo hash que sin haber parado.
+F5 guarda la partida en `replays/guardada-<fecha>.sav`. Una partida guardada es su repetición hasta ese momento, con los datos y las órdenes. Cargarla (`reinos --load fichero.sav`, o arrastrar el fichero sobre el ejecutable) la rehace a toda velocidad y sigue grabando desde ahí. Como la simulación es determinista, el estado es exactamente el mismo; se comprueba con el hash guardado y, si no coincide (fichero manipulado, datos distintos), se rechaza. Una prueba guarda a mitad de una partida con IA y niebla, carga, sigue y obtiene el mismo hash que sin haber parado.
 
 ### Controles de mando
 
@@ -786,7 +786,7 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
-| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
+| CI `bench` | `reinos_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
 | CI torneo de IA | `normal` y `experto` ganan a `facil` al menos en el 70 % de 20 partidas de 30 minutos |
 | CI humo en red con ventana | En Linux, con Xvfb y lavapipe, anfitrión e invitado con ventana juegan 300 fotogramas por red |
 | CI partida en red | En las cuatro plataformas, anfitrión e invitado (dos procesos) juegan 2400 ticks por bucle local: mismo hash, repeticiones idénticas byte a byte y verificadas |
@@ -797,22 +797,22 @@ Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el ca
 
 ### Órdenes al azar (G2)
 
-`rts_fuzz --data data [--seeds N] [--ticks T] [--orders K] [--only texto] [--first-seed S]` juega partidas reales (2 y 4 jugadores, con y sin niebla, y cada capítulo de la campaña) dándoles órdenes al azar: muchas válidas y otras mal formadas a propósito (unidades ajenas o inexistentes y repetidas, casillas fuera del mapa, tipos y jugadores que no existen). Cada 20 ticks comprueba las invariantes (unidades dentro del mapa, vida en rango, almacenes y cargas sin negativos), que otro mundo con las mismas órdenes tenga el mismo hash y, al final, que la repetición grabada se reproduzca igual. Encontró una caída: una orden con una unidad repetida la guarnecía dos veces y EnTT abortaba; ahora cada unidad cuenta una vez.
+`reinos_fuzz --data data [--seeds N] [--ticks T] [--orders K] [--only texto] [--first-seed S]` juega partidas reales (2 y 4 jugadores, con y sin niebla, y cada capítulo de la campaña) dándoles órdenes al azar: muchas válidas y otras mal formadas a propósito (unidades ajenas o inexistentes y repetidas, casillas fuera del mapa, tipos y jugadores que no existen). Cada 20 ticks comprueba las invariantes (unidades dentro del mapa, vida en rango, almacenes y cargas sin negativos), que otro mundo con las mismas órdenes tenga el mismo hash y, al final, que la repetición grabada se reproduzca igual. Encontró una caída: una orden con una unidad repetida la guarnecía dos veces y EnTT abortaba; ahora cada unidad cuenta una vez.
 
 
 ### Informe de errores (G3)
 
 Si el juego se cae (violación de memoria, `abort` o una aserción, una excepción que nadie captura) o una partida en red se desincroniza, escribe `informes/informe-<fecha>/` junto al ejecutable (o en `--report-dir`):
 
-- `partida.rtsrep`: la repetición hasta ese tick. `rts --verify-replay` la reproduce y `--replay` la enseña, así que el fallo se repite en otra máquina.
-- `rts.log`: el registro.
+- `partida.rep`: la repetición hasta ese tick. `reinos --verify-replay` la reproduce y `--replay` la enseña, así que el fallo se repite en otra máquina.
+- `reinos.log`: el registro.
 - `informe.txt`: qué pasó, en qué tick y con qué compilación.
 
 Ante una señal, escribir ficheros no es del todo seguro; es un último intento y luego el programa termina como lo habría hecho. La prueba `crash_report` de CTest provoca una caída (`--crash-at 200`, solo para eso) y comprueba el informe en las cuatro plataformas.
 
 ## Rendimiento medido
 
-Release, Clang 20, contenedor de 4 núcleos. Guion de `rts_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.
+Release, Clang 20, contenedor de 4 núcleos. Guion de `reinos_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.
 
 Presupuesto del planificador: 60 000 nodos por tick desde M3. Los valores de M2 (20 000 nodos) van entre paréntesis.
 

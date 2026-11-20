@@ -7,7 +7,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -206,4 +206,4 @@ void FireSystem::hash_into(StateHasher& h, const entt::registry& registry) const
     h.add_u64(heat_.size());
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

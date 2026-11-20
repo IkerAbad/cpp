@@ -1,6 +1,6 @@
 find_package(doctest CONFIG REQUIRED)
 
-add_executable(rts_tests
+add_executable(reinos_tests
     test_main.cpp
     test_ai.cpp
     test_ai_modules.cpp
@@ -41,28 +41,28 @@ add_executable(rts_tests
     test_scene.cpp
     test_selection.cpp
     test_sim_regression.cpp)
-target_link_libraries(rts_tests PRIVATE rts_game_core rts_render_core rts_sim doctest::doctest)
-target_compile_definitions(rts_tests PRIVATE RTS_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
-                                            RTS_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src")
-rts_set_warnings(rts_tests)
+target_link_libraries(reinos_tests PRIVATE reinos_game_core reinos_render_core reinos_sim doctest::doctest)
+target_compile_definitions(reinos_tests PRIVATE REINOS_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
+                                            REINOS_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src")
+reinos_set_warnings(reinos_tests)
 
-add_test(NAME unit COMMAND rts_tests)
+add_test(NAME unit COMMAND reinos_tests)
 
 # Regla dura: src/sim/ sin coma flotante, sin reloj real, sin E/S, sin SDL.
 add_test(NAME sim_purity
     COMMAND ${CMAKE_COMMAND} -DSIM_DIR=${PROJECT_SOURCE_DIR}/src/sim
             -P ${PROJECT_SOURCE_DIR}/cmake/CheckSimPurity.cmake)
 
-# Las dos últimas necesitan el ejecutable con ventana (RTS_BUILD_GAME).
-if(NOT RTS_BUILD_GAME)
+# Las dos últimas necesitan el ejecutable con ventana (REINOS_BUILD_GAME).
+if(NOT REINOS_BUILD_GAME)
     return()
 endif()
 
 # Humo: el ejecutable arranca, lee data/ y simula un minuto de juego sin ventana.
-add_test(NAME headless_smoke COMMAND rts --headless --ticks 1200)
+add_test(NAME headless_smoke COMMAND reinos --headless --ticks 1200)
 
 # Informe de errores (G3): una caída provocada deja repetición, registro e informe.
 add_test(NAME crash_report
-    COMMAND ${CMAKE_COMMAND} -DRTS=$<TARGET_FILE:rts> -DDATA=${PROJECT_SOURCE_DIR}/data
+    COMMAND ${CMAKE_COMMAND} -DREINOS=$<TARGET_FILE:reinos> -DDATA=${PROJECT_SOURCE_DIR}/data
             -DREPORT_DIR=${CMAKE_CURRENT_BINARY_DIR}/informes_prueba
             -P ${PROJECT_SOURCE_DIR}/cmake/CheckCrashReport.cmake)

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace rts::game {
+namespace reinos::game {
 
 ScreenRect ScreenRect::from_corners(render::Vec2 a, render::Vec2 b) noexcept {
     return {{std::min(a.x, b.x), std::min(a.y, b.y)}, {std::max(a.x, b.x), std::max(a.y, b.y)}};
@@ -92,4 +92,4 @@ void Selection::retain(std::span<const ScreenEntity> alive) {
     });
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

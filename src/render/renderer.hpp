@@ -28,7 +28,7 @@ struct SDL_GPUBuffer;
 struct SDL_GPUTransferBuffer;
 union SDL_Event;
 
-namespace rts::render {
+namespace reinos::render {
 
 struct RendererDesc {
     SDL_Window* window = nullptr;
@@ -86,4 +86,4 @@ private:
     std::size_t sprites_last_frame_ = 0;
 };
 
-}  // namespace rts::render
+}  // namespace reinos::render

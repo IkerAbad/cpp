@@ -2,8 +2,8 @@
 
 #include "game/fixed_step.hpp"
 
-using rts::game::FixedStepClock;
-using rts::game::FixedStepConfig;
+using reinos::game::FixedStepClock;
+using reinos::game::FixedStepConfig;
 
 namespace {
 constexpr std::int64_t kMs = 1'000'000;

@@ -3,7 +3,7 @@
 #   SPIR-V para Vulkan (Linux y Windows)
 #   DXIL   para Direct3D 12 (solo Windows; en Windows dxc firma el DXIL con dxil.dll)
 #
-# rts_add_shaders(<target> NAMESPACE <ns> SHADERS <nombre>:<fichero.hlsl>:<vs|ps> ...)
+# reinos_add_shaders(<target> NAMESPACE <ns> SHADERS <nombre>:<fichero.hlsl>:<vs|ps> ...)
 # Genera funciones <ns>::<nombre>_spirv() y <ns>::<nombre>_dxil() que devuelven
 # std::span<const std::uint8_t> (vacío si el formato no existe en la plataforma).
 
@@ -15,14 +15,14 @@ endif()
 # En Linux, vcpkg instala dxc en tools/directx-dxc/ y libdxcompiler.so en lib/, pero el
 # RPATH del binario es $ORIGIN/../lib (= tools/lib): sin ayuda no arranca. Se lanza
 # con LD_LIBRARY_PATH apuntando al directorio real de la biblioteca importada.
-set(RTS_DXC_COMMAND "${DIRECTX_DXC_TOOL}")
+set(REINOS_DXC_COMMAND "${DIRECTX_DXC_TOOL}")
 if(NOT WIN32)
     get_target_property(_dxc_lib Microsoft::DirectXShaderCompiler IMPORTED_LOCATION_RELEASE)
     get_filename_component(_dxc_lib_dir "${_dxc_lib}" DIRECTORY)
-    set(RTS_DXC_COMMAND "${CMAKE_COMMAND}" -E env "LD_LIBRARY_PATH=${_dxc_lib_dir}" "${DIRECTX_DXC_TOOL}")
+    set(REINOS_DXC_COMMAND "${CMAKE_COMMAND}" -E env "LD_LIBRARY_PATH=${_dxc_lib_dir}" "${DIRECTX_DXC_TOOL}")
 endif()
 
-function(rts_add_shaders target)
+function(reinos_add_shaders target)
     cmake_parse_arguments(ARG "" "NAMESPACE" "SHADERS" ${ARGN})
     set(out_dir "${CMAKE_CURRENT_BINARY_DIR}/shaders")
     file(MAKE_DIRECTORY "${out_dir}")
@@ -41,7 +41,7 @@ function(rts_add_shaders target)
         set(spirv "${out_dir}/${name}.spv")
         add_custom_command(
             OUTPUT "${spirv}"
-            COMMAND ${RTS_DXC_COMMAND} -nologo -WX -T ${profile} -E main -spirv -fspv-target-env=vulkan1.0
+            COMMAND ${REINOS_DXC_COMMAND} -nologo -WX -T ${profile} -E main -spirv -fspv-target-env=vulkan1.0
                     -Fo "${spirv}" "${source}"
             DEPENDS "${source}"
             COMMENT "dxc ${name} -> SPIR-V"
@@ -54,7 +54,7 @@ function(rts_add_shaders target)
             # Los atributos [[vk::...]] solo aplican a SPIR-V; en DXIL se ignoran a propósito.
             add_custom_command(
                 OUTPUT "${dxil}"
-                COMMAND ${RTS_DXC_COMMAND} -nologo -WX -Wno-ignored-attributes -T ${profile} -E main
+                COMMAND ${REINOS_DXC_COMMAND} -nologo -WX -Wno-ignored-attributes -T ${profile} -E main
                         -Fo "${dxil}" "${source}"
                 DEPENDS "${source}"
                 COMMENT "dxc ${name} -> DXIL"

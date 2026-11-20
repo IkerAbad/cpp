@@ -11,7 +11,7 @@
 #include "game/replay.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -125,8 +125,8 @@ std::optional<std::filesystem::path> write_crash_report(std::string_view reason)
             const sim::World& w = *g_current.world;
             txt << std::format("Tick: {}\n", w.tick());
             const Replay replay = g_current.recorder->finish(w);
-            if (save_replay(dir / "partida.rtsrep", replay)) {
-                txt << "Repetición: partida.rtsrep (rts --verify-replay partida.rtsrep la reproduce)\n";
+            if (save_replay(dir / "partida.rep", replay)) {
+                txt << "Repetición: partida.rep (reinos --verify-replay partida.rep la reproduce)\n";
             }
         } else {
             txt << "Sin partida en curso.\n";
@@ -134,7 +134,8 @@ std::optional<std::filesystem::path> write_crash_report(std::string_view reason)
         txt.close();
         std::error_code ec;
         if (!g_log.empty() && std::filesystem::exists(g_log)) {
-            std::filesystem::copy_file(g_log, dir / "rts.log", std::filesystem::copy_options::overwrite_existing, ec);
+            std::filesystem::copy_file(g_log, dir / "reinos.log", std::filesystem::copy_options::overwrite_existing,
+                                       ec);
         }
         out = dir;
     } catch (...) {
@@ -144,4 +145,4 @@ std::optional<std::filesystem::path> write_crash_report(std::string_view reason)
     return out;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

@@ -9,7 +9,7 @@
 
 #include "game/localized_toml.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -701,4 +701,4 @@ bool erase_at(sim::ScenarioParams& s, sim::TileCoord tile, const GameData& data)
     return false;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

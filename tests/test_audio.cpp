@@ -13,18 +13,18 @@
 #include "game/config.hpp"
 #include "game/sound_director.hpp"
 
-using rts::audio::Layer;
-using rts::audio::Mixer;
-using rts::audio::SoundRecipe;
-using rts::audio::Wave;
+using reinos::audio::Layer;
+using reinos::audio::Mixer;
+using reinos::audio::SoundRecipe;
+using reinos::audio::Wave;
 
 namespace {
 
 constexpr std::int32_t kRate = 48000;
 
-const rts::game::GameData& game_data() {
-    static const rts::game::GameData data = [] {
-        auto d = rts::game::load_game_data(RTS_DATA_DIR);
+const reinos::game::GameData& game_data() {
+    static const reinos::game::GameData data = [] {
+        auto d = reinos::game::load_game_data(REINOS_DATA_DIR);
         REQUIRE_MESSAGE(d.has_value(), (d ? std::string() : d.error()));
         return std::move(*d);
     }();
@@ -58,8 +58,8 @@ std::int32_t rising_crossings(const std::vector<float>& s) {
 
 TEST_CASE("Síntesis: el tono que se pide, sin pasar de ±1, y lo mismo cada vez") {
     const auto r = tone(Wave::Sine, 440, 1000);
-    const auto a = rts::audio::render(r, kRate, 0, 7);
-    const auto b = rts::audio::render(r, kRate, 0, 7);
+    const auto a = reinos::audio::render(r, kRate, 0, 7);
+    const auto b = reinos::audio::render(r, kRate, 0, 7);
     CHECK(a == b);
     CHECK(a.size() >= static_cast<std::size_t>(kRate));  // 1 ms de subida + 1 s de caída
     CHECK(std::ranges::all_of(a, [](float x) { return x >= -1.0f && x <= 1.0f; }));
@@ -67,7 +67,7 @@ TEST_CASE("Síntesis: el tono que se pide, sin pasar de ±1, y lo mismo cada vez
     const std::vector<float> first_second(a.begin(), a.begin() + kRate);
     CHECK(std::abs(rising_crossings(first_second) - 440) <= 2);
     // Una octava arriba (1200 cents), el doble.
-    const auto up = rts::audio::render(r, kRate, 1200, 7);
+    const auto up = reinos::audio::render(r, kRate, 1200, 7);
     const std::vector<float> up_second(up.begin(), up.begin() + kRate);
     CHECK(std::abs(rising_crossings(up_second) - 880) <= 3);
     // La envolvente cae: el final es casi silencio.
@@ -76,11 +76,11 @@ TEST_CASE("Síntesis: el tono que se pide, sin pasar de ±1, y lo mismo cada vez
 
 TEST_CASE("Síntesis: el ruido cambia con la semilla; el filtro paso bajo lo apaga") {
     const auto r = tone(Wave::Noise, 0, 200);
-    CHECK(rts::audio::render(r, kRate, 0, 1) != rts::audio::render(r, kRate, 0, 2));
+    CHECK(reinos::audio::render(r, kRate, 0, 1) != reinos::audio::render(r, kRate, 0, 2));
     auto low = r;
     low.layers[0].lowpass_hz = 200;
-    const auto raw = rts::audio::render(r, kRate, 0, 1);
-    const auto filtered = rts::audio::render(low, kRate, 0, 1);
+    const auto raw = reinos::audio::render(r, kRate, 0, 1);
+    const auto filtered = reinos::audio::render(low, kRate, 0, 1);
     const auto energy = [](const std::vector<float>& s) {
         double e = 0.0;
         for (const float x : s) {
@@ -96,7 +96,7 @@ TEST_CASE("Música: dura lo que dicen sus compases, es determinista y no satura"
     REQUIRE(d.sound.music.size() >= 2);
     for (const auto& m : d.sound.music) {
         CAPTURE(m.name);
-        const auto a = rts::audio::compose(m, kRate);
+        const auto a = reinos::audio::compose(m, kRate);
         const double seconds = 60.0 / m.tempo_bpm * m.beats_per_bar * m.bars;
         CHECK(std::abs(static_cast<double>(a.size()) / kRate - seconds) < 0.01);
         CHECK(std::ranges::all_of(a, [](float x) { return std::isfinite(x) && x >= -1.0f && x <= 1.0f; }));
@@ -105,9 +105,9 @@ TEST_CASE("Música: dura lo que dicen sus compases, es determinista y no satura"
         CHECK(loud < static_cast<std::ptrdiff_t>(a.size() / 100));
         CHECK(std::ranges::any_of(a, [](float x) { return std::abs(x) > 0.1f; }));
     }
-    CHECK(rts::audio::compose(d.sound.music[0], kRate) == rts::audio::compose(d.sound.music[0], kRate));
+    CHECK(reinos::audio::compose(d.sound.music[0], kRate) == reinos::audio::compose(d.sound.music[0], kRate));
     // Dos piezas distintas no se parecen.
-    CHECK(rts::audio::compose(d.sound.music[0], kRate) != rts::audio::compose(d.sound.music[1], kRate));
+    CHECK(reinos::audio::compose(d.sound.music[0], kRate) != reinos::audio::compose(d.sound.music[1], kRate));
 }
 
 TEST_CASE("Mezclador: panorama, robo de la voz más débil y música que se repite y funde") {
@@ -155,7 +155,7 @@ TEST_CASE("Mezclador: panorama, robo de la voz más débil y música que se repi
 TEST_CASE("Banco: cada receta con sus versiones, que van rotando") {
     const auto& d = game_data();
     Mixer mixer(8);
-    rts::audio::Bank bank(d.sound, mixer, false);
+    reinos::audio::Bank bank(d.sound, mixer, false);
     CHECK(bank.piece(0) == -1);  // la música aún no está
     bank.add_music(mixer, {std::vector<float>(10, 0.1f), std::vector<float>(10, 0.2f)});
     CHECK(bank.piece(0) >= 0);
@@ -167,21 +167,22 @@ TEST_CASE("Banco: cada receta con sus versiones, que van rotando") {
 
 TEST_CASE("Director de sonido: lo que se ve suena, con panorama; lo lejano no; esperas; música de batalla") {
     const auto& d = game_data();
-    rts::game::SoundDirector dir(d.sound, d);
-    const rts::render::Vec2 screen{1000.0f, 600.0f};
+    reinos::game::SoundDirector dir(d.sound, d);
+    const reinos::render::Vec2 screen{1000.0f, 600.0f};
     // Posición de mapa = posición de pantalla en x (para la prueba).
-    const rts::game::SoundDirector::Locate locate = [](rts::sim::Position p) -> std::optional<rts::render::Vec2> {
+    const reinos::game::SoundDirector::Locate locate =
+        [](reinos::sim::Position p) -> std::optional<reinos::render::Vec2> {
         if (p.y.raw() < 0) {
             return std::nullopt;  // bajo la niebla
         }
-        return rts::render::Vec2{static_cast<float>(p.x.raw()) / static_cast<float>(rts::sim::Fixed::from_int(1).raw()),
-                                 300.0f};
+        return reinos::render::Vec2{
+            static_cast<float>(p.x.raw()) / static_cast<float>(reinos::sim::Fixed::from_int(1).raw()), 300.0f};
     };
     const auto pos = [](std::int32_t x, std::int32_t y) {
-        return rts::sim::Position{rts::sim::Fixed::from_int(x), rts::sim::Fixed::from_int(y)};
+        return reinos::sim::Position{reinos::sim::Fixed::from_int(x), reinos::sim::Fixed::from_int(y)};
     };
-    rts::sim::Snapshot prev;
-    rts::sim::Snapshot curr;
+    reinos::sim::Snapshot prev;
+    reinos::sim::Snapshot curr;
     // Un aldeano (martillo: golpe sordo) a la derecha; un golpe fuera de la pantalla; uno bajo la niebla.
     curr.hits.push_back({pos(900, 0), 0, false});
     curr.hits.push_back({pos(5000, 0), 0, false});
@@ -201,7 +202,7 @@ TEST_CASE("Director de sonido: lo que se ve suena, con panorama; lo lejano no; e
     // Pasada la espera de la batalla, vuelve la música de paz.
     CHECK(dir.music(now + d.sound.config.battle_hold_ms + 1.0) == d.sound.peace_music);
     // Un poco fuera de la pantalla aún se oye, más bajo.
-    rts::sim::Snapshot near;
+    reinos::sim::Snapshot near;
     near.hits.push_back({pos(1000 + d.sound.config.hearing_margin_px / 2, 0), 0, false});
     now += 10000.0;
     dir.on_tick(prev, near, 0, locate, screen, now);
@@ -210,20 +211,20 @@ TEST_CASE("Director de sonido: lo que se ve suena, con panorama; lo lejano no; e
     CHECK(static_cast<double>(cues[0].volume) == doctest::Approx(0.5).epsilon(0.05));
 
     // Bajas, derrumbes y obras terminadas.
-    rts::sim::Snapshot a;
-    rts::sim::Snapshot b;
-    rts::sim::SnapshotEntity e;
+    reinos::sim::Snapshot a;
+    reinos::sim::Snapshot b;
+    reinos::sim::SnapshotEntity e;
     e.id = 7;
     e.pos = pos(300, 0);
     a.entities.push_back(e);  // en b ya no está: baja
-    rts::sim::SnapshotObject wall;
+    reinos::sim::SnapshotObject wall;
     wall.id = 1;
-    wall.kind = rts::sim::ObjectKind::Building;
+    wall.kind = reinos::sim::ObjectKind::Building;
     wall.origin = {300, 0};
     a.objects.push_back(wall);  // en b ya no está: derrumbe
-    rts::sim::SnapshotObject house;
+    reinos::sim::SnapshotObject house;
     house.id = 2;
-    house.kind = rts::sim::ObjectKind::Building;
+    house.kind = reinos::sim::ObjectKind::Building;
     house.complete = false;
     house.owner = 0;
     a.objects.push_back(house);
@@ -233,7 +234,7 @@ TEST_CASE("Director de sonido: lo que se ve suena, con panorama; lo lejano no; e
     dir.on_tick(a, b, 0, locate, screen, now);
     cues = dir.take();
     const auto has = [&](std::int32_t recipe) {
-        return std::ranges::any_of(cues, [&](const rts::audio::SoundCue& c) { return c.recipe == recipe; });
+        return std::ranges::any_of(cues, [&](const reinos::audio::SoundCue& c) { return c.recipe == recipe; });
     };
     CHECK(has(d.sound.events.death));
     CHECK(has(d.sound.events.collapse));
@@ -241,10 +242,10 @@ TEST_CASE("Director de sonido: lo que se ve suena, con panorama; lo lejano no; e
 
     // Avisos, órdenes, trabajo y fuego.
     now += 10000.0;
-    dir.on_alert(rts::game::AlertKind::UnderAttack, now);
-    dir.on_alert(rts::game::AlertKind::UnitReady, now);
+    dir.on_alert(reinos::game::AlertKind::UnderAttack, now);
+    dir.on_alert(reinos::game::AlertKind::UnitReady, now);
     dir.on_order(now);
-    dir.on_work(rts::game::WorkSound::Chop, {500.0f, 300.0f}, screen, now);
+    dir.on_work(reinos::game::WorkSound::Chop, {500.0f, 300.0f}, screen, now);
     dir.on_fires({{100.0f, 100.0f}, {500.0f, 300.0f}}, screen, now);
     cues = dir.take();
     CHECK(has(d.sound.events.alarm));
@@ -256,15 +257,15 @@ TEST_CASE("Director de sonido: lo que se ve suena, con panorama; lo lejano no; e
 
 TEST_CASE("Datos de sonido: errores claros en sound.toml") {
     const auto& d = game_data();
-    const auto file = std::ranges::find(d.files, std::string("sound.toml"), &rts::game::DataFile::path);
+    const auto file = std::ranges::find(d.files, std::string("sound.toml"), &reinos::game::DataFile::path);
     REQUIRE(file != d.files.end());
-    REQUIRE(rts::game::parse_sound_spec(file->text).has_value());
+    REQUIRE(reinos::game::parse_sound_spec(file->text).has_value());
     const auto replaced = [&](std::string_view from, std::string_view to) {
         std::string t = file->text;
         const auto at = t.find(from);
         REQUIRE(at != std::string::npos);
         t.replace(at, from.size(), to);
-        return rts::game::parse_sound_spec(t);
+        return reinos::game::parse_sound_spec(t);
     };
     const auto bad_wave = replaced("wave = \"seno\"", "wave = \"flauta\"");
     REQUIRE_FALSE(bad_wave.has_value());
@@ -321,13 +322,13 @@ TEST_CASE("Fondo: un bucle dura lo que dice y se cierra sin salto") {
     l.sustain = true;
     l.volume_percent = 50;
     r.layers.push_back(l);
-    const auto a = rts::audio::render(r, kRate, 50, 3);
+    const auto a = reinos::audio::render(r, kRate, 50, 3);
     REQUIRE(a.size() == static_cast<std::size_t>(kRate));
     const float seam = std::abs(a.front() - a.back());
     CHECK(seam <= max_step(a) * 1.5f);
     CHECK(rms(a) > 0.2);  // suena todo el bucle, no solo al principio
     CHECK(rms(a, a.size() - kRate / 10) > 0.2);
-    CHECK(a == rts::audio::render(r, kRate, 50, 3));
+    CHECK(a == reinos::audio::render(r, kRate, 50, 3));
 }
 
 TEST_CASE("Fondo: los golpes que pasan del final suenan al principio; la ondulación llega al silencio") {
@@ -343,7 +344,7 @@ TEST_CASE("Fondo: los golpes que pasan del final suenan al principio; la ondulac
     l.decay_ms = 200;
     l.volume_percent = 60;
     r.layers.push_back(l);
-    const auto a = rts::audio::render(r, kRate, 0, 1);
+    const auto a = reinos::audio::render(r, kRate, 0, 1);
     REQUIRE(a.size() == static_cast<std::size_t>(kRate));
     CHECK(rms(a, 0, kRate / 20) > 0.01);           // la cola, al principio
     CHECK(rms(a, kRate / 2, kRate / 2 + kRate / 10) < 1e-6);  // en medio, nada
@@ -358,7 +359,7 @@ TEST_CASE("Fondo: los golpes que pasan del final suenan al principio; la ondulac
     n.tremolo_ms = 1000;
     n.tremolo_percent = 100;
     w.layers.push_back(n);
-    const auto b = rts::audio::render(w, kRate, 0, 1);
+    const auto b = reinos::audio::render(w, kRate, 0, 1);
     // Dos vueltas por bucle (un seno): crestas en 1/8 y 5/8, valles en 3/8 y 7/8.
     const std::size_t e = b.size() / 8;
     const std::size_t win = b.size() / 200;
@@ -372,9 +373,9 @@ TEST_CASE("Fondo: cada golpe con su tono si lo pide (jitter), sin tocar lo que n
     plain.layers[0].repeat_ms = 50;
     auto jittered = plain;
     jittered.layers[0].jitter_cents = 600;
-    CHECK(rts::audio::render(plain, kRate, 0, 5) != rts::audio::render(jittered, kRate, 0, 5));
+    CHECK(reinos::audio::render(plain, kRate, 0, 5) != reinos::audio::render(jittered, kRate, 0, 5));
     // Sin jitter, los tiempos de los golpes no cambian: el mismo sonido que antes.
-    CHECK(rts::audio::render(plain, kRate, 0, 5) == rts::audio::render(plain, kRate, 0, 5));
+    CHECK(reinos::audio::render(plain, kRate, 0, 5) == reinos::audio::render(plain, kRate, 0, 5));
 }
 
 TEST_CASE("Fondo: los bucles de los datos duran lo suyo, se cierran sin salto y no saturan") {
@@ -385,7 +386,7 @@ TEST_CASE("Fondo: los bucles de los datos duran lo suyo, se cierran sin salto y 
         const auto& rec = d.sound.recipes[static_cast<std::size_t>(i)];
         CAPTURE(rec.name);
         REQUIRE(rec.loop_ms > 0);
-        const auto s = rts::audio::render(rec, kRate, 0, 11);
+        const auto s = reinos::audio::render(rec, kRate, 0, 11);
         CHECK(s.size() == static_cast<std::size_t>(static_cast<std::int64_t>(rec.loop_ms) * kRate / 1000));
         CHECK(std::ranges::all_of(s, [](float x) { return std::isfinite(x) && x >= -1.0f && x <= 1.0f; }));
         CHECK(std::abs(s.front() - s.back()) <= max_step(s));
@@ -429,26 +430,26 @@ TEST_CASE("Mezclador: los fondos entran sin salto, suenan con los efectos y se c
 
 TEST_CASE("Director de sonido: el fondo sigue a lo que se ve y a la luz, sin saltos") {
     const auto& d = game_data();
-    rts::game::SoundDirector dir(d.sound, d);
+    reinos::game::SoundDirector dir(d.sound, d);
     const auto& a = d.sound.ambient;
-    const auto slot = [&](rts::audio::AmbientSlot s) { return dir.ambient()[static_cast<std::size_t>(s)]; };
-    using rts::audio::AmbientSlot;
+    const auto slot = [&](reinos::audio::AmbientSlot s) { return dir.ambient()[static_cast<std::size_t>(s)]; };
+    using reinos::audio::AmbientSlot;
     // Agua y bosque, de día: viento, agua y pájaros; nada de grillos.
-    rts::game::AmbientView day{100, 40, 50, 100};
+    reinos::game::AmbientView day{100, 40, 50, 100};
     dir.on_view(day, 0.0);  // la primera vista se toma tal cual
     CHECK(slot(AmbientSlot::Wind) == doctest::Approx(a.wind_percent / 100.0));
     CHECK(slot(AmbientSlot::Water) == doctest::Approx(a.water_percent / 100.0));
     CHECK(slot(AmbientSlot::Birds) == doctest::Approx(a.birds_percent / 100.0));
     CHECK(slot(AmbientSlot::Night) == doctest::Approx(0.0));
     // La cámara se va a un campo sin agua ni bosque: a mitad de fade_ms, a medio camino.
-    rts::game::AmbientView field{100, 0, 0, 100};
+    reinos::game::AmbientView field{100, 0, 0, 100};
     dir.on_view(field, a.fade_ms / 2.0);
     CHECK(slot(AmbientSlot::Water) == doctest::Approx(a.water_percent / 200.0).epsilon(0.01));
     dir.on_view(field, a.fade_ms * 2.0);
     CHECK(slot(AmbientSlot::Water) == doctest::Approx(0.0));
     CHECK(slot(AmbientSlot::Birds) == doctest::Approx(0.0));
     // Noche cerrada sobre el bosque: grillos y no pájaros.
-    rts::game::AmbientView night{100, 0, 50, d.engine.world.vision.night_sight_percent};
+    reinos::game::AmbientView night{100, 0, 50, d.engine.world.vision.night_sight_percent};
     dir.on_view(night, a.fade_ms * 10.0);
     CHECK(slot(AmbientSlot::Birds) == doctest::Approx(0.0));
     CHECK(slot(AmbientSlot::Night) == doctest::Approx(a.night_percent / 100.0));
@@ -459,8 +460,8 @@ TEST_CASE("Director de sonido: el fondo sigue a lo que se ve y a la luz, sin sal
     // Terrenos del fondo, por nombre en los datos.
     for (std::size_t t = 0; t < d.terrain.types.size(); ++t) {
         const auto& name = d.terrain.types[t].name;
-        CHECK(dir.water_terrain(static_cast<rts::sim::TerrainId>(t)) ==
+        CHECK(dir.water_terrain(static_cast<reinos::sim::TerrainId>(t)) ==
               (name == "agua" || name == "agua_profunda" || name == "vado"));
-        CHECK(dir.forest_terrain(static_cast<rts::sim::TerrainId>(t)) == (name == "bosque"));
+        CHECK(dir.forest_terrain(static_cast<reinos::sim::TerrainId>(t)) == (name == "bosque"));
     }
 }
