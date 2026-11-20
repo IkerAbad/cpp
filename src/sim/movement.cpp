@@ -609,6 +609,9 @@ FVec2 MovementSystem::choose_velocity(std::size_t i) const {
         Fixed ttc = horizon;
         for (std::uint32_t nn = 0; nn < count; ++nn) {
             const std::uint32_t j = s_.neighbors[i * k + nn];
+            if (passes_through(i, j)) {
+                continue;
+            }
             const FVec2 p = s_.pos[j] - s_.pos[i];
             const FVec2 w = cand * 2 - s_.vel[i] - s_.vel[j];
             const Fixed r = s_.radius[i] + s_.radius[j];
@@ -689,7 +692,7 @@ void MovementSystem::integrate_and_separate(std::size_t n) {
                 const std::size_t cell = grid_.index({cx, cy});
                 for (std::uint32_t u = s_.cell_start[cell]; u < s_.cell_start[cell + 1]; ++u) {
                     const std::uint32_t j = s_.cell_units[u];
-                    if (j <= i) {
+                    if (j <= i || passes_through(i, j) || passes_through(j, i)) {
                         continue;
                     }
                     const FVec2 d = s_.pos[j] - s_.pos[i];
@@ -731,6 +734,8 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
     s_.order.clear();
     s_.arrived.clear();
     s_.stuck.clear();
+    s_.passing.clear();
+    s_.fighting.clear();
     s_.waiting.clear();
     s_.blob_radius.clear();
     s_.goal_point.clear();
@@ -742,6 +747,7 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         std::uint32_t order = 0;
         bool arrived = true;
         std::int32_t stuck = 0;
+        std::int32_t passing = 0;
         std::int32_t group = 1;
         FVec2 goal_point = pos;
         // Las ya llegadas conservan orden y destino: son el núcleo al que se encadenan
@@ -753,6 +759,7 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
             order = goal->order_id;
             arrived = goal->arrived;
             stuck = goal->stuck_ticks;
+            passing = goal->passing_ticks;
             group = goal->group_size;
             goal_point = goal->point;
         }
@@ -765,6 +772,9 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         s_.order.push_back(order);
         s_.arrived.push_back(arrived ? 1 : 0);
         s_.stuck.push_back(stuck);
+        s_.passing.push_back(passing);
+        const Combatant* fighter = registry.try_get<Combatant>(e);
+        s_.fighting.push_back(fighter != nullptr && (fighter->target != entt::null || fighter->attack_move) ? 1 : 0);
         // Esperando camino del planificador: está parada por falta de ruta, no atascada.
         const PathFollow* follow = registry.try_get<PathFollow>(e);
         s_.waiting.push_back(follow != nullptr && follow->waiting ? 1 : 0);
@@ -803,6 +813,14 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
             continue;
         }
         const Fixed my_dist = length(s_.goal_point[i] - s_.pos[i]);
+        // Atascada lejos de su racimo: se cruza un rato con las suyas que vienen de cara.
+        // Cerca del destino no: allí el atasco es el propio racimo (llegada en cadena).
+        if (s_.passing[i] > 0) {
+            --s_.passing[i];
+        } else if (params_.pass_friends_ticks > 0 && s_.stuck[i] >= params_.pass_friends_after_ticks &&
+                   my_dist > s_.blob_radius[i] + s_.blob_radius[i] * Fixed::from_ratio(1, 2)) {
+            s_.passing[i] = params_.pass_friends_ticks;
+        }
         // Fuera del radio esperado del racimo no hay llegada en cadena: evita que una
         // columna que llega en fila se pare entera propagando la llegada hacia atrás.
         // Una atascada se admite hasta 1,5 veces ese radio: el racimo real nunca es
@@ -837,6 +855,7 @@ void MovementSystem::update(entt::registry& registry, Tick tick) {
         registry.get<Velocity>(e).v = s_.chosen[i];
         if (MoveGoal* goal = registry.try_get<MoveGoal>(e); goal != nullptr) {
             goal->stuck_ticks = s_.stuck[i];
+            goal->passing_ticks = s_.arrived[i] != 0 ? 0 : s_.passing[i];
             if (s_.arrived[i] != 0) {
                 // Llegada por cualquier vía (también la de preferred_velocity): el camino
                 // ya no se sigue; si quedara, un cambio en la rejilla lo replanificaría.

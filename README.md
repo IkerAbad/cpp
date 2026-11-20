@@ -176,7 +176,11 @@ reinos ─┬─ reinos_render ─┬─ reinos_platform ── SDL3
   - En cadena, al tocar a una compañera ya llegada dentro del radio esperado del racimo.
   - Por atasco, tras `stuck_arrive_ticks` casi parada.
   - Las llegadas quedan quietas y son obstáculos para las demás.
-  - **Limitación conocida:** dos columnas que se cruzan de frente en un paso de una casilla (un puente estrecho) pueden quedarse atascadas: ninguna cede. Probé dejar que una unidad atascada pase entre las suyas. Arreglaba el puente, pero cambiaba demasiado otras situaciones (los defensores de Calatrava salían en tromba por su puerta), y lo dejé fuera.
+- **Cruce de frente.** Dos columnas del mismo dueño que se cruzan de frente en un paso de una casilla (un puente estrecho) ya no se atascan para siempre.
+  - Tras `pass_friends_after_ticks` (1 s) casi parada y lejos de su destino, una unidad se cruza durante `pass_friends_ticks` (2 s) con las suyas que vienen de cara.
+  - Solo de frente, las dos en marcha y ninguna peleando ni en ataque-movimiento. A un guardia parado, a una primera línea o a quien va delante en la misma cola no se los atraviesa, y nunca a una enemiga.
+  - Prueba: seis soldados por cada orilla de un puente de una casilla. Antes cruzaban 8 de 12 y el resto se quedaba atascado; ahora cruzan los 12 en 471 ticks.
+  - Una primera versión, más amplia (cualquier compañera atascada), hacía que los defensores de Calatrava salieran en tromba por su puerta. Esta no: Calatrava sigue cayendo en 4 min.
 - **Sin coma flotante.** Todo el movimiento usa `Fixed` y enteros; la raíz cuadrada es entera (`isqrt`). El mismo hash tras 1200 ticks de movimiento con Clang 20 y GCC 14.
 
 ### Economía (M3)
@@ -400,7 +404,7 @@ Los mapas, las cifras de cada ejército y los plazos son del juego, no datos his
 
 - **Objetivos** (`sim/objectives.hpp`): destruir, conservar, sobrevivir, llegar a una zona, reunir recursos y derrotar a un jugador. Son reglas de la simulación: deterministas, en el hash solo si el escenario los tiene (las partidas normales no cambian). Gana quien cumple todos los suyos (los de conservar cuentan mientras no fallen); pierde quien falla uno de conservar o ve ganar a otro. Un plazo es un «sobrevivir» del rival. En partida, a la derecha: cada objetivo con su estado y lo que queda de plazo.
 - **Escenarios escritos a mano.** Además del formato del editor, `base` + pinceladas (`[[paint]]`: terreno y altura a lo largo de un trazo), bosques (`[[forest]]`: densidad por mil, siempre los mismos árboles), bloques de unidades (`count`, `cols`), almacén inicial por jugador (`[[player]] stock`) y campamentos ya abastecidos (`store`). Formato completo en `src/game/scenario.hpp`.
-- **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 41 de 66 tropas) y se pierde el ejército forzando el puerto (23 de 66 a los 8 min); Calatrava cae en 4 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 19 (de un plazo de 30). Son las cifras desde que la búsqueda de caminos pesa el terreno; antes eran 50, 12, 4 min y minuto 16. Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
+- **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 42 de 66 tropas) y se pierde el ejército forzando el puerto (32 de 66 a los 8 min); Calatrava cae en 4 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 19 (de un plazo de 30). Son las cifras desde que las columnas se ceden el paso de frente; antes eran 41 y 23 en Las Navas, y antes aún, sin pesar el terreno en la búsqueda de caminos, 50, 12, 4 min y minuto 16. El puerto queda justo en el límite que fija la prueba (perder más de la mitad: 32 es el máximo). Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
 
 ### Repeticiones (M5)
 

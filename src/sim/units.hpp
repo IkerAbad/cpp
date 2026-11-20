@@ -241,6 +241,7 @@ struct MoveGoal {
     std::uint32_t order_id = 0;  // unidades de la misma orden llegan "en cadena"
     std::int32_t flow_field = -1;  // índice en la caché de campos, o -1 si va por HPA*
     std::int32_t stuck_ticks = 0;  // ticks seguidos avanzando a menos de 1/4 de su velocidad
+    std::int32_t passing_ticks = 0;  // ticks que le quedan cruzándose con las suyas (atasco)
     std::int32_t group_size = 1;   // unidades que recibieron la misma orden y destino
     bool arrived = false;
 };
@@ -343,6 +344,12 @@ struct MovementParams {
     // Atasco: una unidad que lleva estos ticks casi parada llega si tiene cerca una
     // compañera de orden ya llegada; con el cuádruple, llega de todos modos (desiste).
     std::int32_t stuck_arrive_ticks = 0;
+    // Atasco de frente (dos columnas que se cruzan en un puente de una casilla): tras
+    // estos ticks casi parada y lejos del destino, la unidad se cruza durante
+    // pass_friends_ticks con las de su dueño que vienen en sentido contrario. Solo de
+    // frente y sin pelear: a un guardia parado o a una primera línea no se la atraviesa.
+    std::int32_t pass_friends_after_ticks = 0;
+    std::int32_t pass_friends_ticks = 0;  // 0 = nunca
 
     Fixed arrive_radius;     // casillas: a esta distancia del destino se da por llegado
     Fixed waypoint_radius;   // casillas: a esta distancia de una casilla del tramo se pasa a la siguiente

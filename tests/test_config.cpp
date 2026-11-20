@@ -567,6 +567,8 @@ time_horizon_ticks = 20
 preference_weight = 100
 collision_weight = 60
 stuck_arrive_ticks = 40
+pass_friends_after_ticks = 20
+pass_friends_ticks = 40
 arrive_radius_milli_tiles = 250
 waypoint_radius_milli_tiles = 450
 
