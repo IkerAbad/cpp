@@ -104,7 +104,7 @@ jobs:
           if [ -n "${CLANG_CL:-}" ]; then
             args=(-DCMAKE_CXX_COMPILER="$CLANG_CL")
           fi
-          cmake --preset ${{ matrix.preset }} "${args[@]}"
+          bash .github/scripts/configurar.sh ${{ matrix.preset }} "${args[@]}"
 
       - name: Clave de la caché según su contenido
         id: cache-key
@@ -253,7 +253,7 @@ jobs:
 
       - name: Configurar y compilar (RelWithDebInfo)
         run: |
-          cmake --preset linux-clang-release
+          bash .github/scripts/configurar.sh linux-clang-release
           cmake --build --preset linux-clang-release --target reinos_bench reinos_ai_match reinos_tests reinos_fuzz
 
       # Criterio de M2: ningún tick por encima de 50 ms (el presupuesto de un tick a
@@ -407,7 +407,7 @@ jobs:
 
       - name: Compilar (Release)
         run: |
-          cmake --preset windows-msvc-release -DRTS_BUILD_TESTS=OFF -DRTS_BUILD_BENCH=OFF
+          bash .github/scripts/configurar.sh windows-msvc-release -DREINOS_BUILD_TESTS=OFF -DREINOS_BUILD_BENCH=OFF
           cmake --build --preset windows-msvc-release --target reinos
 
       - name: Preparar la carpeta
@@ -472,7 +472,7 @@ jobs:
 
       - name: Compilar (linux-clang-release)
         run: |
-          cmake --preset linux-clang-release -DRTS_BUILD_TESTS=OFF -DRTS_BUILD_BENCH=OFF
+          bash .github/scripts/configurar.sh linux-clang-release -DREINOS_BUILD_TESTS=OFF -DREINOS_BUILD_BENCH=OFF
           cmake --build --preset linux-clang-release --target reinos
 
       # Que lleve sonido y ventana de Linux (SDL los carga al arrancar: sin ellos el

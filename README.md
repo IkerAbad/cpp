@@ -94,7 +94,7 @@ Con `REINOS_BUILD_GAME=OFF` se compilan la simulación, el sonido, la red, la co
 ```bash
 sudo apt install clang-20 g++-14 ninja-build libtomlplusplus-dev doctest-dev
 cmake -S . -B build/nucleo -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-      -DCMAKE_CXX_COMPILER=clang++-20 -DRTS_BUILD_GAME=OFF -DCMAKE_PREFIX_PATH=<ruta de EnTT>
+      -DCMAKE_CXX_COMPILER=clang++-20 -DREINOS_BUILD_GAME=OFF -DCMAKE_PREFIX_PATH=<ruta de EnTT>
 cmake --build build/nucleo
 ctest --test-dir build/nucleo --output-on-failure
 ```
