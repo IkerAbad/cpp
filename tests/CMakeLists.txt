@@ -53,6 +53,11 @@ add_test(NAME sim_purity
     COMMAND ${CMAKE_COMMAND} -DSIM_DIR=${PROJECT_SOURCE_DIR}/src/sim
             -P ${PROJECT_SOURCE_DIR}/cmake/CheckSimPurity.cmake)
 
+# Las dos últimas necesitan el ejecutable con ventana (RTS_BUILD_GAME).
+if(NOT RTS_BUILD_GAME)
+    return()
+endif()
+
 # Humo: el ejecutable arranca, lee data/ y simula un minuto de juego sin ventana.
 add_test(NAME headless_smoke COMMAND rts --headless --ticks 1200)
 

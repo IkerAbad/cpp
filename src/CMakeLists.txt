@@ -9,8 +9,6 @@
 #
 # rts_sim no enlaza SDL: un #include <SDL3/...> en src/sim/ no compila.
 
-include(Shaders)
-
 # --- Simulación pura -----------------------------------------------------------
 add_library(rts_sim STATIC
     sim/ai.cpp
@@ -92,6 +90,13 @@ if(RTS_TRACY)
     target_compile_definitions(rts_profile INTERFACE RTS_TRACY)
     target_link_libraries(rts_profile INTERFACE Tracy::TracyClient)
 endif()
+
+# Sin RTS_BUILD_GAME acaba aquí: lo que sigue necesita SDL3, imgui, spdlog y dxc.
+if(NOT RTS_BUILD_GAME)
+    return()
+endif()
+
+include(Shaders)
 
 # --- Plataforma ----------------------------------------------------------------
 add_library(rts_platform STATIC

@@ -4,6 +4,10 @@ option(RTS_WERROR "Warnings como errores" ON)
 option(RTS_TRACY "Instrumentación con Tracy" OFF)
 option(RTS_BUILD_TESTS "Compilar las pruebas" ON)
 option(RTS_BUILD_BENCH "Compilar el banco de rendimiento" ON)
+# OFF: solo el núcleo (simulación, sonido, red, configuración), las pruebas y los
+# bancos, sin SDL3, imgui, spdlog ni dxc. Sirve para torneos y pruebas en máquinas
+# sin entorno gráfico o con EnTT, toml++ y doctest del sistema, sin vcpkg.
+option(RTS_BUILD_GAME "Compilar el ejecutable con ventana (SDL3, imgui, shaders)" ON)
 
 # Las features del manifiesto deben fijarse antes de project(), que es cuando
 # el toolchain de vcpkg instala las dependencias.
@@ -28,16 +32,18 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 
-find_package(SDL3 CONFIG REQUIRED)
-# SDL3Config.cmake marca SDL3::Headers con SYSTEM 0, así que su include llega como -I
-# normal y nuestros warnings (-Wold-style-cast en clang-cl, por ejemplo) saltan dentro
-# de las cabeceras de SDL. Se devuelve a SYSTEM, como el resto de dependencias.
-if(TARGET SDL3::Headers)
-    set_property(TARGET SDL3::Headers PROPERTY SYSTEM 1)
+if(RTS_BUILD_GAME)
+    find_package(SDL3 CONFIG REQUIRED)
+    # SDL3Config.cmake marca SDL3::Headers con SYSTEM 0, así que su include llega como -I
+    # normal y nuestros warnings (-Wold-style-cast en clang-cl, por ejemplo) saltan dentro
+    # de las cabeceras de SDL. Se devuelve a SYSTEM, como el resto de dependencias.
+    if(TARGET SDL3::Headers)
+        set_property(TARGET SDL3::Headers PROPERTY SYSTEM 1)
+    endif()
+    find_package(imgui CONFIG REQUIRED)
+    find_package(spdlog CONFIG REQUIRED)
 endif()
-find_package(imgui CONFIG REQUIRED)
 find_package(EnTT CONFIG REQUIRED)
-find_package(spdlog CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
 if(RTS_TRACY)
     find_package(Tracy CONFIG REQUIRED)

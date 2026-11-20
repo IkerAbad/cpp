@@ -85,7 +85,21 @@ Controles:
 | Postura | Botones «Agresiva» y «Mantener posición» del panel «Selección» |
 | Repetición: pausa y velocidad | Espacio; teclas 1-4 para x1, x2, x4 y x8 (o el panel «Repetición») |
 
-Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) y `RTS_BUILD_TESTS` (ON).
+Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) `RTS_BUILD_TESTS` (ON), `RTS_BUILD_BENCH` (ON) y `RTS_BUILD_GAME` (ON).
+
+#### Solo el núcleo, sin ventana
+
+Con `RTS_BUILD_GAME=OFF` se compilan la simulación, el sonido, la red, la configuración, las pruebas y los bancos (torneos de IA incluidos), sin SDL3, imgui, spdlog ni dxc. Basta con EnTT, toml++ y doctest, de vcpkg o del sistema. Por ejemplo, en Ubuntu 24.04 (EnTT no está en apt; sirve una copia de sus cabeceras):
+
+```bash
+sudo apt install clang-20 g++-14 ninja-build libtomlplusplus-dev doctest-dev
+cmake -S . -B build/nucleo -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+      -DCMAKE_CXX_COMPILER=clang++-20 -DRTS_BUILD_GAME=OFF -DCMAKE_PREFIX_PATH=<ruta de EnTT>
+cmake --build build/nucleo
+ctest --test-dir build/nucleo --output-on-failure
+```
+
+Faltan las dos pruebas que arrancan el ejecutable (`headless_smoke` y `crash_report`); el resto, y los hashes de referencia de los bancos, salen iguales que con vcpkg.
 
 ## Arquitectura
 
