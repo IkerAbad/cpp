@@ -149,8 +149,8 @@ count = 6
 [[objective]]
 player = 0
 kind = "tener"
-text.es = "Construye una granja (60 de madera): da comida sin agotarse"
-text.en = "Build a farm (60 wood): it gives food without running out"
+text.es = "Construye una granja (60 de madera): da 250 de comida sin salir de la puebla"
+text.en = "Build a farm (60 wood): it yields 250 food without leaving the settlement"
 building = "granja"
 
 [[objective]]
