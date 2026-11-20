@@ -28,15 +28,19 @@
 // y, en cualquier escenario:
 //
 //   briefing = "..."                  # lo que se cuenta antes de jugar
+//   objectives_in_order = true        # tutorial: la interfaz enseña los pasos de uno en uno
 //   [[player]] stock = { comida = 300, madera = 200 }   # almacén inicial, por orden
 //   [[building]] ... store = { comida = 240 }           # campamento ya abastecido
 //   [[objective]] player = 0, kind = "destruir", text = "...", target = 1,
 //                 building = "torre_piedra" | unit = "caballero" | unit = "*",
 //                 zone = [x0, y0, x1, y1], count = 10, resource = "comida", seconds = 900
-//   kind: destruir, conservar, sobrevivir, llegar, reunir, derrotar (sim/objectives.hpp)
+//   kind: destruir, conservar, sobrevivir, llegar, reunir (tener en el almacén), derrotar,
+//         tener (unidades o edificios terminados) y recoger (lo recogido desde el principio)
+//         (sim/objectives.hpp)
 
 #include <cstdint>
 #include <expected>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -54,7 +58,22 @@ struct ScenarioDoc {
     LocalizedText briefing;
     sim::ScenarioParams params;
     std::vector<LocalizedText> objective_texts;  // uno por objetivo de params.objectives
+    // objectives_in_order = true (un tutorial): la interfaz enseña los objetivos propios
+    // de uno en uno, en el orden del fichero. Las reglas no cambian: se cumplen igual.
+    bool objectives_in_order = false;
 };
+
+// Qué objetivos enseña la interfaz al jugador `local`: los suyos y los plazos pendientes
+// de los demás, en el orden del escenario. Con `in_order` (un tutorial), de sus pasos por
+// cumplir solo el primero; los de conservar son condiciones, no pasos, y se ven siempre.
+struct ObjectivesView {
+    std::vector<std::size_t> shown;  // índices en el orden del escenario
+    std::size_t steps = 0;           // pasos del jugador (todo lo suyo salvo conservar)
+    std::size_t steps_done = 0;
+};
+[[nodiscard]] ObjectivesView objectives_view(std::span<const sim::Objective> objectives,
+                                             std::span<const sim::ObjectiveStatus> status, sim::PlayerId local,
+                                             bool in_order);
 
 // Nombre de un tipo de objetivo en los ficheros ("destruir"...).
 [[nodiscard]] std::string_view objective_kind_key(sim::ObjectiveKind k) noexcept;

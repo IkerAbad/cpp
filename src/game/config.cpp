@@ -2037,6 +2037,7 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         data.scenario_name = std::move(doc->name);
         data.scenario_briefing = std::move(doc->briefing);
         data.objective_texts = std::move(doc->objective_texts);
+        data.objectives_in_order = doc->objectives_in_order;
     }
     return data;
 }

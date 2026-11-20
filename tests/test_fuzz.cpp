@@ -3,6 +3,7 @@
 // deterministas (dos mundos a la par y la repetición grabada). Aquí, partidas cortas;
 // reinos_fuzz las hace largas en la CI.
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -53,8 +54,9 @@ TEST_CASE("Órdenes al azar: partida normal con niebla y cuatro jugadores") {
 TEST_CASE("Órdenes al azar: un capítulo con murallas, torres y campamentos") {
     std::vector<std::string> errors;
     const auto campaigns = reinos::game::load_campaigns(REINOS_DATA_DIR, errors);
-    REQUIRE_FALSE(campaigns.empty());
-    const auto& c = campaigns.front();
+    const auto navas = std::ranges::find(campaigns, std::string("navas"), &reinos::game::Campaign::id);
+    REQUIRE(navas != campaigns.end());
+    const auto& c = *navas;
     const auto ch = std::ranges::find(c.chapters, "calatrava", &reinos::game::CampaignChapter::id);
     REQUIRE(ch != c.chapters.end());
     std::ifstream in(c.dir / ch->scenario, std::ios::binary);

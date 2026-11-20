@@ -228,6 +228,34 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   repetición hasta ese tick, el registro y un resumen. Una prueba de CTest provoca una
   caída y comprueba que la repetición del informe se reproduce.
 
+### Fase H — Que lo juegue una persona, y más guerra de verdad
+
+Con A–G cerradas, el juego está completo pero no lo ha probado nadie. Primero, que se
+aprenda solo; después, lo que más pesaba en una campaña medieval y aún falta.
+
+- [x] **H1. Tutorial.** Un capítulo corto que enseña los controles con un objetivo a la
+  vista cada vez. *Terminado:* la campaña «Primeros pasos» (`data/campaigns/aprendizaje`):
+  - ocho pasos, de talar a destruir el real de una algara;
+  - objetivos nuevos `tener` y `recoger`, y pasos de uno en uno (`objectives_in_order`);
+  - un rival que solo se defiende (perfil `guarnicion`);
+  - la IA `facil`, de aprendiz, lo termina en 18 min (prueba en Release).
+- [ ] **H2. La estación de campaña.** Las guerras se hacían de primavera a otoño: en
+  invierno no se forrajea, los caminos de tierra se embarran y el ejército come más de lo
+  que encuentra. *Terminado cuando:* un año de estaciones en la simulación, con su efecto
+  en forrajeo, granjas y marcha medido en pruebas, y la fuente citada.
+- [ ] **H3. Enfermedad en el real.** Los asedios largos se perdían por disentería tanto
+  como por las armas: un real abarrotado, sin agua limpia ni cirujanos, enferma.
+  *Terminado cuando:* la enfermedad aparece y se contagia según hacinamiento, agua y
+  tiempo; la sanidad la frena, y lo comprueban las pruebas; con fuente.
+- [ ] **H4. Reinos distintos.** Castilla, Aragón, Navarra y el califato almohade, con
+  tropas y costes propios sacados de fuentes (no de otros juegos). *Terminado cuando:*
+  cada bando tiene sus unidades en los datos, la IA juega con cualquiera, y el torneo
+  muestra que ninguno gana siempre.
+- [ ] **H5. Partidas de personas.** Al terminar, un resumen que se guarda (duración,
+  pasos del tutorial, pérdidas), para ajustar la dificultad con datos de jugadores y no
+  solo de la IA. *Terminado cuando:* el resumen se escribe junto a la repetición y una
+  prueba lo lee.
+
 ## 4. Cómo se trabaja cada punto
 
 1. Diseño breve (al ser un sistema nuevo, en el commit o en este documento).

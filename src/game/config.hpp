@@ -277,6 +277,7 @@ struct GameData {
     LocalizedText scenario_name;                 // F3: escenario hecho a mano (vacío: mapa generado)
     LocalizedText scenario_briefing;             // F4: lo que se cuenta antes de jugar
     std::vector<LocalizedText> objective_texts;  // F4: uno por objetivo del escenario
+    bool objectives_in_order = false;            // H1: tutorial, objetivos de uno en uno
 };
 
 // data/art.toml: cómo se pinta cada tipo (F1). Todo tipo de los catálogos debe tener su arte.

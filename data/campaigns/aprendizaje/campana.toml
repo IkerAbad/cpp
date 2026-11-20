@@ -1,0 +1,39 @@
+# Aprendizaje (H1): el tutorial. Un capítulo corto que enseña a jugar paso a paso: los
+# objetivos se ven de uno en uno (objectives_in_order en el escenario). Textos propios;
+# la fuente es una cita literal, comprobada sobre el texto del artículo.
+name.es = "Primeros pasos"
+name.en = "First steps"
+intro.es = """
+Aprende a jugar en una partida corta: talar, construir, recoger comida, adiestrar tropa y defender tu puebla. Los objetivos aparecen de uno en uno, arriba a la derecha.
+"""
+intro.en = """
+Learn to play in a short game: chop wood, build, gather food, train troops and defend your settlement. The objectives appear one at a time, at the top right.
+"""
+
+[[chapter]]
+id = "puebla"
+title.es = "Una puebla en la frontera"
+title.en = "A settlement on the frontier"
+date.es = "Castilla, siglo XII"
+date.en = "Castile, 12th century"
+scenario = "1_puebla.toml"
+rival = "guarnicion"
+fog = false
+history.es = """
+Para poblar las tierras ganadas en la Reconquista, reyes, señores y concejos daban cartas pueblas: privilegios a quien viniera a vivir y trabajar en ellas, y con ellos se aseguraba la frontera. En el juego, la puebla, la algara enemiga y el mapa son inventados; lo que se aprende son los controles.
+"""
+history.en = """
+To settle the lands won in the Reconquista, kings, lords and town councils granted "cartas pueblas": privileges for those who came to live and work there, which also secured the frontier. In the game, the settlement, the enemy raiding party and the map are invented; what you learn are the controls.
+"""
+
+[[chapter.source]]
+quote = "con el fin de obtener la repoblación de ciertas zonas de interés económico o estratégico durante la Reconquista."
+work.es = "Wikipedia en español, «Carta puebla»"
+work.en = "Spanish Wikipedia, \"Carta puebla\""
+url = "https://es.wikipedia.org/wiki/Carta_puebla"
+
+[[chapter.source]]
+quote = "Con ellas se pretendía asegurar las nuevas fronteras"
+work.es = "Wikipedia en español, «Carta puebla», sección «Finalidad»"
+work.en = "Spanish Wikipedia, \"Carta puebla\", section \"Finalidad\""
+url = "https://es.wikipedia.org/wiki/Carta_puebla"

@@ -85,7 +85,7 @@ Controles:
 | Postura | Botones «Agresiva» y «Mantener posición» del panel «Selección» |
 | Repetición: pausa y velocidad | Espacio; teclas 1-4 para x1, x2, x4 y x8 (o el panel «Repetición») |
 
-Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `REINOS_WERROR` (ON), `REINOS_TRACY` (OFF) `REINOS_BUILD_TESTS` (ON), `REINOS_BUILD_BENCH` (ON) y `REINOS_BUILD_GAME` (ON).
+Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `REINOS_WERROR` (ON), `REINOS_TRACY` (OFF), `REINOS_BUILD_TESTS` (ON), `REINOS_BUILD_BENCH` (ON) y `REINOS_BUILD_GAME` (ON).
 
 #### Solo el núcleo, sin ventana
 
@@ -392,6 +392,28 @@ Menú → «Opciones»: idioma, pantalla completa, tamaño de la ventana, volume
 - **Textos de los datos.** La campaña y los escenarios (nombre, informe, objetivos, capítulos, notas, obras citadas) van en los dos idiomas: en el fichero, `clave.es = "..."` y `clave.en = "..."`, o una cadena sola (español). Se ven en el idioma elegido y, si falta, en español. Las citas de las fuentes quedan en su idioma original. Una prueba exige el inglés de cada texto propio de la campaña.
 - **Lo que no está traducido:** los mensajes del registro (`reinos.log`) y el título provisional de la ventana.
 
+### Tutorial: «Primeros pasos» (H1)
+
+Menú → «Campaña» → «Primeros pasos». Una partida corta en un mapa pequeño que enseña los controles con un objetivo a la vista cada vez (arriba a la derecha, «Paso k de n»):
+
+1. Recoger 60 de madera (talar).
+2. Construir una casa.
+3. Recoger 100 de comida (bayas).
+4. Tener 6 aldeanos (adiestrarlos en el centro urbano).
+5. Construir una granja.
+6. Construir un cuartel.
+7. Tener 5 soldados.
+8. Destruir el cuartel de una algara enemiga acampada al este.
+
+Mientras tanto, el centro urbano no puede caer. El informe del principio explica los controles (elegir, ordenar con clic derecho, construir, adiestrar, cámara).
+
+- **Ambientación.** Una puebla de frontera con carta puebla, en Castilla en el siglo XII. Fuente: las cartas pueblas se daban «con el fin de obtener la repoblación de ciertas zonas de interés económico o estratégico durante la Reconquista» y «Con ellas se pretendía asegurar las nuevas fronteras» ([Wikipedia, «Carta puebla»](https://es.wikipedia.org/wiki/Carta_puebla)). La puebla, la algara y el mapa son inventados.
+- **El rival** usa el perfil nuevo `guarnicion`: solo el módulo `defensa`. No recoge, no construye ni ataca; su tropa pelea con quien se acerca. También aparece en el menú como rival para practicar.
+- **Cómo se hace.**
+  - El escenario marca `objectives_in_order = true`, y la interfaz enseña los pasos propios de uno en uno (`game::objectives_view`). Los de conservar se ven siempre. Las reglas no cambian: un paso cumplido antes de tiempo cuenta igual.
+  - Dos objetivos nuevos: `tener` (N unidades de un tipo, o N edificios terminados; una obra a medias no cuenta) y `recoger` (lo recogido desde el principio, para que quien aprende no tenga que ahorrar).
+- **Medido** (`tests/test_campaign.cpp`, en Release): con la IA `facil` de aprendiz, los ocho pasos se cumplen y gana en el minuto 18. La comida se recoge a los 3 min, el cuartel está a los 7 y la algara cae a los 18,5. Lo que no sé: cuánto tarda una persona que no conoce el juego.
+
 ### Campaña: Las Navas de Tolosa, 1212 (F4)
 
 Menú → «Campaña». Tres capítulos en orden; ganar uno desbloquea el siguiente (el progreso se guarda en `campana.toml`, junto al ejecutable). De cada capítulo se ve la fecha, el informe, una nota histórica propia y sus fuentes: citas literales, comprobadas palabra por palabra contra el texto de cada artículo, con su enlace.
@@ -402,7 +424,7 @@ Menú → «Campaña». Tres capítulos en orden; ganar uno desbloquea el siguie
 
 Los mapas, las cifras de cada ejército y los plazos son del juego, no datos históricos; las notas lo dicen.
 
-- **Objetivos** (`sim/objectives.hpp`): destruir, conservar, sobrevivir, llegar a una zona, reunir recursos y derrotar a un jugador. Son reglas de la simulación: deterministas, en el hash solo si el escenario los tiene (las partidas normales no cambian). Gana quien cumple todos los suyos (los de conservar cuentan mientras no fallen); pierde quien falla uno de conservar o ve ganar a otro. Un plazo es un «sobrevivir» del rival. En partida, a la derecha: cada objetivo con su estado y lo que queda de plazo.
+- **Objetivos** (`sim/objectives.hpp`): destruir, conservar, sobrevivir, llegar a una zona, reunir recursos (tenerlos en el almacén), derrotar a un jugador, tener unidades o edificios terminados, y recoger (lo recogido desde el principio, aunque se gaste). Son reglas de la simulación: deterministas, en el hash solo si el escenario los tiene (las partidas normales no cambian). Gana quien cumple todos los suyos (los de conservar cuentan mientras no fallen); pierde quien falla uno de conservar o ve ganar a otro. Un plazo es un «sobrevivir» del rival. En partida, a la derecha: cada objetivo con su estado y lo que queda de plazo.
 - **Escenarios escritos a mano.** Además del formato del editor, `base` + pinceladas (`[[paint]]`: terreno y altura a lo largo de un trazo), bosques (`[[forest]]`: densidad por mil, siempre los mismos árboles), bloques de unidades (`count`, `cols`), almacén inicial por jugador (`[[player]] stock`) y campamentos ya abastecidos (`store`). Formato completo en `src/game/scenario.hpp`.
 - **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 42 de 66 tropas) y se pierde el ejército forzando el puerto (32 de 66 a los 8 min); Calatrava cae en 4 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 19 (de un plazo de 30). Son las cifras desde que las columnas se ceden el paso de frente; antes eran 41 y 23 en Las Navas, y antes aún, sin pesar el terreno en la búsqueda de caminos, 50, 12, 4 min y minuto 16. El puerto queda justo en el límite que fija la prueba (perder más de la mitad: 32 es el máximo). Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
 

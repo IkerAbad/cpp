@@ -2017,17 +2017,24 @@ private:
     }
 
     // Objetivos del escenario (F4): los propios, con su estado, y los plazos de los demás.
+    // En un tutorial (objectives_in_order), de los propios por cumplir solo se ve el primero;
+    // los de conservar se ven siempre, porque son condiciones y no pasos.
     void draw_objectives(const ImVec2& display) {
         const auto& objectives = data_.engine.world.scenario.objectives;
         if (objectives.empty() || curr_.objectives.size() != objectives.size()) {
             return;
         }
+        const ObjectivesView view = objectives_view(objectives, curr_.objectives, local_, data_.objectives_in_order);
         constexpr float kMargin = 10.0f;
         constexpr float kTop = 40.0f;  // debajo de la barra de recursos
         ImGui::SetNextWindowPos({display.x - kMargin, kTop}, ImGuiCond_Always, {1.0f, 0.0f});
         ImGui::Begin(T("Objetivos"), nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing);
-        for (std::size_t i = 0; i < objectives.size(); ++i) {
+        if (data_.objectives_in_order && view.steps > 0) {
+            const std::size_t step = std::min(view.steps_done + 1, view.steps);
+            ImGui::TextDisabled("%s", TF("Paso {} de {}", step, view.steps).c_str());
+        }
+        for (const std::size_t i : view.shown) {
             const sim::Objective& o = objectives[i];
             const std::string text = i < data_.objective_texts.size() ? data_.objective_texts[i].get() : std::string();
             if (o.player == local_) {
@@ -2037,7 +2044,7 @@ private:
                                                                         : ImVec4{1.0f, 1.0f, 1.0f, 1.0f};
                 const char* mark = s == sim::ObjectiveStatus::Done ? "[x]" : s == sim::ObjectiveStatus::Failed ? "[!]" : "[ ]";
                 ImGui::TextColored(color, "%s %s", mark, text.c_str());
-            } else if (o.kind == sim::ObjectiveKind::Survive && curr_.objectives[i] == sim::ObjectiveStatus::Pending) {
+            } else {
                 const sim::Tick left = o.ticks > curr_.tick ? o.ticks - curr_.tick : 0;
                 const sim::Tick secs = left / static_cast<sim::Tick>(sim::kTicksPerSecond);
                 constexpr sim::Tick kSecondsPerMinute = 60;

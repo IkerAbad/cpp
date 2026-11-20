@@ -875,6 +875,92 @@ fog_guard_army = 6
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 
+# Guarnición (H1): solo se defiende. No recoge, no construye, no entrena ni ataca; su
+# tropa pelea con quien se acerca a su base. Es el rival del tutorial y sirve para
+# practicar contra un enemigo que no presiona. Los demás valores son los de «facil» y
+# no se usan (sus módulos no están en la lista).
+[[ai.profile]]
+name = "guarnicion"
+behaviors = ["defensa"]
+villager_target = 25
+# Reparto deseado de los aldeanos que recogen (suma 100).
+gather_percent = { comida = 35, madera = 30, oro = 15, piedra = 5, hierro = 15 }
+# Casa nueva cuando le quedan 3 plazas o menos de población.
+house_margin = 3
+barracks_at_villagers = 10
+# Almacén junto a un recurso que ya explotan 3 aldeanos si el más cercano está a más de 12 casillas.
+dropoff_distance_tiles = 12
+dropoff_min_gatherers = 3
+builders = 2
+# Una granja por cada 2 aldeanos que deban recoger comida.
+gatherers_per_farm = 2
+# Una casilla libre alrededor de cada edificio para no cerrar pasillos.
+build_gap_tiles = 1
+build_search_radius_tiles = 24
+# Primer ataque con 6 unidades; cada oleada, 4 más.
+first_wave = 6
+wave_growth = 4
+# Enemigos a 14 casillas o menos de su base: defensa. Un aldeano con un enemigo a 3
+# casillas o menos huye a la base, salvo que ya esté a 2 o menos de ella.
+defend_radius_tiles = 14
+flee_enemy_tiles = 3
+safe_base_tiles = 2
+# Unidades en cola que mantiene en el cuartel.
+barracks_queue = 2
+villager_queue = 1
+# Solo para ataque_fuerza (no lo usa este perfil).
+attack_ratio_percent = 130
+retreat_ratio_percent = 60
+min_attack_army = 6
+engage_radius_tiles = 8
+# Sin apagar fuegos ni incursiones (no usa esos módulos).
+extinguishers_per_fire = 0
+army_min_villagers = 0
+raid_unit = ""
+raid_group = 1
+raid_safe_radius_tiles = 0
+pillage_guard_tiles = 0
+# abastecer: la tropa que no pelea vuelve a abastecerse con menos del 30 % de víveres
+# o munición (y espera junto al almacén a llenarse).
+resupply_percent = 30
+# Guarda comida para media ración por cada unidad que come.
+upkeep_reserve_percent = 50
+# Sin campamentos ni convoyes (no usa logistica).
+camp_distance_tiles = 0
+camp_offset_tiles = 0
+convoy_carriers = 0
+baggage_offset_tiles = 0
+siege_engines = 0
+medical_min_army = 0
+wounded_percent = 0
+surgeons = 0
+night_attack_ratio_percent = 0
+patrol_radius_tiles = 0
+ambush_size = 0
+ambush_distance_tiles = 0
+ambush_min_trees = 0
+ambush_wood_tiles = 0
+ambush_search_tiles = 0
+towers = 0
+tower_offset_tiles = 0
+retreat_morale = 0
+formation_engage_tiles = 0
+forge_at_villagers = 0
+market_at_villagers = 0
+market_keep_gold = 0
+market_sell_above = 0
+market_max_price = 0
+defend_forced_march = false
+think_every = 1
+siege_front_tiles = 0
+# explorar: con niebla, un explorador recorre lo no explorado (rejilla de 12
+# casillas) hasta encontrar un edificio vital enemigo.
+scouts = 1
+explore_step_tiles = 12
+fog_guard_army = 0
+army = ["leva", "hombre_armas", "arquero"]
+
+
 [setup]
 seed = 20260924
 # Radio de búsqueda del sitio del edificio inicial y tamaño mínimo de su región de
