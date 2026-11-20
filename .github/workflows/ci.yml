@@ -52,6 +52,21 @@ jobs:
         with:
           arch: x64
 
+      # La STL de Visual Studio solo admite el Clang que viene con ella (la de VS 2026,
+      # MSVC 14.52, exige Clang 22 o posterior), pero el PATH del runner trae antes un
+      # LLVM suelto más viejo: se usa el clang-cl de Visual Studio, con ruta completa.
+      - name: clang-cl de Visual Studio (Windows)
+        if: matrix.name == 'windows-clang-cl'
+        run: |
+          vc="$(cygpath -m "${VCINSTALLDIR%\\}")"  # VCINSTALLDIR acaba en «\»
+          clang_cl="$vc/Tools/Llvm/x64/bin/clang-cl.exe"
+          if [ ! -f "$clang_cl" ]; then
+            echo "::error::Falta $clang_cl (componente «C++ Clang tools» de Visual Studio)"
+            exit 1
+          fi
+          "$clang_cl" --version
+          echo "CLANG_CL=$clang_cl" >> "$GITHUB_ENV"
+
       - name: vcpkg en el commit del baseline
         # VCPKG_ROOT se fija aquí y no en env: del trabajo porque el entorno de
         # Visual Studio (paso anterior) lo redefine apuntando a su vcpkg integrado.
@@ -84,7 +99,12 @@ jobs:
 
       - name: Configurar
         id: configure
-        run: cmake --preset ${{ matrix.preset }}
+        run: |
+          args=()
+          if [ -n "${CLANG_CL:-}" ]; then
+            args=(-DCMAKE_CXX_COMPILER="$CLANG_CL")
+          fi
+          cmake --preset ${{ matrix.preset }} "${args[@]}"
 
       - name: Clave de la caché según su contenido
         id: cache-key

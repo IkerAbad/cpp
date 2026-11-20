@@ -28,7 +28,7 @@ El plan completo, con lo que falta y en qué orden, está en [docs/PLAN.md](docs
 |---|---|---|
 | CMake | 3.28 | |
 | Linux | Ubuntu 24.04, **Clang ≥ 19** o **GCC ≥ 14**, Ninja | Clang 18 no ve `std::expected` en libstdc++ (medido: define `__cpp_concepts = 201907L`, libstdc++ exige `202002L`) |
-| Windows | Visual Studio 2022 o posterior (la CI usa VS 2026, MSVC 14.51) con MSVC o clang-cl, Ninja | |
+| Windows | Visual Studio 2022 o posterior (la CI usa VS 2026, MSVC 14.52) con MSVC o clang-cl, Ninja | clang-cl ha de ser el que trae Visual Studio («C++ Clang tools»): su STL rechaza otro Clang más viejo (la de MSVC 14.52 exige Clang 22). La CI lo elige con ruta completa |
 | GPU | Vulkan 1.0 (Linux y Windows) o Direct3D 12 nivel 11_0 (Windows) | Requisitos de SDL_GPU, ver `SDL_gpu.h` |
 | vcpkg | cualquier versión reciente, con `VCPKG_ROOT` definido | modo manifiesto, baseline fijado en `vcpkg.json` |
 
