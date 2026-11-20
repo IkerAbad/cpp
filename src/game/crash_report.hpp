@@ -4,9 +4,9 @@
 // excepción que nadie captura) o una desincronización, se escribe una carpeta
 // informes/informe-<fecha>/ junto al ejecutable con:
 //
-//   partida.rtsrep  la repetición hasta ese momento (se reproduce con --replay o
+//   partida.rep  la repetición hasta ese momento (se reproduce con --replay o
 //                   --verify-replay: el fallo se puede repetir en otra máquina)
-//   rts.log         el registro
+//   reinos.log         el registro
 //   informe.txt     qué pasó, en qué tick y con qué versión
 //
 // Ante una señal no todo es seguro de hacer; es un último intento, y después el
@@ -17,11 +17,11 @@
 #include <string>
 #include <string_view>
 
-namespace rts::sim {
+namespace reinos::sim {
 class World;
 }
 
-namespace rts::game {
+namespace reinos::game {
 
 class ReplayRecorder;
 
@@ -49,4 +49,4 @@ void install_crash_handlers(const std::filesystem::path& report_root, const std:
 // desincronización). Devuelve la carpeta, o nada si no se pudo.
 std::optional<std::filesystem::path> write_crash_report(std::string_view reason);
 
-}  // namespace rts::game
+}  // namespace reinos::game

@@ -11,7 +11,7 @@
 #include "game/config.hpp"
 #include "render/projection.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 // Entidad ya proyectada a pantalla en el fotograma actual.
 struct ScreenEntity {
@@ -67,4 +67,4 @@ private:
     std::vector<std::uint32_t> selected_;
 };
 
-}  // namespace rts::game
+}  // namespace reinos::game

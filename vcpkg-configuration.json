@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg-configuration.schema.json",
+  "$comment": "sdl3 con sonido y ventana de Linux (vcpkg-ports/sdl3); el resto, del registro de vcpkg en el builtin-baseline de vcpkg.json.",
+  "overlay-ports": [
+    "./vcpkg-ports"
+  ]
+}

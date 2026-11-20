@@ -10,7 +10,7 @@
 
 #include "sim/fixed.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher {
 public:
@@ -40,4 +40,4 @@ private:
     std::uint64_t hash_ = kOffsetBasis;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

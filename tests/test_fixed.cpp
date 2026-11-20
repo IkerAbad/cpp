@@ -2,7 +2,7 @@
 
 #include "sim/fixed.hpp"
 
-using rts::sim::Fixed;
+using reinos::sim::Fixed;
 
 // Casi todo es constexpr: si una aserción de esta lista falla, no compila.
 static_assert(Fixed::from_int(1).raw() == 65536);

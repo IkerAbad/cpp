@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-namespace rts::game {
+namespace reinos::game {
 
 inline constexpr std::string_view kOptionsFile = "opciones.toml";
 
@@ -72,4 +72,4 @@ struct Options {
 // Lo que se guarda para el jugador (sin la lista de resoluciones).
 [[nodiscard]] std::string options_toml(const Options& o);
 
-}  // namespace rts::game
+}  // namespace reinos::game

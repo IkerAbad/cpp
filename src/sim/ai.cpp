@@ -14,7 +14,7 @@
 #include "sim/market.hpp"
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -2151,4 +2151,4 @@ void AiSystem::hash_into(StateHasher& h) const {
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

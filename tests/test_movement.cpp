@@ -9,26 +9,26 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::Fixed;
-using rts::sim::FVec2;
-using rts::sim::MoveGoal;
-using rts::sim::Position;
-using rts::sim::TileCoord;
-using rts::sim::Unit;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using rts::test::all_unit_ids;
-using rts::test::move_order;
-using rts::test::test_world_params;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::Fixed;
+using reinos::sim::FVec2;
+using reinos::sim::MoveGoal;
+using reinos::sim::Position;
+using reinos::sim::TileCoord;
+using reinos::sim::Unit;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using reinos::test::all_unit_ids;
+using reinos::test::move_order;
+using reinos::test::test_world_params;
 
 namespace {
 
 // Mapa todo transitable (una sola banda de llanura): geometría predecible.
 WorldParams open_field(std::int32_t units, std::int32_t area) {
     WorldParams p = test_world_params(units, area);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     return p;
 }
 
@@ -49,7 +49,7 @@ Stats goal_stats(const World& world) {
         s.arrived += g.arrived ? 1 : 0;
         const FVec2 center{Fixed::from_int(g.tile.x) + Fixed::from_ratio(1, 2),
                            Fixed::from_int(g.tile.y) + Fixed::from_ratio(1, 2)};
-        const double d = static_cast<double>(rts::sim::length(center - FVec2{p.x, p.y}).raw()) / 65536.0;
+        const double d = static_cast<double>(reinos::sim::length(center - FVec2{p.x, p.y}).raw()) / 65536.0;
         s.max_center_dist = std::max(s.max_center_dist, d);
         s.mean_center_dist += d;
     }
@@ -75,7 +75,7 @@ double min_separation_ratio(const World& world) {
                 d.y < Fixed::from_int(-2)) {
                 continue;
             }
-            const double dist = static_cast<double>(rts::sim::length(d).raw());
+            const double dist = static_cast<double>(reinos::sim::length(d).raw());
             const double sum = static_cast<double>((units[i].second + units[j].second).raw());
             worst = std::min(worst, dist / sum);
         }
@@ -224,13 +224,13 @@ TEST_CASE("Movimiento: el presupuesto reparte las búsquedas entre ticks y Stop 
 
 TEST_CASE("Movimiento: una orden sin destino alcanzable detiene a la unidad en vez de dejarla en su orden vieja") {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     World world(p);
-    const auto unit = world.spawn_unit(0, rts::test::kSoldier, {100, 100});
+    const auto unit = world.spawn_unit(0, reinos::test::kSoldier, {100, 100});
     // Bolsillo de 2x2 casillas cerrado por casas.
     for (const TileCoord o : {TileCoord{98, 98}, TileCoord{100, 98}, TileCoord{102, 98}, TileCoord{98, 100},
                               TileCoord{102, 100}, TileCoord{98, 102}, TileCoord{100, 102}, TileCoord{102, 102}}) {
-        REQUIRE(world.spawn_building(0, rts::test::kHouse, o, true).has_value());
+        REQUIRE(world.spawn_building(0, reinos::test::kHouse, o, true).has_value());
     }
     world.step();
     world.issue(move_order(world.tick(), {unit}, {101, 101}));  // alcanzable, dentro del bolsillo
@@ -243,13 +243,13 @@ TEST_CASE("Movimiento: una orden sin destino alcanzable detiene a la unidad en v
 
 TEST_CASE("Movimiento: las que esperan camino del planificador no desisten antes de moverse") {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.movement.path_node_budget_per_tick = 1;  // un camino por tick: cola larga
     p.movement.stuck_arrive_ticks = 2;         // desistir tras 8 ticks atascada
     World world(p);
     std::vector<std::uint32_t> units;
     for (std::int32_t i = 0; i < 20; ++i) {
-        units.push_back(world.spawn_unit(0, rts::test::kSoldier, {60, 40 + 3 * i}));
+        units.push_back(world.spawn_unit(0, reinos::test::kSoldier, {60, 40 + 3 * i}));
     }
     world.step();
     // Órdenes sueltas (una por unidad): cada una necesita su propio camino HPA*.
@@ -267,9 +267,9 @@ TEST_CASE("Movimiento: las que esperan camino del planificador no desisten antes
 
 TEST_CASE("Movimiento: al llegar no conserva el camino") {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     World world(p);
-    const auto unit = world.spawn_unit(0, rts::test::kSoldier, {100, 100});
+    const auto unit = world.spawn_unit(0, reinos::test::kSoldier, {100, 100});
     world.step();
     world.issue(move_order(world.tick(), {unit}, {110, 104}));
     for (int t = 0; t < 400; ++t) {
@@ -278,5 +278,52 @@ TEST_CASE("Movimiento: al llegar no conserva el camino") {
     const auto e = static_cast<entt::entity>(unit);
     REQUIRE(world.registry().all_of<MoveGoal>(e));
     CHECK(world.registry().get<MoveGoal>(e).arrived);
-    CHECK_FALSE(world.registry().all_of<rts::sim::PathFollow>(e));
+    CHECK_FALSE(world.registry().all_of<reinos::sim::PathFollow>(e));
+}
+
+TEST_CASE("Movimiento: dos grupos que se cruzan de frente en un puente de una casilla pasan los dos") {
+    // 48x24: agua en las columnas 20..27 salvo la fila 12, el puente (8 casillas de largo,
+    // una de ancho). Seis soldados van de la orilla oeste a la este y seis de la este a la
+    // oeste, todos del mismo dueño: de frente en el puente, alguno ha de dejar pasar.
+    WorldParams p = test_world_params(0);
+    p.movement.pass_friends_after_ticks = 20;  // los de data/config/engine.toml
+    p.movement.pass_friends_ticks = 40;
+    p.scenario.width = 48;
+    p.scenario.height = 24;
+    p.scenario.players = 1;
+    p.scenario.terrain.assign(48 * 24, 1);
+    p.scenario.elevation.assign(48 * 24, 0);
+    for (std::int32_t y = 0; y < 24; ++y) {
+        for (std::int32_t x = 20; x <= 27; ++x) {
+            if (y != 12) {
+                p.scenario.terrain[static_cast<std::size_t>(y * 48 + x)] = 0;
+            }
+        }
+    }
+    World world(p);
+    std::vector<std::uint32_t> west;
+    std::vector<std::uint32_t> east;
+    for (std::int32_t i = 0; i < 6; ++i) {
+        west.push_back(world.spawn_unit(0, reinos::test::kSoldier, {14 + i % 2, 10 + i / 2 * 2}));
+        east.push_back(world.spawn_unit(0, reinos::test::kSoldier, {33 - i % 2, 10 + i / 2 * 2}));
+    }
+    world.issue(move_order(world.tick(), west, {40, 12}));
+    world.issue(move_order(world.tick(), east, {6, 12}));
+    const auto crossed = [&] {
+        int n = 0;
+        for (const auto id : west) {
+            n += world.registry().get<Position>(static_cast<entt::entity>(id)).x > Fixed::from_int(28) ? 1 : 0;
+        }
+        for (const auto id : east) {
+            n += world.registry().get<Position>(static_cast<entt::entity>(id)).x < Fixed::from_int(20) ? 1 : 0;
+        }
+        return n;
+    };
+    int t = 0;
+    for (; t < 3000 && crossed() < 12; ++t) {
+        world.step();
+        REQUIRE(all_on_passable_tiles(world));
+    }
+    MESSAGE("cruzaron ", crossed(), " de 12 en ", t, " ticks");
+    CHECK(crossed() == 12);
 }

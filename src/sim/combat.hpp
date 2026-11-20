@@ -25,7 +25,7 @@
 #include "sim/units.hpp"
 #include "sim/vision.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -239,4 +239,4 @@ private:
     CombatTickStats stats_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

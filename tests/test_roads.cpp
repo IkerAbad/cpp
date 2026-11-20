@@ -11,33 +11,33 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
 struct RoadSetup {
     WorldParams params = test_world_params(0, 16);
-    rts::sim::BuildingTypeId road = 0;
+    reinos::sim::BuildingTypeId road = 0;
 
     RoadSetup() {
-        params.map.bands = {{rts::sim::kElevationRange, 1}};
+        params.map.bands = {{reinos::sim::kElevationRange, 1}};
         params.demo.player = 1;
-        rts::sim::BuildingType r = params.building_types[kHouse];
+        reinos::sim::BuildingType r = params.building_types[kHouse];
         r.size = 1;
         r.population = 0;
         r.road_speed_percent = 125;
-        r.material = rts::sim::Material::Stone;
-        road = static_cast<rts::sim::BuildingTypeId>(params.building_types.size());
+        r.material = reinos::sim::Material::Stone;
+        road = static_cast<reinos::sim::BuildingTypeId>(params.building_types.size());
         params.building_types.push_back(r);
     }
 };
 
 // Ticks que tarda una unidad del tipo dado de (17, 24) a (30, 24), con o sin camino.
-int travel(RoadSetup s, rts::sim::UnitTypeId type, bool with_road, bool complete = true,
-           rts::sim::PlayerId road_owner = 0) {
+int travel(RoadSetup s, reinos::sim::UnitTypeId type, bool with_road, bool complete = true,
+           reinos::sim::PlayerId road_owner = 0) {
     World w(s.params);
     if (with_road) {
         for (std::int32_t x = 16; x <= 31; ++x) {
@@ -48,7 +48,7 @@ int travel(RoadSetup s, rts::sim::UnitTypeId type, bool with_road, bool complete
     w.issue(move_order(w.tick(), {u}, {30, 24}));
     for (int t = 0; t < 6000; ++t) {
         w.step();
-        if (rts::sim::tile_of(w.registry().get<rts::sim::Position>(static_cast<entt::entity>(u))) ==
+        if (reinos::sim::tile_of(w.registry().get<reinos::sim::Position>(static_cast<entt::entity>(u))) ==
             TileCoord{30, 24}) {
             return t;
         }
@@ -91,7 +91,7 @@ TEST_CASE("Caminos: las tropas no atacan por su cuenta un camino enemigo") {
     for (int t = 0; t < 100; ++t) {
         w.step();
     }
-    CHECK(w.registry().get<rts::sim::Combatant>(static_cast<entt::entity>(soldier)).target ==
+    CHECK(w.registry().get<reinos::sim::Combatant>(static_cast<entt::entity>(soldier)).target ==
           entt::entity{entt::null});
 }
 
@@ -111,7 +111,8 @@ TEST_CASE("Caminos: la búsqueda de caminos se desvía hacia uno si por él se l
         on_road.assign(64, 0);
         for (int t = 0; t < 6000; ++t) {
             w.step();
-            const TileCoord at = rts::sim::tile_of(w.registry().get<rts::sim::Position>(static_cast<entt::entity>(u)));
+            const TileCoord at =
+                reinos::sim::tile_of(w.registry().get<reinos::sim::Position>(static_cast<entt::entity>(u)));
             if (at.y == 26 && at.x >= 18 && at.x <= 59) {
                 on_road[static_cast<std::size_t>(at.x)] = 1;
             }

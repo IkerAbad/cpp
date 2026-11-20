@@ -12,13 +12,13 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::Health;
-using rts::sim::Patient;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::Health;
+using reinos::sim::Patient;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
@@ -26,11 +26,11 @@ constexpr std::int32_t kReorganize = 50;
 
 struct MedWorld {
     WorldParams params = test_world_params(0, 16);
-    rts::sim::BuildingTypeId hospital = 0;
-    rts::sim::BuildingTypeId aid = 0;  // puesto de socorro: estabiliza hasta el 70 %
+    reinos::sim::BuildingTypeId hospital = 0;
+    reinos::sim::BuildingTypeId aid = 0;  // puesto de socorro: estabiliza hasta el 70 %
 
     MedWorld() {
-        params.map.bands = {{rts::sim::kElevationRange, 1}};
+        params.map.bands = {{reinos::sim::kElevationRange, 1}};
         params.demo.player = 1;
         for (auto& u : params.unit_types) {
             u.treatable = u.combat.buildings_only == false;
@@ -41,16 +41,16 @@ struct MedWorld {
         archer.ration_ticks = 1000;
         archer.ammo = 10;
         archer.ammo_bundle = 5;
-        rts::sim::BuildingType h = params.building_types[kHouse];
+        reinos::sim::BuildingType h = params.building_types[kHouse];
         h.population = 0;
         h.beds = 2;
         h.nurses = 1;
         h.care_percent = 100;
         h.heal_to_percent = 100;
-        hospital = static_cast<rts::sim::BuildingTypeId>(params.building_types.size());
+        hospital = static_cast<reinos::sim::BuildingTypeId>(params.building_types.size());
         params.building_types.push_back(h);
         h.heal_to_percent = 70;
-        aid = static_cast<rts::sim::BuildingTypeId>(params.building_types.size());
+        aid = static_cast<reinos::sim::BuildingTypeId>(params.building_types.size());
         params.building_types.push_back(h);
         auto& m = params.medicine;
         m.bed_heal_milli_per_tick = 50;
@@ -58,7 +58,7 @@ struct MedWorld {
         m.patients_per_nurse = 1;
         m.patient_ration_ticks = 100;
         m.reorganize_ticks = kReorganize;
-        m.care_reach = rts::sim::Fixed::from_ratio(4, 5);
+        m.care_reach = reinos::sim::Fixed::from_ratio(4, 5);
         m.light_wound_percent = 70;
         m.natural_heal_interval_ticks = 10;
         m.calm_ticks = 20;
@@ -70,7 +70,7 @@ entt::entity ent(std::uint32_t id) {
     return static_cast<entt::entity>(id);
 }
 
-Command order(CommandType type, rts::sim::PlayerId player, std::vector<std::uint32_t> units, std::uint32_t object) {
+Command order(CommandType type, reinos::sim::PlayerId player, std::vector<std::uint32_t> units, std::uint32_t object) {
     Command c;
     c.type = type;
     c.player = player;
@@ -109,7 +109,7 @@ std::int32_t ticks_to_heal(bool nurse) {
     world.issue(order(CommandType::Treat, 0, {soldier}, post));
     for (std::int32_t t = 0; t < 20'000; ++t) {
         world.step();
-        if (world.registry().all_of<rts::sim::Reorganizing>(ent(soldier))) {
+        if (world.registry().all_of<reinos::sim::Reorganizing>(ent(soldier))) {
             CHECK(hp(world, soldier) == world.registry().get<Health>(ent(soldier)).max_hp);
             return t;
         }
@@ -130,10 +130,10 @@ TEST_CASE("Sanidad: el herido ingresa sin bienes, no combate y se cura; con enfe
     world.issue(order(CommandType::Treat, 0, {archer}, post));
     run(world, 120);
     REQUIRE(admitted(world, archer));
-    const auto& s = world.registry().get<rts::sim::Supply>(ent(archer));
+    const auto& s = world.registry().get<reinos::sim::Supply>(ent(archer));
     CHECK(s.ammo == 0);
     CHECK(s.rations == 0);
-    CHECK(world.registry().get<rts::sim::Combatant>(ent(archer)).target == entt::entity{entt::null});
+    CHECK(world.registry().get<reinos::sim::Combatant>(ent(archer)).target == entt::entity{entt::null});
     CHECK(hp(world, enemy) == world.registry().get<Health>(ent(enemy)).max_hp);
 
     const std::int32_t alone = ticks_to_heal(false);
@@ -151,15 +151,15 @@ TEST_CASE("Sanidad: tras el alta se reorganiza sin atacar y después vuelve a co
     const auto soldier = world.spawn_unit(0, kSoldier, {102, 100});
     world.set_hp(soldier, 39);
     world.issue(order(CommandType::Treat, 0, {soldier}, post));
-    for (std::int32_t t = 0; t < 2000 && !world.registry().all_of<rts::sim::Reorganizing>(ent(soldier)); ++t) {
+    for (std::int32_t t = 0; t < 2000 && !world.registry().all_of<reinos::sim::Reorganizing>(ent(soldier)); ++t) {
         world.step();
     }
-    REQUIRE(world.registry().all_of<rts::sim::Reorganizing>(ent(soldier)));
+    REQUIRE(world.registry().all_of<reinos::sim::Reorganizing>(ent(soldier)));
     const auto enemy = world.spawn_unit(1, kVillager, {100, 101});
     run(world, kReorganize - 5);
     CHECK(hp(world, enemy) == world.registry().get<Health>(ent(enemy)).max_hp);  // aún no ataca
     run(world, 200);
-    CHECK_FALSE(world.registry().all_of<rts::sim::Reorganizing>(ent(soldier)));
+    CHECK_FALSE(world.registry().all_of<reinos::sim::Reorganizing>(ent(soldier)));
     CHECK((!world.registry().valid(ent(enemy)) || hp(world, enemy) < world.registry().get<Health>(ent(enemy)).max_hp));
 }
 
@@ -217,12 +217,12 @@ TEST_CASE("Sanidad: otra orden lo saca del puesto, sin curar, y tiene que reorga
     world.issue(order(CommandType::Treat, 0, {soldier}, post));
     run(world, 60);
     REQUIRE(admitted(world, soldier));
-    Command go = order(CommandType::Move, 0, {soldier}, rts::sim::kNoObject);
+    Command go = order(CommandType::Move, 0, {soldier}, reinos::sim::kNoObject);
     go.target = {90, 100};
     world.issue(go);
     run(world, 2);
     CHECK_FALSE(world.registry().all_of<Patient>(ent(soldier)));
-    CHECK(world.registry().all_of<rts::sim::Reorganizing>(ent(soldier)));
+    CHECK(world.registry().all_of<reinos::sim::Reorganizing>(ent(soldier)));
     CHECK(hp(world, soldier) < 20);
 }
 
@@ -259,7 +259,7 @@ TEST_CASE("Sanidad: lo leve sana solo en calma; lo grave no; el socorro estabili
     // Socorro: lo sube hasta el 70 % (28) y, ya leve, sana solo.
     const auto aid = *world.spawn_building(0, mw.aid, {104, 103}, true);
     world.issue(order(CommandType::Treat, 0, {grave}, aid));
-    for (std::int32_t t = 0; t < 3000 && !world.registry().all_of<rts::sim::Reorganizing>(ent(grave)); ++t) {
+    for (std::int32_t t = 0; t < 3000 && !world.registry().all_of<reinos::sim::Reorganizing>(ent(grave)); ++t) {
         world.step();
     }
     CHECK(hp(world, grave) == 28);
@@ -271,13 +271,13 @@ namespace {
 
 // Ticks hasta el alta de un soldado con 5 de vida atendido por el personal indicado
 // (tipos de unidad) en un puesto con una sola plaza de personal.
-std::int32_t ticks_with_staff(const std::vector<rts::sim::UnitTypeId>& staff_types) {
+std::int32_t ticks_with_staff(const std::vector<reinos::sim::UnitTypeId>& staff_types) {
     MedWorld mw;
-    rts::sim::UnitType surgeon = mw.params.unit_types[kVillager];
+    reinos::sim::UnitType surgeon = mw.params.unit_types[kVillager];
     surgeon.worker = false;
     surgeon.carry_capacity = 0;
     surgeon.care_skill = 250;
-    const auto surgeon_type = static_cast<rts::sim::UnitTypeId>(mw.params.unit_types.size());
+    const auto surgeon_type = static_cast<reinos::sim::UnitTypeId>(mw.params.unit_types.size());
     mw.params.unit_types.push_back(surgeon);
     World world(mw.params);
     world.set_stock(0, stock(1000, 0, 0, 0));
@@ -294,7 +294,7 @@ std::int32_t ticks_with_staff(const std::vector<rts::sim::UnitTypeId>& staff_typ
     world.issue(order(CommandType::Treat, 0, {soldier}, post));
     for (std::int32_t t = 0; t < 20'000; ++t) {
         world.step();
-        if (world.registry().all_of<rts::sim::Reorganizing>(ent(soldier))) {
+        if (world.registry().all_of<reinos::sim::Reorganizing>(ent(soldier))) {
             return t;
         }
     }
@@ -304,7 +304,7 @@ std::int32_t ticks_with_staff(const std::vector<rts::sim::UnitTypeId>& staff_typ
 }  // namespace
 
 TEST_CASE("Sanidad: el cirujano cura antes que un aldeano y, con una sola plaza, la ocupa él") {
-    constexpr rts::sim::UnitTypeId kSurgeon = 255;  // marca: el cirujano de la prueba
+    constexpr reinos::sim::UnitTypeId kSurgeon = 255;  // marca: el cirujano de la prueba
     const std::int32_t nurse = ticks_with_staff({kVillager});
     const std::int32_t surgeon = ticks_with_staff({kSurgeon});
     const std::int32_t both = ticks_with_staff({kVillager, kSurgeon});

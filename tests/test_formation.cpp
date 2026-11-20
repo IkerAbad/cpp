@@ -13,22 +13,22 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::FVec2;
-using rts::sim::Fixed;
-using rts::sim::Formation;
-using rts::sim::FormationKind;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::FVec2;
+using reinos::sim::Fixed;
+using reinos::sim::Formation;
+using reinos::sim::FormationKind;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
 WorldParams formation_params() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;
     p.unit_types[kSoldier].combat.hp = 400;
     p.combat.cavalry_class = kClassInfantry;  // en la prueba, el soldado hace de jinete
@@ -48,27 +48,27 @@ entt::entity ent(std::uint32_t id) {
     return static_cast<entt::entity>(id);
 }
 
-void form(World& w, rts::sim::PlayerId player, std::vector<std::uint32_t> ids, FormationKind kind) {
+void form(World& w, reinos::sim::PlayerId player, std::vector<std::uint32_t> ids, FormationKind kind) {
     Command c;
     c.type = CommandType::SetStance;
     c.player = player;
     c.units = std::move(ids);
-    c.kind = static_cast<std::uint8_t>(rts::sim::kFormationBase + static_cast<std::uint8_t>(kind));
+    c.kind = static_cast<std::uint8_t>(reinos::sim::kFormationBase + static_cast<std::uint8_t>(kind));
     w.issue(c);
 }
 
-void hold(World& w, rts::sim::PlayerId player, std::vector<std::uint32_t> ids) {
+void hold(World& w, reinos::sim::PlayerId player, std::vector<std::uint32_t> ids) {
     Command c;
     c.type = CommandType::SetStance;
     c.player = player;
     c.units = std::move(ids);
-    c.kind = static_cast<std::uint8_t>(rts::sim::Stance::HoldGround);
+    c.kind = static_cast<std::uint8_t>(reinos::sim::Stance::HoldGround);
     w.issue(c);
 }
 
 // count unidades del jugador en un bloque junto a (x, y).
-std::vector<std::uint32_t> block(World& w, rts::sim::PlayerId player, rts::sim::UnitTypeId type, std::int32_t count,
-                                 std::int32_t x, std::int32_t y) {
+std::vector<std::uint32_t> block(World& w, reinos::sim::PlayerId player, reinos::sim::UnitTypeId type,
+                                 std::int32_t count, std::int32_t x, std::int32_t y) {
     std::vector<std::uint32_t> ids;
     for (std::int32_t i = 0; i < count; ++i) {
         ids.push_back(w.spawn_unit(player, type, {x + i % 2, y + i / 2}));
@@ -121,14 +121,14 @@ TEST_CASE("Formaciones: la columna marcha más rápido y la línea da tiro a los
         world.step();
         world.issue(move_order(world.tick(), ids, {80, 30}));
         run(world, 150);
-        return world.registry().get<rts::sim::Position>(ent(ids[0])).x;
+        return world.registry().get<reinos::sim::Position>(ent(ids[0])).x;
     };
     CHECK(advance(true) > advance(false));
 }
 
 TEST_CASE("Formaciones: el cuadro aguanta a la caballería y anula su carga, pero las flechas le hacen más") {
     // Daño que recibe un soldado del cuadro (o suelto) de un atacante del tipo dado.
-    const auto taken = [](bool square, rts::sim::UnitTypeId attacker, std::int32_t gap, std::int32_t charge) {
+    const auto taken = [](bool square, reinos::sim::UnitTypeId attacker, std::int32_t gap, std::int32_t charge) {
         WorldParams p = formation_params();
         p.unit_types[kSoldier].charge_percent = charge;
         if (charge > 100) {
@@ -152,7 +152,7 @@ TEST_CASE("Formaciones: el cuadro aguanta a la caballería y anula su carga, per
         atk.units = {a};
         atk.object = ids[0];
         w.issue(atk);
-        const auto& h = w.registry().get<rts::sim::Health>(ent(ids[0]));
+        const auto& h = w.registry().get<reinos::sim::Health>(ent(ids[0]));
         for (int t = 0; t < 600 && h.hp == h.max_hp; ++t) {
             w.step();
         }
@@ -199,7 +199,7 @@ TEST_CASE("Formaciones: los puestos se reparten según la forma") {
     run(w, 800);
     std::set<std::pair<std::int32_t, std::int32_t>> ends;
     for (const auto id : ids) {
-        const TileCoord t = rts::sim::tile_of(w.registry().get<rts::sim::Position>(ent(id)));
+        const TileCoord t = reinos::sim::tile_of(w.registry().get<reinos::sim::Position>(ent(id)));
         ends.insert({t.x, t.y});
         CHECK(std::abs(t.x - 50) <= 1);
     }

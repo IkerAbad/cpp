@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-namespace rts::game {
+namespace reinos::game {
 
 struct FixedStepConfig {
     std::int64_t tick_ns = 0;
@@ -34,4 +34,4 @@ private:
     std::int64_t accumulator_ns_ = 0;
 };
 
-}  // namespace rts::game
+}  // namespace reinos::game

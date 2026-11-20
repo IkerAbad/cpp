@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -28,4 +28,4 @@ render::Vec2 camera_scroll(const CameraConfig& cfg, const CameraInput& in, rende
     return velocity * dt_s;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

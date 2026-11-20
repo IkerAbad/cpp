@@ -19,7 +19,7 @@
 #include "render/view_params.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 // --- data/terrain.toml ---------------------------------------------------------
 
@@ -191,6 +191,7 @@ struct MatchSettings {
     // jugadores de engine.toml tal cual.
     std::vector<std::string> seats;
     std::string map;  // tipo de mapa (F3, [[map.preset]]); vacío: el de engine.toml
+    std::string season;  // H2: estación ([[season.kind]]); vacía: la de engine.toml
 };
 
 inline constexpr std::string_view kMatchSettingsFile = "config/partida.toml";
@@ -223,6 +224,7 @@ struct EngineConfig {
     std::vector<std::array<std::uint8_t, 3>> seat_colors;
     std::vector<std::string> hero_names;                     // por índice de CombatParams
     std::vector<std::string> ai_profile_names;               // por índice de AiParams::profiles
+    std::vector<std::string> season_names;                   // H2: por índice de SeasonParams::seasons
 };
 
 // Los errores son textos legibles que nombran el fichero y la clave que falla.
@@ -277,6 +279,7 @@ struct GameData {
     LocalizedText scenario_name;                 // F3: escenario hecho a mano (vacío: mapa generado)
     LocalizedText scenario_briefing;             // F4: lo que se cuenta antes de jugar
     std::vector<LocalizedText> objective_texts;  // F4: uno por objetivo del escenario
+    bool objectives_in_order = false;            // H1: tutorial, objetivos de uno en uno
 };
 
 // data/art.toml: cómo se pinta cada tipo (F1). Todo tipo de los catálogos debe tener su arte.
@@ -303,4 +306,4 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
 // read_data_files + parse_game_data.
 std::expected<GameData, std::string> load_game_data(const std::filesystem::path& data_dir);
 
-}  // namespace rts::game
+}  // namespace reinos::game

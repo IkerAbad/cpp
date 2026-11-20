@@ -6,7 +6,7 @@
 #include "game/config.hpp"
 #include "render/projection.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 struct CameraInput {
     bool left = false;
@@ -23,4 +23,4 @@ struct CameraInput {
 [[nodiscard]] render::Vec2 camera_scroll(const CameraConfig& cfg, const CameraInput& in, render::Vec2 screen,
                                          float dt_s) noexcept;
 
-}  // namespace rts::game
+}  // namespace reinos::game

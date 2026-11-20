@@ -10,7 +10,7 @@
 
 #include "audio/synth.hpp"
 
-namespace rts::audio {
+namespace reinos::audio {
 
 struct AudioConfig {
     std::int32_t sample_rate = 0;
@@ -76,4 +76,4 @@ struct SoundSpec {
     AmbientSounds ambient;
 };
 
-}  // namespace rts::audio
+}  // namespace reinos::audio

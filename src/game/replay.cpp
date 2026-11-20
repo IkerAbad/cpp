@@ -10,7 +10,7 @@
 #include "game/wire.hpp"
 #include "sim/state_hash.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -63,7 +63,7 @@ std::vector<std::uint8_t> encode_replay(const Replay& replay) {
 
 std::expected<Replay, std::string> decode_replay(std::span<const std::uint8_t> bytes) {
     if (bytes.size() < kMagic.size() || !std::equal(kMagic.begin(), kMagic.end(), bytes.begin())) {
-        return std::unexpected("no es una repetición (.rtsrep)");
+        return std::unexpected("no es una repetición (.rep)");
     }
     ByteReader r(bytes.subspan(kMagic.size()));
     const std::uint32_t version = r.u32();
@@ -239,4 +239,4 @@ VerifyResult verify_replay(const Replay& replay, const sim::WorldParams& params)
     return result;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

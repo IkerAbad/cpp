@@ -10,17 +10,17 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Combatant;
-using rts::sim::TargetClass;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Combatant;
+using reinos::sim::TargetClass;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
 WorldParams priority_world() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;
     p.combat.target_priority = {TargetClass::AttackingMe, TargetClass::Armed, TargetClass::Siege,
                                 TargetClass::Carrier, TargetClass::Worker, TargetClass::Other};
@@ -68,14 +68,14 @@ TEST_CASE("Prioridad: quien me ataca antes que otro armado más cercano") {
     const auto me = world.spawn_unit(0, kSoldier, {100, 100});
     const auto near = world.spawn_unit(1, kSoldier, {103, 100});
     const auto archer = world.spawn_unit(1, kArcher, {105, 101});
-    rts::sim::Command hold;
-    hold.type = rts::sim::CommandType::SetStance;
+    reinos::sim::Command hold;
+    hold.type = reinos::sim::CommandType::SetStance;
     hold.player = 1;
-    hold.kind = static_cast<std::uint8_t>(rts::sim::Stance::HoldGround);
+    hold.kind = static_cast<std::uint8_t>(reinos::sim::Stance::HoldGround);
     hold.units = {near, archer};
     world.issue(hold);
-    rts::sim::Command shoot;
-    shoot.type = rts::sim::CommandType::Attack;
+    reinos::sim::Command shoot;
+    shoot.type = reinos::sim::CommandType::Attack;
     shoot.player = 1;
     shoot.units = {archer};
     shoot.object = me;

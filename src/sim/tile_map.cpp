@@ -2,7 +2,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 TileMap::TileMap(std::int32_t width, std::int32_t height)
     : width_(width),
@@ -29,4 +29,4 @@ void TileMap::hash_into(StateHasher& h) const {
     h.add_bytes(elevation_);
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

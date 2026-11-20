@@ -9,7 +9,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -86,6 +86,7 @@ World::World(const WorldParams& params)
       ai_(params.ai, params.supply, params.ai_players),
       objectives_(params.objectives, params.scenario.objectives, params.unit_types,
                   static_cast<std::size_t>(player_count(params))),
+      season_(params.season),
       rng_(params.demo.seed) {
     // Terreno transitable donde no se construye (vados): un muro o una casa no tapa el paso.
     if (std::ranges::any_of(params.buildable_by_terrain, [](std::uint8_t b) { return b == 0; })) {
@@ -492,6 +493,12 @@ void World::step() {
     pending_.erase(pending_.begin(), rest.begin());
     advance_waypoints();
 
+    // Estación de campaña (H2): lo que cambia en este tick (con verano, nada).
+    const SeasonEffects& season = season_effects(season_, tick_);
+    economy_.set_farm_percent(season.farm_percent);
+    supply_.set_season(season.forage_percent, season.ration_percent);
+    movement_.set_march_percent(season.march_percent);
+
     economy_.update(registry_, movement_, next_order_id_, tick_);
     supply_.update(registry_, movement_, economy_, next_order_id_, tick_);
     medicine_.update(registry_, movement_, economy_, next_order_id_, tick_);
@@ -617,6 +624,9 @@ std::uint64_t World::state_hash() const {
             h.add_u32(g->order_id);
             h.add_i32(g->flow_field);
             h.add_i32(g->stuck_ticks);
+            if (g->passing_ticks != 0) {
+                h.add_i32(g->passing_ticks);  // solo mientras se cruza: si no, el hash de siempre
+            }
             h.add_i32(g->group_size);
             h.add_u32(g->arrived ? 1U : 0U);
         }
@@ -807,6 +817,7 @@ void World::write_snapshot(Snapshot& out) const {
     out.objectives = objectives_.status();
     out.winner = objectives_.winner() ? static_cast<std::int32_t>(*objectives_.winner()) : -1;
     out.daylight_percent = vision_.enabled() ? vision_.daylight_percent(tick_) : kPercent;
+    out.season = season_at(season_, tick_);
     out.fog.clear();
     out.memory.clear();
     if (vision_.enabled()) {
@@ -830,4 +841,4 @@ void World::write_snapshot(Snapshot& out) const {
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

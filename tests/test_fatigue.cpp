@@ -10,20 +10,20 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::Fatigue;
-using rts::sim::Fixed;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::Fatigue;
+using reinos::sim::Fixed;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
 WorldParams fatigue_params() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;
     p.unit_types[kSoldier].stamina = 100;
     p.unit_types[kArcher].stamina = 100;
@@ -58,12 +58,12 @@ void pace(World& w, std::uint32_t id, std::uint8_t kind) {
 
 // Marcha n ticks hacia el este y devuelve cuánto ha avanzado (en casillas).
 Fixed march(World& w, std::uint32_t id, int ticks) {
-    const auto x0 = w.registry().get<rts::sim::Position>(ent(id)).x;
+    const auto x0 = w.registry().get<reinos::sim::Position>(ent(id)).x;
     w.issue(move_order(w.tick(), {id}, {120, 30}));
     for (int t = 0; t < ticks; ++t) {
         w.step();
     }
-    return w.registry().get<rts::sim::Position>(ent(id)).x - x0;
+    return w.registry().get<reinos::sim::Position>(ent(id)).x - x0;
 }
 
 }  // namespace
@@ -76,7 +76,7 @@ TEST_CASE("Fatiga: marchar cansa y parar repone") {
     march(w, s, 200);
     const std::int32_t tired = fatigue(w, s).value;
     CHECK(tired > 15'000);
-    rts::sim::Command stop;
+    reinos::sim::Command stop;
     stop.type = CommandType::Stop;
     stop.player = 0;
     stop.units = {s};
@@ -93,7 +93,7 @@ TEST_CASE("Fatiga: cansada, la unidad anda y pega peor; agotada, al 70 %") {
     World w(p);
     const auto s = w.spawn_unit(0, kSoldier, {20, 30});
     march(w, s, 100);
-    CHECK(fatigue(w, s).value == rts::sim::kFullFatigue);
+    CHECK(fatigue(w, s).value == reinos::sim::kFullFatigue);
     CHECK(fatigue(w, s).speed_percent == 70);
     CHECK(fatigue(w, s).attack_percent == 70);
 
@@ -112,7 +112,7 @@ TEST_CASE("Fatiga: el paso forzado va un 20 % más deprisa y cansa el triple") {
     World forced(fatigue_params());
     const auto a = normal.spawn_unit(0, kSoldier, {20, 30});
     const auto b = forced.spawn_unit(0, kSoldier, {20, 30});
-    pace(forced, b, rts::sim::kPaceForced);
+    pace(forced, b, reinos::sim::kPaceForced);
     forced.step();
     normal.step();
     CHECK(fatigue(forced, b).forced);
@@ -120,7 +120,7 @@ TEST_CASE("Fatiga: el paso forzado va un 20 % más deprisa y cansa el triple") {
     const Fixed db = march(forced, b, 40);
     CHECK(db > da * Fixed::from_ratio(11, 10));
     CHECK(fatigue(forced, b).value > fatigue(normal, a).value * 25 / 10);
-    pace(forced, b, rts::sim::kPaceNormal);
+    pace(forced, b, reinos::sim::kPaceNormal);
     forced.step();
     CHECK_FALSE(fatigue(forced, b).forced);
 }

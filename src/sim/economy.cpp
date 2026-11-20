@@ -9,7 +9,7 @@
 #include "sim/state_hash.hpp"
 #include "sim/supply.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -786,7 +786,14 @@ void EconomySystem::step_gather(entt::registry& registry, MovementSystem& moveme
     if (slowed_by_hunger(registry, e, tick)) {
         return;
     }
-    if (++w.timer < params_.gather_ticks[resource_index(rn.kind)]) {
+    std::int32_t need = params_.gather_ticks[resource_index(rn.kind)];
+    if (farm_percent_ != kPercent && registry.all_of<Building>(w.node)) {  // una granja, fuera de verano
+        if (farm_percent_ <= 0) {
+            return;  // no hay nada que cosechar: el aldeano espera junto a ella
+        }
+        need = std::max(need * kPercent / farm_percent_, 1);
+    }
+    if (++w.timer < need) {
         return;
     }
     w.timer = 0;
@@ -1230,4 +1237,4 @@ void EconomySystem::hash_into(StateHasher& h, const entt::registry& registry) co
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

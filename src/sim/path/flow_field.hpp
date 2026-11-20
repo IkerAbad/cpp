@@ -14,7 +14,7 @@
 
 #include "sim/path/grid.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class FlowField {
 public:
@@ -37,4 +37,4 @@ private:
     std::size_t reached_ = 0;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

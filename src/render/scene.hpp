@@ -15,7 +15,7 @@
 #include "render/view_params.hpp"
 #include "sim/tile_map.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 struct Marker {
     Vec2 screen_pos;  // centro (sin arte) o pies (con arte), píxeles de pantalla
@@ -136,4 +136,4 @@ private:
     std::uint32_t cached_revision_ = 0;
 };
 
-}  // namespace rts::render
+}  // namespace reinos::render

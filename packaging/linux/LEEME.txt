@@ -1,0 +1,53 @@
+Reinos (nombre provisional) - versión para Linux x86_64
+Versión: @VERSION@
+
+Sirve en cualquier Linux x86_64 con glibc 2.39 o posterior: Arch, Ubuntu 24.04
+o posterior, Fedora 40 o posterior, Debian 13...
+
+JUGAR
+  tar xzf reinos-linux-x86_64.tar.gz
+  cd reinos
+  ./reinos
+
+  Tú eres el jugador azul contra la IA. En el menú: semilla del mapa, rival
+  (fácil, normal, difícil, experto), tipo de mapa, niebla de guerra, la campaña
+  de Las Navas de Tolosa, partidas en red, editor de escenarios y opciones
+  (idioma español/inglés, pantalla completa, tamaño, volumen y teclas).
+  Dentro de la partida, F2 muestra la ayuda con todos los controles.
+
+LO QUE NECESITA EL SISTEMA
+  Vulkan, que es como dibuja el juego: el cargador de Vulkan y el controlador
+  de tu gráfica. En Arch (pacman):
+    sudo pacman -S --needed vulkan-icd-loader
+      AMD:    sudo pacman -S --needed vulkan-radeon
+      Intel:  sudo pacman -S --needed vulkan-intel
+      NVIDIA: nvidia-utils (viene con el controlador propietario)
+    Para comprobarlo: sudo pacman -S vulkan-tools && vulkaninfo --summary
+  En Ubuntu o Debian: sudo apt install libvulkan1 mesa-vulkan-drivers
+  Sonido: PipeWire, PulseAudio o ALSA, lo que ya tenga el sistema. Sin sonido
+    disponible, el juego sigue en silencio.
+  Ventana: Wayland o X11. En Wayland, libdecor da los bordes de la ventana
+    (Arch: sudo pacman -S --needed libdecor).
+
+DÓNDE PONERLO
+  En una carpeta tuya donde puedas escribir (por ejemplo ~/Juegos/reinos): el
+  juego guarda junto al ejecutable el registro (reinos.log), las repeticiones
+  (replays/), las partidas guardadas (F5), tus opciones (opciones.toml) y,
+  si algo falla, un informe en informes/.
+
+ACCESO DIRECTO EN EL MENÚ DE APLICACIONES
+  ./crear-acceso-directo.sh
+
+REPETICIONES
+  ./reinos --replay replays/partida-AAAA-MM-DD_HH-MM-SS.rep
+
+SI NO ARRANCA
+  Mira reinos.log en esta carpeta.
+  - Un error que habla de Vulkan o del dispositivo gráfico: falta el
+    controlador Vulkan (ver arriba).
+  - Problemas con la ventana en Wayland: prueba  SDL_VIDEO_DRIVER=x11 ./reinos
+  - Sin sonido: prueba  SDL_AUDIO_DRIVER=pulseaudio ./reinos  (o pipewire, o alsa).
+
+Licencias: LICENSE (el juego, MIT) y licencias/ (las bibliotecas que lleva el
+ejecutable). Todo el arte y el sonido se generan por código: no hay ningún
+recurso de otro juego.

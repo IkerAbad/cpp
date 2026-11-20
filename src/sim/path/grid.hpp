@@ -20,7 +20,7 @@
 
 #include "sim/tile_map.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 inline constexpr std::int32_t kStraightCost = 10;
 inline constexpr std::int32_t kDiagonalCost = 14;
@@ -221,4 +221,4 @@ private:
     std::int64_t expanded_total_ = 0;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

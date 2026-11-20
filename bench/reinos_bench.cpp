@@ -9,7 +9,7 @@
 // Modo IA (--ai-data <carpeta>): la partida por defecto de esa carpeta de datos con
 // todos los jugadores controlados por la IA (economía, obras, oleadas y batallas).
 //
-// Uso: rts_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1] [--ai-data <carpeta>]
+// Uso: reinos_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1] [--ai-data <carpeta>]
 // Mide el tiempo de cada tick y termina con código 1 si el máximo supera X ms
 // (criterio de M2: 50 ms, el presupuesto de un tick a 20 Hz).
 
@@ -29,12 +29,12 @@
 
 namespace {
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::Fixed;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::Fixed;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
 
 // Mismos parámetros que las pruebas (independientes de data/, que puede cambiar).
 WorldParams bench_params(std::int32_t units) {
@@ -44,9 +44,9 @@ WorldParams bench_params(std::int32_t units) {
     p.map.height = 256;
     p.map.noise_cell_tiles = 32;
     p.map.elevation_levels = 8;
-    p.map.bands = {{20'000, 0}, {45'000, 1}, {rts::sim::kElevationRange, 2}};
+    p.map.bands = {{20'000, 0}, {45'000, 1}, {reinos::sim::kElevationRange, 2}};
     p.passable_by_terrain = {0, 1, 1};
-    rts::sim::UnitType soldier;
+    reinos::sim::UnitType soldier;
     soldier.radius = Fixed::from_ratio(3, 10);
     soldier.speed = Fixed::from_ratio(6, 100);
     soldier.combat.hp = 45;
@@ -56,7 +56,7 @@ WorldParams bench_params(std::int32_t units) {
     soldier.combat.range = Fixed::from_ratio(15, 100);
     soldier.combat.reload_ticks = 40;
     soldier.combat.sight_tiles = 6;
-    rts::sim::UnitType archer;
+    reinos::sim::UnitType archer;
     archer.radius = Fixed::from_ratio(1, 4);
     archer.speed = Fixed::from_ratio(55, 1000);
     archer.combat.hp = 30;
@@ -102,7 +102,7 @@ WorldParams bench_params(std::int32_t units) {
     return p;
 }
 
-Command move(rts::sim::Tick tick, std::vector<std::uint32_t> units, TileCoord target) {
+Command move(reinos::sim::Tick tick, std::vector<std::uint32_t> units, TileCoord target) {
     Command c;
     c.tick = tick;
     c.type = CommandType::Move;
@@ -112,7 +112,7 @@ Command move(rts::sim::Tick tick, std::vector<std::uint32_t> units, TileCoord ta
 }
 
 void issue_script(World& world) {
-    rts::sim::Snapshot snap;
+    reinos::sim::Snapshot snap;
     world.write_snapshot(snap);
     std::vector<std::uint32_t> all;
     for (const auto& e : snap.entities) {
@@ -126,7 +126,7 @@ void issue_script(World& world) {
     world.issue(move(400, {all.begin() + half, all.end()}, {200, 200}));
     // 3. Grupos de 5 (por debajo del mínimo de campo de flujo) a destinos repartidos:
     //    cientos de consultas HPA* compitiendo por el presupuesto de nodos.
-    rts::sim::Xoshiro256pp rng(7);
+    reinos::sim::Xoshiro256pp rng(7);
     for (std::size_t i = 0; i < all.size(); i += 5) {
         const auto end = std::min(all.size(), i + 5);
         const std::int32_t tx = 16 + static_cast<std::int32_t>(rng.next_below(224));
@@ -140,12 +140,12 @@ void issue_script(World& world) {
 // se encuentran hacia el tick 300 y el resto del banco es batalla.
 World make_battle(std::int64_t units) {
     WorldParams p = bench_params(0);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;  // dos jugadores
     World world(p);
     const auto per_side = static_cast<std::int32_t>(units / 2);
     const std::int32_t cols = std::max<std::int32_t>(1, static_cast<std::int32_t>(std::sqrt(per_side * 2.0)));
-    for (rts::sim::PlayerId side = 0; side < 2; ++side) {
+    for (reinos::sim::PlayerId side = 0; side < 2; ++side) {
         Command c;
         c.type = CommandType::AttackMove;
         c.player = side;
@@ -155,7 +155,7 @@ World make_battle(std::int64_t units) {
             const std::int32_t row = i / cols;
             const std::int32_t col = i % cols;
             const TileCoord t{side == 0 ? 108 - row : 148 + row, 128 - cols / 2 + col};
-            c.units.push_back(world.spawn_unit(side, static_cast<rts::sim::UnitTypeId>(i % 3 == 0 ? 1 : 0), t));
+            c.units.push_back(world.spawn_unit(side, static_cast<reinos::sim::UnitTypeId>(i % 3 == 0 ? 1 : 0), t));
         }
         world.issue(std::move(c));
     }
@@ -189,8 +189,9 @@ int main(int argc, char** argv) {
         const bool ok = target == &combat ? (argv[i + 1] == std::string_view("0") || argv[i + 1] == std::string_view("1"))
                                           : target != nullptr && parse_arg(argv[i + 1], *target);
         if (!ok) {
-            std::fprintf(stderr,
-                         "Uso: rts_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1] [--ai-data <carpeta>]\n");
+            std::fprintf(
+                stderr,
+                "Uso: reinos_bench [--units N] [--ticks T] [--max-ms X] [--combat 0|1] [--ai-data <carpeta>]\n");
             return 2;
         }
         if (target == &combat) {
@@ -200,9 +201,9 @@ int main(int argc, char** argv) {
 
     using Clock = std::chrono::steady_clock;
     const auto setup_start = Clock::now();
-    std::optional<rts::game::GameData> data;
+    std::optional<reinos::game::GameData> data;
     if (!ai_data.empty()) {
-        auto loaded = rts::game::load_game_data(std::filesystem::path(ai_data));
+        auto loaded = reinos::game::load_game_data(std::filesystem::path(ai_data));
         if (!loaded) {
             std::fprintf(stderr, "%s\n", loaded.error().c_str());
             return 2;
@@ -213,7 +214,7 @@ int main(int argc, char** argv) {
         const std::uint8_t profile = seats.empty() ? 0 : seats.front().profile;
         seats.clear();
         for (std::size_t p = 0; p < data->engine.world.setup.starts.size(); ++p) {
-            seats.push_back({static_cast<rts::sim::PlayerId>(p), profile});
+            seats.push_back({static_cast<reinos::sim::PlayerId>(p), profile});
         }
     }
     World world = data ? World(data->engine.world)
@@ -251,7 +252,7 @@ int main(int argc, char** argv) {
     const double worst = sorted.back();
     const auto worst_tick = std::ranges::max_element(tick_ms) - tick_ms.begin();
 
-    rts::sim::Snapshot snap;
+    reinos::sim::Snapshot snap;
     world.write_snapshot(snap);
     std::printf("unidades=%zu ticks=%lld preparación=%.1f ms (mapa, HPA*, aparición)\n", snap.entities.size(),
                 static_cast<long long>(ticks), setup_ms);

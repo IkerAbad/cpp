@@ -9,18 +9,18 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
 WorldParams flat() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;
     return p;
 }
@@ -30,12 +30,12 @@ Command move(std::vector<std::uint32_t> units, TileCoord to, bool queue) {
     c.type = CommandType::Move;
     c.units = std::move(units);
     c.target = to;
-    c.kind = queue ? rts::sim::kQueueMove : 0;
+    c.kind = queue ? reinos::sim::kQueueMove : 0;
     return c;
 }
 
 TileCoord tile(const World& w, std::uint32_t id) {
-    return rts::sim::tile_of(w.registry().get<rts::sim::Position>(static_cast<entt::entity>(id)));
+    return reinos::sim::tile_of(w.registry().get<reinos::sim::Position>(static_cast<entt::entity>(id)));
 }
 
 std::int32_t dist(TileCoord a, TileCoord b) {
@@ -73,7 +73,7 @@ TEST_CASE("Órdenes: una orden normal olvida los puntos de paso") {
         world.step();
     }
     CHECK(dist(tile(world, u), {90, 100}) <= 1);
-    CHECK_FALSE(world.registry().all_of<rts::sim::Waypoints>(static_cast<entt::entity>(u)));
+    CHECK_FALSE(world.registry().all_of<reinos::sim::Waypoints>(static_cast<entt::entity>(u)));
 }
 
 TEST_CASE("Órdenes: lo producido va al punto de reunión; un aldeano, a recoger si es un recurso") {
@@ -94,20 +94,20 @@ TEST_CASE("Órdenes: lo producido va al punto de reunión; un aldeano, a recoger
     for (std::int32_t t = 0; t < 900; ++t) {
         world.step();
     }
-    rts::sim::Snapshot snap;
+    reinos::sim::Snapshot snap;
     world.write_snapshot(snap);
     REQUIRE(snap.entities.size() == 1);
     // Recogiendo o ya llevando lo recogido al almacén.
-    CHECK((snap.entities[0].task == rts::sim::WorkerTask::Gather ||
-           snap.entities[0].task == rts::sim::WorkerTask::Deliver));
-    const auto& w = world.registry().get<rts::sim::Worker>(static_cast<entt::entity>(snap.entities[0].id));
+    CHECK((snap.entities[0].task == reinos::sim::WorkerTask::Gather ||
+           snap.entities[0].task == reinos::sim::WorkerTask::Deliver));
+    const auto& w = world.registry().get<reinos::sim::Worker>(static_cast<entt::entity>(snap.entities[0].id));
     CHECK(w.node == static_cast<entt::entity>(berries));
     // Quitar el punto de reunión.
-    rally.kind = rts::sim::kClearRally;
+    rally.kind = reinos::sim::kClearRally;
     world.issue(rally);
     world.step();
     world.write_snapshot(snap);
-    const auto it = std::ranges::find(snap.objects, center, &rts::sim::SnapshotObject::id);
+    const auto it = std::ranges::find(snap.objects, center, &reinos::sim::SnapshotObject::id);
     CHECK(it->rally.x == -1);
 }
 

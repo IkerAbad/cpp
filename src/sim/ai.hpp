@@ -19,7 +19,7 @@
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class MarketSystem;
 
@@ -238,4 +238,4 @@ private:
     std::vector<std::uint8_t> profiles_;  // perfil de cada jugador de players_
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

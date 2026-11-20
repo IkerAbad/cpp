@@ -27,7 +27,7 @@
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -87,4 +87,4 @@ private:
     MedicineTickStats stats_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

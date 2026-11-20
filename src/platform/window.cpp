@@ -5,7 +5,7 @@
 
 #include <SDL3/SDL.h>
 
-namespace rts::platform {
+namespace reinos::platform {
 
 std::expected<std::unique_ptr<Window>, std::string> Window::create(const WindowDesc& desc) {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -96,4 +96,4 @@ std::string executable_dir() {
     return base != nullptr ? std::string(base) : std::string();
 }
 
-}  // namespace rts::platform
+}  // namespace reinos::platform

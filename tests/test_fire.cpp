@@ -12,19 +12,19 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::Fire;
-using rts::sim::Health;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::Fire;
+using reinos::sim::Health;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
 WorldParams flat_two_players() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;  // dos jugadores
     return p;
 }
@@ -33,7 +33,7 @@ entt::entity ent(std::uint32_t id) {
     return static_cast<entt::entity>(id);
 }
 
-Command order(CommandType type, rts::sim::PlayerId player, std::vector<std::uint32_t> units, std::uint32_t object) {
+Command order(CommandType type, reinos::sim::PlayerId player, std::vector<std::uint32_t> units, std::uint32_t object) {
     Command c;
     c.type = type;
     c.player = player;
@@ -102,7 +102,7 @@ TEST_CASE("Fuego: sostenido, una casa de madera arde hasta caer y prende a su ve
         world.step();
     }
     REQUIRE(t < 400);
-    Command away = order(CommandType::Move, 0, raiders, rts::sim::kNoObject);
+    Command away = order(CommandType::Move, 0, raiders, reinos::sim::kNoObject);
     away.target = {60, 60};
     world.issue(away);
     int burned_at = -1;
@@ -142,7 +142,7 @@ TEST_CASE("Fuego: los aldeanos lo apagan a tiempo") {
         world.step();
     }
     REQUIRE(world.registry().all_of<Fire>(ent(house)));
-    Command away = order(CommandType::Move, 0, raiders, rts::sim::kNoObject);
+    Command away = order(CommandType::Move, 0, raiders, reinos::sim::kNoObject);
     away.target = {60, 60};
     world.issue(away);
     world.issue(order(CommandType::Extinguish, 1, villagers, house));
@@ -155,13 +155,13 @@ TEST_CASE("Fuego: los aldeanos lo apagan a tiempo") {
     // Terminado, nadie sigue con la tarea de apagar.
     world.step();
     for (const auto v : villagers) {
-        CHECK_FALSE(world.registry().all_of<rts::sim::Extinguisher>(ent(v)));
+        CHECK_FALSE(world.registry().all_of<reinos::sim::Extinguisher>(ent(v)));
     }
 }
 
 TEST_CASE("Fuego: la piedra queda quemada e inutilizada y se repara con madera") {
     WorldParams p = flat_two_players();
-    p.building_types[kCenter].material = rts::sim::Material::Stone;
+    p.building_types[kCenter].material = reinos::sim::Material::Stone;
     World world(p);
     const auto center = *world.spawn_building(1, kCenter, {100, 100}, true);
     std::vector<std::uint32_t> raiders;
@@ -173,10 +173,10 @@ TEST_CASE("Fuego: la piedra queda quemada e inutilizada y se repara con madera")
     REQUIRE(world.player_state(1).population_cap == 5);
     world.issue(order(CommandType::Attack, 0, raiders, center));
     const auto& reg = world.registry();
-    for (int t = 0; t < 6000 && !reg.get<rts::sim::Building>(ent(center)).burned; ++t) {
+    for (int t = 0; t < 6000 && !reg.get<reinos::sim::Building>(ent(center)).burned; ++t) {
         world.step();
     }
-    REQUIRE(reg.get<rts::sim::Building>(ent(center)).burned);
+    REQUIRE(reg.get<reinos::sim::Building>(ent(center)).burned);
     // En pie, al 60 % como mucho, y sin función: no da plazas ni entrena.
     CHECK(reg.valid(ent(center)));
     CHECK(hp(world, center) <= 2000 * 60 / 100);
@@ -188,7 +188,7 @@ TEST_CASE("Fuego: la piedra queda quemada e inutilizada y se repara con madera")
         world.step();
     }
     for (const auto r : raiders) {
-        CHECK(reg.get<rts::sim::Combatant>(ent(r)).target == entt::entity{entt::null});
+        CHECK(reg.get<reinos::sim::Combatant>(ent(r)).target == entt::entity{entt::null});
     }
     // Sin fuego, los aldeanos la reparan pagando madera; al terminar vuelve a funcionar.
     for (int t = 0; t < 600 && reg.all_of<Fire>(ent(center)); ++t) {
@@ -201,12 +201,12 @@ TEST_CASE("Fuego: la piedra queda quemada e inutilizada y se repara con madera")
     }
     world.step();
     world.issue(order(CommandType::Build, 1, builders, center));
-    for (int t = 0; t < 3000 && reg.get<rts::sim::Building>(ent(center)).burned; ++t) {
+    for (int t = 0; t < 3000 && reg.get<reinos::sim::Building>(ent(center)).burned; ++t) {
         world.step();
     }
-    CHECK_FALSE(reg.get<rts::sim::Building>(ent(center)).burned);
+    CHECK_FALSE(reg.get<reinos::sim::Building>(ent(center)).burned);
     CHECK(hp(world, center) == 2000);
-    const auto wood = world.player_state(1).stock[rts::sim::resource_index(rts::sim::Resource::Wood)];
+    const auto wood = world.player_state(1).stock[reinos::sim::resource_index(reinos::sim::Resource::Wood)];
     // El 40 % de la vida devuelta, al 50 % del coste en madera (200): unos 40.
     CHECK(wood < 1000);
     CHECK(wood >= 1000 - 45);
@@ -216,7 +216,7 @@ TEST_CASE("Fuego: la piedra queda quemada e inutilizada y se repara con madera")
 
 TEST_CASE("Asedio: el ariete daña edificios (también la piedra) e ignora a las unidades") {
     WorldParams p = flat_two_players();
-    p.building_types[kCenter].material = rts::sim::Material::Stone;
+    p.building_types[kCenter].material = reinos::sim::Material::Stone;
     World world(p);
     const auto center = *world.spawn_building(1, kCenter, {100, 100}, true);
     const auto ram = world.spawn_unit(0, kRam, {98, 101});
@@ -225,7 +225,7 @@ TEST_CASE("Asedio: el ariete daña edificios (también la piedra) e ignora a las
     // Una orden de atacar a una unidad no le afecta.
     world.issue(order(CommandType::Attack, 0, {ram}, enemy));
     world.step();
-    CHECK(world.registry().get<rts::sim::Combatant>(ent(ram)).target != ent(enemy));
+    CHECK(world.registry().get<reinos::sim::Combatant>(ent(ram)).target != ent(enemy));
     world.issue(order(CommandType::Attack, 0, {ram}, center));
     for (int t = 0; t < 400; ++t) {
         world.step();
@@ -241,12 +241,12 @@ TEST_CASE("Requisitos: el taller de asedio solo se coloca con un cuartel termina
     world.set_stock(0, stock(0, 1000, 0, 0));
     world.step();
     CHECK_FALSE(world.meets_requirements(0, kWorkshop));
-    Command place = order(CommandType::Place, 0, {villager}, rts::sim::kNoObject);
+    Command place = order(CommandType::Place, 0, {villager}, reinos::sim::kNoObject);
     place.kind = kWorkshop;
     place.target = {110, 110};
     world.issue(place);
     world.step();
-    CHECK(world.player_state(0).stock[rts::sim::resource_index(rts::sim::Resource::Wood)] == 1000);
+    CHECK(world.player_state(0).stock[reinos::sim::resource_index(reinos::sim::Resource::Wood)] == 1000);
     CHECK_FALSE(world.object_at({111, 111}).has_value());
     // Un cuartel en obra no basta; terminado, sí.
     REQUIRE(world.spawn_building(0, kBarracks, {120, 100}, false).has_value());
@@ -257,13 +257,13 @@ TEST_CASE("Requisitos: el taller de asedio solo se coloca con un cuartel termina
     CHECK(world.meets_requirements(0, kWorkshop));
     world.issue(place);
     world.step();
-    CHECK(world.player_state(0).stock[rts::sim::resource_index(rts::sim::Resource::Wood)] == 800);
+    CHECK(world.player_state(0).stock[reinos::sim::resource_index(reinos::sim::Resource::Wood)] == 800);
     CHECK(world.object_at({111, 111}).has_value());
 }
 
 TEST_CASE("Escombros: un edificio derribado por asedio deja materiales recuperables; quemado, no") {
     WorldParams p = flat_two_players();
-    p.building_types[kCenter].material = rts::sim::Material::Stone;
+    p.building_types[kCenter].material = reinos::sim::Material::Stone;
     p.building_types[kCenter].cost = stock(0, 200, 100, 0);
     p.building_types[kCenter].hp = 300;
     World world(p);
@@ -281,10 +281,10 @@ TEST_CASE("Escombros: un edificio derribado por asedio deja materiales recuperab
     // En el solar, escombros de piedra: el 50 % de 100.
     const auto rubble = world.object_at({101, 101});
     REQUIRE(rubble.has_value());
-    const auto& node = world.registry().get<rts::sim::ResourceNode>(ent(*rubble));
-    CHECK(node.kind == rts::sim::Resource::Stone);
+    const auto& node = world.registry().get<reinos::sim::ResourceNode>(ent(*rubble));
+    CHECK(node.kind == reinos::sim::Resource::Stone);
     CHECK(node.amount == 50);
-    CHECK(world.registry().get<rts::sim::Footprint>(ent(*rubble)).size == 3);
+    CHECK(world.registry().get<reinos::sim::Footprint>(ent(*rubble)).size == 3);
 
     // Una casa de madera que arde hasta caer no deja nada.
     const auto house = *world.spawn_building(1, kHouse, {120, 100}, true);
@@ -316,25 +316,25 @@ TEST_CASE("Demolición: los aldeanos desmontan un edificio propio y quedan sus m
     REQUIRE_FALSE(world.registry().valid(ent(house)));
     const auto rubble = world.object_at({100, 100});
     REQUIRE(rubble.has_value());
-    const auto& node = world.registry().get<rts::sim::ResourceNode>(ent(*rubble));
-    CHECK(node.kind == rts::sim::Resource::Wood);
+    const auto& node = world.registry().get<reinos::sim::ResourceNode>(ent(*rubble));
+    CHECK(node.kind == reinos::sim::Resource::Wood);
     CHECK(node.amount == 15);
     // Se pueden recoger como cualquier nodo.
-    CHECK(rts::sim::EconomySystem::can_gather(world.registry(), ent(*rubble), 0));
+    CHECK(reinos::sim::EconomySystem::can_gather(world.registry(), ent(*rubble), 0));
 }
 
 TEST_CASE("Minado: el zapador ignora la armadura de la piedra; contra la madera, prende fuego") {
     WorldParams p = flat_two_players();
-    p.building_types[kCenter].material = rts::sim::Material::Stone;
+    p.building_types[kCenter].material = reinos::sim::Material::Stone;
     p.building_types[kCenter].armor_melee = 40;  // muros que ningún golpe atraviesa
-    rts::sim::UnitType sapper = p.unit_types[kSoldier];
+    reinos::sim::UnitType sapper = p.unit_types[kSoldier];
     sapper.combat.attack_melee = 9;
     sapper.combat.reload_ticks = 80;
     sapper.combat.undermine = true;
     sapper.combat.buildings_only = true;
     sapper.combat.ignite = 30;
     p.unit_types.push_back(sapper);
-    const auto kSapper = static_cast<rts::sim::UnitTypeId>(p.unit_types.size() - 1);
+    const auto kSapper = static_cast<reinos::sim::UnitTypeId>(p.unit_types.size() - 1);
     World world(p);
     const auto center = *world.spawn_building(1, kCenter, {100, 100}, true);
     const auto miner = world.spawn_unit(0, kSapper, {98, 101});

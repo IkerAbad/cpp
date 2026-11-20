@@ -19,7 +19,7 @@
 
 #include "sim/path/grid.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 struct HpaParams {
     std::int32_t sector_size = 0;        // casillas por lado del sector
@@ -104,4 +104,4 @@ private:
     std::uint32_t generation_ = 0;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

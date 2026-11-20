@@ -9,7 +9,7 @@
 
 #include "game/localized_toml.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -138,4 +138,4 @@ std::string progress_toml(const CampaignProgress& p) {
     return out + "]\n";
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

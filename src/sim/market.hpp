@@ -24,7 +24,7 @@
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -90,4 +90,4 @@ private:
     bool used_ = false;  // alguien ha comerciado: desde entonces, los precios entran en el hash
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

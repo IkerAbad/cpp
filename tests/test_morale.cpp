@@ -13,16 +13,16 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::Fixed;
-using rts::sim::Morale;
-using rts::sim::Routing;
-using rts::sim::Stance;
-using rts::sim::TileCoord;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::Fixed;
+using reinos::sim::Morale;
+using reinos::sim::Routing;
+using reinos::sim::Stance;
+using reinos::sim::TileCoord;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
@@ -30,7 +30,7 @@ constexpr std::int32_t kRallyReorganize = 40;
 
 WorldParams morale_params(std::int32_t resolve = 100) {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;
     p.unit_types[kSoldier].morale_resolve = resolve;
     p.unit_types[kSoldier].combat.hp = 400;  // aguanta lo bastante para desbandarse antes de morir
@@ -68,7 +68,7 @@ entt::entity ent(std::uint32_t id) {
     return static_cast<entt::entity>(id);
 }
 
-Command order(CommandType type, rts::sim::PlayerId player, std::vector<std::uint32_t> units) {
+Command order(CommandType type, reinos::sim::PlayerId player, std::vector<std::uint32_t> units) {
     Command c;
     c.type = type;
     c.player = player;
@@ -76,7 +76,7 @@ Command order(CommandType type, rts::sim::PlayerId player, std::vector<std::uint
     return c;
 }
 
-void hold_ground(World& w, rts::sim::PlayerId player, std::vector<std::uint32_t> units) {
+void hold_ground(World& w, reinos::sim::PlayerId player, std::vector<std::uint32_t> units) {
     Command c = order(CommandType::SetStance, player, std::move(units));
     c.kind = static_cast<std::uint8_t>(Stance::HoldGround);
     w.issue(c);
@@ -92,9 +92,9 @@ bool routing(const World& w, std::uint32_t id) {
 }
 
 Fixed distance(const World& w, std::uint32_t a, std::uint32_t b) {
-    const auto& pa = w.registry().get<rts::sim::Position>(ent(a));
-    const auto& pb = w.registry().get<rts::sim::Position>(ent(b));
-    return rts::sim::length(rts::sim::FVec2{pa.x, pa.y} - rts::sim::FVec2{pb.x, pb.y});
+    const auto& pa = w.registry().get<reinos::sim::Position>(ent(a));
+    const auto& pb = w.registry().get<reinos::sim::Position>(ent(b));
+    return reinos::sim::length(reinos::sim::FVec2{pa.x, pa.y} - reinos::sim::FVec2{pb.x, pb.y});
 }
 
 // Un soldado del jugador 0 rodeado por cinco del jugador 1 que no le persiguen.
@@ -131,7 +131,7 @@ TEST_CASE("Moral: las unidades combatientes empiezan con la moral entera; los al
     const auto soldier = w.spawn_unit(0, kSoldier, {10, 10});
     const auto villager = w.spawn_unit(0, kVillager, {12, 10});
     w.step();
-    CHECK(morale(w, soldier) == rts::sim::kFullMorale);
+    CHECK(morale(w, soldier) == reinos::sim::kFullMorale);
     CHECK(morale(w, villager) == -1);
 }
 
@@ -140,15 +140,15 @@ TEST_CASE("Moral: rodeada, la tropa se desbanda, deja de pelear y huye lejos del
     const auto routed_at = s.run_until_rout(2000);
     REQUIRE(routed_at.has_value());
     CHECK(s.world.morale().routs_of(0) == 1);
-    CHECK((s.world.registry().get<rts::sim::Combatant>(ent(s.lone)).target == entt::null));
+    CHECK((s.world.registry().get<reinos::sim::Combatant>(ent(s.lone)).target == entt::null));
     const Fixed before = distance(s.world, s.lone, s.foes[0]);
     for (int t = 0; t < 100 && routing(s.world, s.lone); ++t) {
         s.world.step();
-        CHECK((s.world.registry().get<rts::sim::Combatant>(ent(s.lone)).target == entt::null));
+        CHECK((s.world.registry().get<reinos::sim::Combatant>(ent(s.lone)).target == entt::null));
     }
     CHECK(distance(s.world, s.lone, s.foes[0]) > before + Fixed::from_int(3));
 
-    rts::sim::Snapshot snap;
+    reinos::sim::Snapshot snap;
     s.world.write_snapshot(snap);
     bool found = false;
     for (const auto& e : snap.entities) {
@@ -180,7 +180,7 @@ TEST_CASE("Moral: en desbandada no obedece; se rehace lejos del enemigo, se reor
         rallied = !routing(s.world, s.lone);
     }
     REQUIRE(rallied);
-    CHECK(s.world.registry().all_of<rts::sim::Reorganizing>(ent(s.lone)));
+    CHECK(s.world.registry().all_of<reinos::sim::Reorganizing>(ent(s.lone)));
     CHECK(morale(s.world, s.lone) >= s.world.morale().params().rally_above);
     CHECK(distance(s.world, s.lone, s.foes[0]) > Fixed::from_int(8));
 
@@ -190,8 +190,8 @@ TEST_CASE("Moral: en desbandada no obedece; se rehace lejos del enemigo, se reor
     for (int t = 0; t < 1500; ++t) {
         s.world.step();
     }
-    const auto& p = s.world.registry().get<rts::sim::Position>(ent(s.lone));
-    CHECK(rts::sim::tile_of(p) == dest);
+    const auto& p = s.world.registry().get<reinos::sim::Position>(ent(s.lone));
+    CHECK(reinos::sim::tile_of(p) == dest);
 }
 
 TEST_CASE("Moral: la leva cede antes que el caballero") {
@@ -234,10 +234,10 @@ TEST_CASE("Moral: un golpe por la espalda pesa más que uno de frente") {
         front.step();
         rear.step();
     }
-    const auto& h1 = front.registry().get<rts::sim::Health>(ent(a1));
-    const auto& h2 = rear.registry().get<rts::sim::Health>(ent(a2));
-    const std::int32_t lost1 = rts::sim::kFullMorale - morale(front, a1);
-    const std::int32_t lost2 = rts::sim::kFullMorale - morale(rear, a2);
+    const auto& h1 = front.registry().get<reinos::sim::Health>(ent(a1));
+    const auto& h2 = rear.registry().get<reinos::sim::Health>(ent(a2));
+    const std::int32_t lost1 = reinos::sim::kFullMorale - morale(front, a1);
+    const std::int32_t lost2 = reinos::sim::kFullMorale - morale(rear, a2);
     REQUIRE(h1.hp < h1.max_hp);
     REQUIRE(h2.hp < h2.max_hp);
     // Por golpe recibido (mismo daño por golpe), la espalda pesa más.
@@ -267,8 +267,8 @@ TEST_CASE("Moral: una baja propia cercana desmoraliza a quien la ve") {
     }
     REQUIRE_FALSE(w.registry().valid(ent(victim)));
     w.step();
-    CHECK(morale(w, witness) == rts::sim::kFullMorale - p.morale.casualty_loss);
-    CHECK(morale(w, far) == rts::sim::kFullMorale);
+    CHECK(morale(w, witness) == reinos::sim::kFullMorale - p.morale.casualty_loss);
+    CHECK(morale(w, far) == reinos::sim::kFullMorale);
 }
 
 TEST_CASE("Moral: desactivada, ninguna unidad la tiene ni se desbanda") {

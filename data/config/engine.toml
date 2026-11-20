@@ -4,7 +4,7 @@
 # Todas las duraciones de la simulación van en ticks (20 ticks = 1 segundo).
 
 [window]
-title = "RTS (nombre provisional)"
+title = "Reinos (nombre provisional)"
 width = 1600
 height = 900
 vsync = true
@@ -321,6 +321,53 @@ stops_charge = true
 [objectives]
 # Objetivos de escenario (F4): se comprueban cada 10 ticks (medio segundo).
 check_every_ticks = 10
+
+[season]
+# La estación de campaña (H2). «In premodern times, campaigns were usually interrupted
+# during the winter season», y en Europa se hacían «between the planting (late spring)
+# and harvest times (late autumn)» (Wikipedia, «Military campaign»). El verano es la
+# estación de campaña y va al 100 % en todo: con él, el juego es el de siempre.
+# Un día de juego dura 18 min ([vision]), así que una partida cubre dos o tres días: la
+# estación no cambia en la partida (season_ticks = 0) y la fija el escenario (season =
+# "invierno") o el menú. Con season_ticks > 0 cambiaría cada tantos ticks, en el orden
+# de la lista.
+start = "verano"
+season_ticks = 0
+
+# Por estación, en %: farm_percent, ritmo de la cosecha en las granjas (0: no hay nada
+# que cosechar); forage_percent, lo que da el bosque a la tropa que forrajea (0: nada);
+# march_percent, velocidad de marcha (lluvia, barro, nieve); ration_percent, lo que come
+# la tropa (125: un 25 % más). Valores de diseño propios, a ajustar jugando.
+[[season.kind]]
+# Lo sembrado aún no se cosecha y el bosque da poco; lluvias de primavera.
+name = "primavera"
+farm_percent = 50
+forage_percent = 75
+march_percent = 90
+ration_percent = 100
+
+[[season.kind]]
+name = "verano"
+farm_percent = 100
+forage_percent = 100
+march_percent = 100
+ration_percent = 100
+
+[[season.kind]]
+# La cosecha: granjas a pleno y rastrojos que alimentan; lluvias de otoño.
+name = "otono"
+farm_percent = 125
+forage_percent = 125
+march_percent = 90
+ration_percent = 100
+
+[[season.kind]]
+# Nada que cosechar, poco que forrajear, caminos de barro o nieve y frío que da hambre.
+name = "invierno"
+farm_percent = 0
+forage_percent = 25
+march_percent = 75
+ration_percent = 125
 
 [market]
 # Mercado (C3). Lotes de 100; precios en oro por lote, los mismos para todos. Cada
@@ -875,6 +922,92 @@ fog_guard_army = 6
 army = ["leva", "hombre_armas", "arquero", "ballestero", "jinete", "caballero", "ariete", "zapador"]
 
 
+# Guarnición (H1): solo se defiende. No recoge, no construye, no entrena ni ataca; su
+# tropa pelea con quien se acerca a su base. Es el rival del tutorial y sirve para
+# practicar contra un enemigo que no presiona. Los demás valores son los de «facil» y
+# no se usan (sus módulos no están en la lista).
+[[ai.profile]]
+name = "guarnicion"
+behaviors = ["defensa"]
+villager_target = 25
+# Reparto deseado de los aldeanos que recogen (suma 100).
+gather_percent = { comida = 35, madera = 30, oro = 15, piedra = 5, hierro = 15 }
+# Casa nueva cuando le quedan 3 plazas o menos de población.
+house_margin = 3
+barracks_at_villagers = 10
+# Almacén junto a un recurso que ya explotan 3 aldeanos si el más cercano está a más de 12 casillas.
+dropoff_distance_tiles = 12
+dropoff_min_gatherers = 3
+builders = 2
+# Una granja por cada 2 aldeanos que deban recoger comida.
+gatherers_per_farm = 2
+# Una casilla libre alrededor de cada edificio para no cerrar pasillos.
+build_gap_tiles = 1
+build_search_radius_tiles = 24
+# Primer ataque con 6 unidades; cada oleada, 4 más.
+first_wave = 6
+wave_growth = 4
+# Enemigos a 14 casillas o menos de su base: defensa. Un aldeano con un enemigo a 3
+# casillas o menos huye a la base, salvo que ya esté a 2 o menos de ella.
+defend_radius_tiles = 14
+flee_enemy_tiles = 3
+safe_base_tiles = 2
+# Unidades en cola que mantiene en el cuartel.
+barracks_queue = 2
+villager_queue = 1
+# Solo para ataque_fuerza (no lo usa este perfil).
+attack_ratio_percent = 130
+retreat_ratio_percent = 60
+min_attack_army = 6
+engage_radius_tiles = 8
+# Sin apagar fuegos ni incursiones (no usa esos módulos).
+extinguishers_per_fire = 0
+army_min_villagers = 0
+raid_unit = ""
+raid_group = 1
+raid_safe_radius_tiles = 0
+pillage_guard_tiles = 0
+# abastecer: la tropa que no pelea vuelve a abastecerse con menos del 30 % de víveres
+# o munición (y espera junto al almacén a llenarse).
+resupply_percent = 30
+# Guarda comida para media ración por cada unidad que come.
+upkeep_reserve_percent = 50
+# Sin campamentos ni convoyes (no usa logistica).
+camp_distance_tiles = 0
+camp_offset_tiles = 0
+convoy_carriers = 0
+baggage_offset_tiles = 0
+siege_engines = 0
+medical_min_army = 0
+wounded_percent = 0
+surgeons = 0
+night_attack_ratio_percent = 0
+patrol_radius_tiles = 0
+ambush_size = 0
+ambush_distance_tiles = 0
+ambush_min_trees = 0
+ambush_wood_tiles = 0
+ambush_search_tiles = 0
+towers = 0
+tower_offset_tiles = 0
+retreat_morale = 0
+formation_engage_tiles = 0
+forge_at_villagers = 0
+market_at_villagers = 0
+market_keep_gold = 0
+market_sell_above = 0
+market_max_price = 0
+defend_forced_march = false
+think_every = 1
+siege_front_tiles = 0
+# explorar: con niebla, un explorador recorre lo no explorado (rejilla de 12
+# casillas) hasta encontrar un edificio vital enemigo.
+scouts = 1
+explore_step_tiles = 12
+fog_guard_army = 0
+army = ["leva", "hombre_armas", "arquero"]
+
+
 [setup]
 seed = 20260924
 # Radio de búsqueda del sitio del edificio inicial y tamaño mínimo de su región de
@@ -932,7 +1065,7 @@ sector_size_tiles = 16
 max_portal_width_tiles = 8
 # Nodos de rejilla que el planificador puede expandir por tick. Se mide en nodos y no
 # en tiempo para que el reparto entre ticks sea idéntico en todas las máquinas.
-# Medido con rts_bench en Release: el peor tick es de 18,0 ms con 1000 unidades y de
+# Medido con reinos_bench en Release: el peor tick es de 18,0 ms con 1000 unidades y de
 # 19,1 ms con 2000 (con 20 000 nodos: 10,1 y 15,9 ms), a cambio de menos caminos
 # esperando turno (máximo 1861 frente a 1951 con 2000 unidades).
 path_node_budget_per_tick = 60000
@@ -953,6 +1086,11 @@ collision_weight = 60
 # Atasco: 40 ticks (2 s) casi parada junto a una compañera ya llegada = llegada;
 # 160 ticks (8 s) atascada = desiste.
 stuck_arrive_ticks = 40
+# Atasco de frente en un paso de una casilla (dos columnas que se cruzan en un puente):
+# tras 1 s casi parada lejos del destino, se cruza 2 s con las suyas que vienen de cara.
+# Nunca con enemigas, con paradas ni con quien pelea.
+pass_friends_after_ticks = 20
+pass_friends_ticks = 40
 # Llegada: a 0,25 casillas del destino; en ruta, a 0,45 casillas de una casilla del
 # tramo se pasa a la siguiente.
 arrive_radius_milli_tiles = 250

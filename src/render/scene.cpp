@@ -7,7 +7,7 @@
 
 #include "sim/fog.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 namespace {
 
@@ -424,4 +424,4 @@ SceneStats SceneBuilder::build(const Scene& scene, SpriteBatch& out) {
     return stats;
 }
 
-}  // namespace rts::render
+}  // namespace reinos::render

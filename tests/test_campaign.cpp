@@ -16,16 +16,16 @@
 #include "game/scenario.hpp"
 #include "sim/world.hpp"
 
-using rts::game::ScenarioDoc;
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::ObjectiveStatus;
+using reinos::game::ScenarioDoc;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::ObjectiveStatus;
 
 namespace {
 
-const rts::game::GameData& game_data() {
-    static const rts::game::GameData data = [] {
-        auto d = rts::game::load_game_data(RTS_DATA_DIR);
+const reinos::game::GameData& game_data() {
+    static const reinos::game::GameData data = [] {
+        auto d = reinos::game::load_game_data(REINOS_DATA_DIR);
         REQUIRE_MESSAGE(d.has_value(), (d ? std::string() : d.error()));
         return std::move(*d);
     }();
@@ -33,14 +33,14 @@ const rts::game::GameData& game_data() {
 }
 
 ScenarioDoc parse(const std::string& text) {
-    auto doc = rts::game::parse_scenario_doc(text, game_data());
+    auto doc = reinos::game::parse_scenario_doc(text, game_data());
     REQUIRE_MESSAGE(doc.has_value(), (doc ? std::string() : doc.error()));
     return std::move(*doc);
 }
 
 // Prado de 32 x 32 con dos jugadores: un edificio de cada uno lejos del otro y lo que
 // añada `extra` (objetos y objetivos). Sin IA: solo cambia lo que ordena la prueba.
-rts::sim::WorldParams small_world(const std::string& extra) {
+reinos::sim::WorldParams small_world(const std::string& extra) {
     const std::string text = std::format(R"(
 name = "Prueba"
 players = 2
@@ -59,14 +59,14 @@ type = "casa"
 at = [26, 26]
 {})",
                                          extra);
-    rts::sim::WorldParams p = game_data().engine.world;
+    reinos::sim::WorldParams p = game_data().engine.world;
     p.scenario = parse(text).params;
     p.ai_players.clear();
     return p;
 }
 
-std::vector<std::uint32_t> units_of(const rts::sim::World& world, rts::sim::PlayerId player) {
-    rts::sim::Snapshot s;
+std::vector<std::uint32_t> units_of(const reinos::sim::World& world, reinos::sim::PlayerId player) {
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
     std::vector<std::uint32_t> out;
     for (const auto& e : s.entities) {
@@ -77,11 +77,11 @@ std::vector<std::uint32_t> units_of(const rts::sim::World& world, rts::sim::Play
     return out;
 }
 
-std::uint32_t building_of(const rts::sim::World& world, rts::sim::PlayerId player) {
-    rts::sim::Snapshot s;
+std::uint32_t building_of(const reinos::sim::World& world, reinos::sim::PlayerId player) {
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
     for (const auto& o : s.objects) {
-        if (o.kind == rts::sim::ObjectKind::Building && o.owner == player) {
+        if (o.kind == reinos::sim::ObjectKind::Building && o.owner == player) {
             return o.id;
         }
     }
@@ -89,8 +89,8 @@ std::uint32_t building_of(const rts::sim::World& world, rts::sim::PlayerId playe
     return 0;
 }
 
-Command order(CommandType type, rts::sim::PlayerId player, std::vector<std::uint32_t> units,
-              std::uint32_t object = rts::sim::kNoObject, rts::sim::TileCoord target = {}) {
+Command order(CommandType type, reinos::sim::PlayerId player, std::vector<std::uint32_t> units,
+              std::uint32_t object = reinos::sim::kNoObject, reinos::sim::TileCoord target = {}) {
     Command c;
     c.type = type;
     c.player = player;
@@ -101,7 +101,7 @@ Command order(CommandType type, rts::sim::PlayerId player, std::vector<std::uint
 }
 
 // Avanza hasta que haya ganador o pasen max_ticks.
-void run_until_decided(rts::sim::World& world, int max_ticks) {
+void run_until_decided(reinos::sim::World& world, int max_ticks) {
     for (int t = 0; t < max_ticks && !world.objectives().winner(); ++t) {
         world.step();
     }
@@ -124,7 +124,7 @@ cols = 3
 }  // namespace
 
 TEST_CASE("Objetivos: sin objetivos no hay ganador ni cambia nada") {
-    rts::sim::World world(small_world(""));
+    reinos::sim::World world(small_world(""));
     CHECK_FALSE(world.objectives().active());
     for (int t = 0; t < 40; ++t) {
         world.step();
@@ -134,7 +134,7 @@ TEST_CASE("Objetivos: sin objetivos no hay ganador ni cambia nada") {
 }
 
 TEST_CASE("Objetivos: sobrevivir gana al cumplirse el plazo y el otro pierde") {
-    rts::sim::World world(small_world(R"(
+    reinos::sim::World world(small_world(R"(
 [[objective]]
 player = 1
 kind = "sobrevivir"
@@ -152,11 +152,11 @@ target = 1
     CHECK(*world.objectives().winner() == 1);
     CHECK(world.objectives().lost(0));
     CHECK_FALSE(world.objectives().lost(1));
-    CHECK(world.tick() <= 2 * rts::sim::kTicksPerSecond + 20);  // se comprueba cada 10 ticks
+    CHECK(world.tick() <= 2 * reinos::sim::kTicksPerSecond + 20);  // se comprueba cada 10 ticks
 }
 
 TEST_CASE("Objetivos: destruir el edificio del rival da la victoria") {
-    rts::sim::World world(small_world(std::format(kKnights, 0, 20, 20) + R"(
+    reinos::sim::World world(small_world(std::format(kKnights, 0, 20, 20) + R"(
 [[objective]]
 player = 0
 kind = "destruir"
@@ -169,7 +169,7 @@ building = "casa"
     REQUIRE(world.objectives().winner());
     CHECK(*world.objectives().winner() == 0);
     CHECK(world.objectives().status()[0] == ObjectiveStatus::Done);
-    rts::sim::Snapshot s;
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
     CHECK(s.winner == 0);
     REQUIRE(s.objectives.size() == 1);
@@ -177,7 +177,7 @@ building = "casa"
 }
 
 TEST_CASE("Objetivos: perder lo que hay que conservar es la derrota") {
-    rts::sim::World world(small_world(std::format(kKnights, 1, 8, 8) + R"(
+    reinos::sim::World world(small_world(std::format(kKnights, 1, 8, 8) + R"(
 [[objective]]
 player = 0
 kind = "conservar"
@@ -198,7 +198,7 @@ seconds = 3600
 }
 
 TEST_CASE("Objetivos: llegar a la zona con bastantes tropas") {
-    rts::sim::World world(small_world(std::format(kKnights, 0, 4, 10) + R"(
+    reinos::sim::World world(small_world(std::format(kKnights, 0, 4, 10) + R"(
 [[unit]]
 player = 0
 type = "aldeano"
@@ -214,15 +214,15 @@ zone = [16, 1, 30, 14]
     // Los aldeanos no son tropa: llegar con ellos no cuenta.
     std::vector<std::uint32_t> villagers;
     std::vector<std::uint32_t> knights;
-    rts::sim::Snapshot s;
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
     for (const auto& e : s.entities) {
         (game_data().units.types[e.type].name == "aldeano" ? villagers : knights).push_back(e.id);
     }
-    world.issue(order(CommandType::Move, 0, villagers, rts::sim::kNoObject, {23, 7}));
+    world.issue(order(CommandType::Move, 0, villagers, reinos::sim::kNoObject, {23, 7}));
     run_until_decided(world, 1200);
     CHECK_FALSE(world.objectives().winner());
-    world.issue(order(CommandType::Move, 0, knights, rts::sim::kNoObject, {23, 7}));
+    world.issue(order(CommandType::Move, 0, knights, reinos::sim::kNoObject, {23, 7}));
     run_until_decided(world, 1200);
     REQUIRE(world.objectives().winner());
     CHECK(*world.objectives().winner() == 0);
@@ -230,7 +230,7 @@ zone = [16, 1, 30, 14]
 
 TEST_CASE("Objetivos: reunir recursos y derrotar al rival") {
     SUBCASE("reunir") {
-        rts::sim::World world(small_world(R"(
+        reinos::sim::World world(small_world(R"(
 [[player]]
 stock = { comida = 500 }
 
@@ -244,8 +244,46 @@ count = 400
         REQUIRE(world.objectives().winner());
         CHECK(*world.objectives().winner() == 0);
     }
+    SUBCASE("recoger: cuenta lo recogido, no lo que hay en el almacén") {
+        reinos::sim::World world(small_world(R"(
+[[building]]
+player = 0
+type = "molino"
+at = [8, 3]
+
+[[node]]
+type = "arbusto_bayas"
+at = [12, 4]
+
+[[unit]]
+player = 0
+type = "aldeano"
+at = [10, 6]
+count = 3
+
+[[player]]
+stock = { comida = 500 }
+
+[[objective]]
+player = 0
+kind = "recoger"
+resource = "comida"
+count = 20
+)"));
+        world.step();
+        CHECK(world.objectives().status()[0] == ObjectiveStatus::Pending);  // 500 guardados, 0 recogidos
+        reinos::sim::Snapshot s;
+        world.write_snapshot(s);
+        const auto bush = std::ranges::find(s.objects, reinos::sim::ObjectKind::Resource,
+                                             &reinos::sim::SnapshotObject::kind);
+        REQUIRE(bush != s.objects.end());
+        world.issue(order(CommandType::Gather, 0, units_of(world, 0), bush->id));
+        run_until_decided(world, 6000);
+        REQUIRE(world.objectives().winner());
+        CHECK(world.player_state(0).stats.gathered[0] >= 20);
+    }
     SUBCASE("derrotar") {
-        rts::sim::World world(small_world(std::format(kKnights, 0, 20, 20) + R"(
+        reinos::sim::World world(small_world(std::format(kKnights, 0, 20, 20) + R"(
 [[objective]]
 player = 0
 kind = "derrotar"
@@ -258,6 +296,102 @@ target = 1
     }
 }
 
+TEST_CASE("Objetivos: tener cuenta los edificios terminados y las unidades del tipo") {
+    const auto& d = game_data();
+    reinos::sim::World world(small_world(R"(
+[[unit]]
+player = 0
+type = "aldeano"
+at = [8, 8]
+count = 3
+
+[[player]]
+stock = { madera = 200 }
+
+[[objective]]
+player = 0
+kind = "tener"
+building = "casa"
+count = 2
+
+[[objective]]
+player = 0
+kind = "tener"
+unit = "aldeano"
+count = 3
+
+[[objective]]
+player = 0
+kind = "tener"
+unit = "*"
+)"));
+    const auto status = [&](std::size_t i) { return world.objectives().status()[i]; };
+    world.step();
+    CHECK(status(1) == ObjectiveStatus::Done);     // tres aldeanos
+    CHECK(status(2) == ObjectiveStatus::Pending);  // «*» es tropa: los aldeanos no cuentan
+    CHECK(status(0) == ObjectiveStatus::Pending);  // una casa de dos
+
+    // Una casa en obra no cuenta; terminada, sí.
+    const auto casa = d.buildings.find("casa");
+    REQUIRE(casa.has_value());
+    Command place;
+    place.type = CommandType::Place;
+    place.player = 0;
+    place.units = units_of(world, 0);
+    place.kind = static_cast<std::uint8_t>(*casa);
+    place.target = {12, 12};
+    world.issue(place);
+    for (int t = 0; t < 100; ++t) {
+        world.step();
+    }
+    reinos::sim::Snapshot s;
+    world.write_snapshot(s);
+    const auto houses = std::ranges::count_if(s.objects, [](const reinos::sim::SnapshotObject& o) {
+        return o.kind == reinos::sim::ObjectKind::Building && o.owner == 0;
+    });
+    REQUIRE(houses == 2);  // la nueva ya está puesta, en obra
+    CHECK(status(0) == ObjectiveStatus::Pending);
+    for (int t = 0; t < 6000 && status(0) == ObjectiveStatus::Pending; ++t) {
+        world.step();
+    }
+    CHECK(status(0) == ObjectiveStatus::Done);
+    CHECK_FALSE(world.objectives().winner());  // falta la tropa
+}
+
+TEST_CASE("Objetivos: en orden, la interfaz enseña el primer paso que falta y lo que hay que conservar") {
+    using reinos::sim::Objective;
+    using reinos::sim::ObjectiveKind;
+    const auto make = [](ObjectiveKind k, reinos::sim::PlayerId p) {
+        Objective o;
+        o.kind = k;
+        o.player = p;
+        return o;
+    };
+    const std::vector<Objective> objectives{make(ObjectiveKind::Gather, 0), make(ObjectiveKind::Have, 0),
+                                            make(ObjectiveKind::Keep, 0), make(ObjectiveKind::Survive, 1),
+                                            make(ObjectiveKind::Have, 0)};
+    const std::vector<ObjectiveStatus> status{ObjectiveStatus::Done, ObjectiveStatus::Pending,
+                                              ObjectiveStatus::Pending, ObjectiveStatus::Pending,
+                                              ObjectiveStatus::Pending};
+    const auto all = reinos::game::objectives_view(objectives, status, 0, false);
+    CHECK(all.shown == std::vector<std::size_t>{0, 1, 2, 3, 4});
+    CHECK(all.steps == 3);
+    CHECK(all.steps_done == 1);
+    const auto in_order = reinos::game::objectives_view(objectives, status, 0, true);
+    CHECK(in_order.shown == std::vector<std::size_t>{0, 1, 2, 3});  // el 4 espera a que se cumpla el 1
+    CHECK(in_order.steps == 3);
+    // Cumplido un paso posterior antes de tiempo, cuenta, pero se sigue viendo el que falta.
+    auto ahead = status;
+    ahead[4] = ObjectiveStatus::Done;
+    const auto v = reinos::game::objectives_view(objectives, ahead, 0, true);
+    CHECK(v.shown == std::vector<std::size_t>{0, 1, 2, 3, 4});
+    CHECK(v.steps_done == 2);
+    // El otro jugador solo ve su parte: el plazo que es suyo, nada de lo del 0.
+    CHECK(reinos::game::objectives_view(objectives, status, 1, true).shown == std::vector<std::size_t>{3});
+    // Estados que no cuadran (aún no llegó el primer tick): nada.
+    CHECK(reinos::game::objectives_view(objectives, {}, 0, true).shown.empty());
+}
+
 TEST_CASE("Objetivos: entran en el hash solo si los hay, y la partida es determinista") {
     const auto with = small_world(std::format(kKnights, 0, 20, 20) + R"(
 [[objective]]
@@ -267,10 +401,10 @@ target = 1
 )");
     auto without = with;
     without.scenario.objectives.clear();
-    rts::sim::World a(with);
-    rts::sim::World b(with);
-    rts::sim::World c(without);
-    for (rts::sim::World* w : {&a, &b, &c}) {
+    reinos::sim::World a(with);
+    reinos::sim::World b(with);
+    reinos::sim::World c(without);
+    for (reinos::sim::World* w : {&a, &b, &c}) {
         w->issue(order(CommandType::Attack, 0, units_of(*w, 0), building_of(*w, 1)));
         for (int t = 0; t < 300; ++t) {
             w->step();
@@ -342,21 +476,21 @@ seconds = 90
     CHECK(doc.params.terrain[at(5, 8)] != *agua);
     CHECK(doc.params.elevation[at(20, 20)] == 4);
     CHECK(doc.params.elevation[at(20, 24)] == 2);
-    const auto units = std::ranges::count(doc.params.placements, rts::sim::ScenarioPlacement::Kind::Unit,
-                                          &rts::sim::ScenarioPlacement::kind);
-    const auto trees = std::ranges::count(doc.params.placements, rts::sim::ScenarioPlacement::Kind::Node,
-                                          &rts::sim::ScenarioPlacement::kind);
+    const auto units = std::ranges::count(doc.params.placements, reinos::sim::ScenarioPlacement::Kind::Unit,
+                                          &reinos::sim::ScenarioPlacement::kind);
+    const auto trees = std::ranges::count(doc.params.placements, reinos::sim::ScenarioPlacement::Kind::Node,
+                                          &reinos::sim::ScenarioPlacement::kind);
     CHECK(units == 7);
     CHECK(trees > 10);
     CHECK(trees < 70);  // densidad 500 por mil en un círculo de radio 5 (~80 casillas)
     REQUIRE(doc.params.stocks.size() == 2);
-    CHECK(doc.params.stocks[1][rts::sim::resource_index(rts::sim::Resource::Gold)] == 20);
+    CHECK(doc.params.stocks[1][reinos::sim::resource_index(reinos::sim::Resource::Gold)] == 20);
     REQUIRE(doc.params.objectives.size() == 2);
     CHECK(doc.params.objectives[0].units);
-    CHECK(doc.params.objectives[1].ticks == 90 * rts::sim::kTicksPerSecond);
+    CHECK(doc.params.objectives[1].ticks == 90 * reinos::sim::kTicksPerSecond);
     // Mismo fichero, mismos árboles; y vuelta por el formato del editor.
-    CHECK(parse(rts::game::scenario_doc_toml(doc, d)).params.placements.size() == doc.params.placements.size());
-    const ScenarioDoc back = parse(rts::game::scenario_doc_toml(doc, d));
+    CHECK(parse(reinos::game::scenario_doc_toml(doc, d)).params.placements.size() == doc.params.placements.size());
+    const ScenarioDoc back = parse(reinos::game::scenario_doc_toml(doc, d));
     CHECK(back.name == doc.name);
     CHECK(back.briefing == doc.briefing);
     CHECK(back.objective_texts == doc.objective_texts);
@@ -369,7 +503,7 @@ seconds = 90
 }
 
 TEST_CASE("Brecha: un muro derribado deja escombros que se cruzan; una casa derribada, no") {
-    rts::sim::World world(small_world(R"(
+    reinos::sim::World world(small_world(R"(
 [[building]]
 player = 1
 type = "muralla"
@@ -389,7 +523,7 @@ at = [22, 26]
 count = 2
 cols = 1
 )"));
-    rts::sim::Snapshot s;
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
     std::uint32_t wall = 0;
     std::uint32_t house = 0;
@@ -401,7 +535,7 @@ cols = 1
     std::vector<std::uint32_t> near_wall;
     std::vector<std::uint32_t> near_house;
     for (const auto& e : s.entities) {
-        (rts::sim::tile_of(e.pos).x < 16 ? near_wall : near_house).push_back(e.id);
+        (reinos::sim::tile_of(e.pos).x < 16 ? near_wall : near_house).push_back(e.id);
     }
     world.issue(order(CommandType::Attack, 0, near_wall, wall));
     world.issue(order(CommandType::Attack, 0, near_house, house));
@@ -410,9 +544,9 @@ cols = 1
         world.step();
     }
     world.write_snapshot(s);
-    const auto node_at = [&](rts::sim::TileCoord c) -> std::string {
+    const auto node_at = [&](reinos::sim::TileCoord c) -> std::string {
         for (const auto& o : s.objects) {
-            if (o.kind == rts::sim::ObjectKind::Resource && o.origin.x == c.x && o.origin.y == c.y) {
+            if (o.kind == reinos::sim::ObjectKind::Resource && o.origin.x == c.x && o.origin.y == c.y) {
                 return game_data().nodes.types[o.type].name;
             }
         }
@@ -425,34 +559,35 @@ cols = 1
 }
 
 TEST_CASE("Escenario F4: un campamento puede empezar abastecido, hasta lo que cabe") {
-    rts::sim::World world(small_world(R"(
+    reinos::sim::World world(small_world(R"(
 [[building]]
 player = 0
 type = "campamento"
 at = [10, 10]
 store = { comida = 250, hierro = 200 }
 )"));
-    rts::sim::Snapshot s;
+    reinos::sim::Snapshot s;
     world.write_snapshot(s);
-    const auto camp = std::ranges::find_if(s.objects, [](const rts::sim::SnapshotObject& o) {
-        return o.kind == rts::sim::ObjectKind::Building && game_data().buildings.types[o.type].name == "campamento";
+    const auto camp = std::ranges::find_if(s.objects, [](const reinos::sim::SnapshotObject& o) {
+        return o.kind == reinos::sim::ObjectKind::Building && game_data().buildings.types[o.type].name == "campamento";
     });
     REQUIRE(camp != s.objects.end());
     const auto capacity = game_data().buildings.types[camp->type].type.store_capacity;
-    CHECK(camp->store[rts::sim::resource_index(rts::sim::Resource::Food)] == 250);
-    CHECK(camp->store[rts::sim::resource_index(rts::sim::Resource::Iron)] == capacity - 250);
+    CHECK(camp->store[reinos::sim::resource_index(reinos::sim::Resource::Food)] == 250);
+    CHECK(camp->store[reinos::sim::resource_index(reinos::sim::Resource::Iron)] == capacity - 250);
 }
 
 TEST_CASE("Escenario F4: errores claros") {
     const auto& d = game_data();
     const std::string head = "players = 2\nwidth = 10\nheight = 10\nbase = \"pradera\"\n";
     const auto error = [&](const std::string& rest) {
-        const auto r = rts::game::parse_scenario_doc(head + rest, d);
+        const auto r = reinos::game::parse_scenario_doc(head + rest, d);
         REQUIRE_FALSE(r.has_value());
         return r.error();
     };
     CHECK(error("[[objective]]\nplayer = 0\nkind = \"ganar\"\n").find("'kind'") != std::string::npos);
     CHECK(error("[[objective]]\nplayer = 0\nkind = \"llegar\"\n").find("zone") != std::string::npos);
+    CHECK(error("[[objective]]\nplayer = 0\nkind = \"tener\"\n").find("tener necesita") != std::string::npos);
     CHECK(error("[[objective]]\nplayer = 5\nkind = \"sobrevivir\"\nseconds = 3\n").find("'player'") != std::string::npos);
     CHECK(error("[[paint]]\nat = [1, 1]\nterrain = \"lava\"\n").find("lava") != std::string::npos);
     CHECK(error("[[unit]]\nplayer = 0\ntype = \"leva\"\nat = [8, 8]\ncount = 9\n").find("fuera") != std::string::npos);
@@ -460,7 +595,7 @@ TEST_CASE("Escenario F4: errores claros") {
 }
 
 TEST_CASE("Campaña: progreso y capítulos desbloqueados") {
-    const auto c = rts::game::parse_campaign(R"(
+    const auto c = reinos::game::parse_campaign(R"(
 name = "C"
 [[chapter]]
 id = "a"
@@ -472,19 +607,19 @@ title = "B"
 scenario = "b.toml"
 )");
     REQUIRE(c.has_value());
-    rts::game::Campaign camp = *c;
+    reinos::game::Campaign camp = *c;
     camp.id = "c";
-    rts::game::CampaignProgress p;
+    reinos::game::CampaignProgress p;
     CHECK(p.unlocked(camp, 0));
     CHECK_FALSE(p.unlocked(camp, 1));
     p.mark_won("c", "a");
     p.mark_won("c", "a");
     CHECK(p.won.size() == 1);
     CHECK(p.unlocked(camp, 1));
-    const auto back = rts::game::parse_progress(rts::game::progress_toml(p));
+    const auto back = reinos::game::parse_progress(reinos::game::progress_toml(p));
     CHECK(back.won == p.won);
-    CHECK(rts::game::parse_progress("esto no es toml [").won.empty());
-    CHECK_FALSE(rts::game::parse_campaign("name = \"x\"\n").has_value());
+    CHECK(reinos::game::parse_progress("esto no es toml [").won.empty());
+    CHECK_FALSE(reinos::game::parse_campaign("name = \"x\"\n").has_value());
 }
 
 // Los capítulos de verdad: se cargan, todo lo colocado cabe, la tropa propia puede llegar
@@ -492,18 +627,18 @@ scenario = "b.toml"
 TEST_CASE("Campaña: los capítulos de data/campaigns se cargan y se juegan") {
     const auto& d = game_data();
     std::vector<std::string> errors;
-    const auto campaigns = rts::game::load_campaigns(RTS_DATA_DIR, errors);
+    const auto campaigns = reinos::game::load_campaigns(REINOS_DATA_DIR, errors);
     for (const std::string& e : errors) {
         FAIL_CHECK(e);
     }
     REQUIRE_FALSE(campaigns.empty());
-    for (const rts::game::Campaign& c : campaigns) {
-        for (const rts::game::CampaignChapter& ch : c.chapters) {
+    for (const reinos::game::Campaign& c : campaigns) {
+        for (const reinos::game::CampaignChapter& ch : c.chapters) {
             CAPTURE(ch.id);
             CHECK_FALSE(ch.sources.empty());
             CHECK_FALSE(ch.history.empty());
             // Textos propios en español y en inglés (F5); las citas, en su idioma.
-            for (const rts::game::LocalizedText* t : {&c.name, &c.intro, &ch.title, &ch.date, &ch.history}) {
+            for (const reinos::game::LocalizedText* t : {&c.name, &c.intro, &ch.title, &ch.date, &ch.history}) {
                 CHECK(t->has("en"));
             }
             for (const auto& src : ch.sources) {
@@ -511,7 +646,7 @@ TEST_CASE("Campaña: los capítulos de data/campaigns se cargan y se juegan") {
             }
             const std::string text = read_file(c.dir / ch.scenario);
             REQUIRE_FALSE(text.empty());
-            const auto doc = rts::game::parse_scenario_doc(text, d, ch.scenario);
+            const auto doc = reinos::game::parse_scenario_doc(text, d, ch.scenario);
             REQUIRE_MESSAGE(doc.has_value(), (doc ? std::string() : doc.error()));
             CHECK_FALSE(doc->briefing.empty());
             REQUIRE_FALSE(doc->params.objectives.empty());
@@ -523,29 +658,30 @@ TEST_CASE("Campaña: los capítulos de data/campaigns se cargan y se juegan") {
             }
             CHECK(std::ranges::find(d.engine.ai_profile_names, ch.rival) != d.engine.ai_profile_names.end());
 
-            rts::game::MatchSettings settings;
+            reinos::game::MatchSettings settings;
             settings.rival = ch.rival;
             settings.fog = ch.fog;
-            const auto data = rts::game::with_scenario(d, *doc, settings);
+            const auto data = reinos::game::with_scenario(d, *doc, settings);
             REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
-            rts::sim::World world(data->engine.world);
-            rts::sim::Snapshot s;
+            reinos::sim::World world(data->engine.world);
+            reinos::sim::Snapshot s;
             world.write_snapshot(s);
-            const auto placed = [&](rts::sim::ScenarioPlacement::Kind k) {
+            const auto placed = [&](reinos::sim::ScenarioPlacement::Kind k) {
                 return static_cast<std::size_t>(
-                    std::ranges::count(doc->params.placements, k, &rts::sim::ScenarioPlacement::kind));
+                    std::ranges::count(doc->params.placements, k, &reinos::sim::ScenarioPlacement::kind));
             };
             // Nada se queda fuera por caer en agua, roca o encima de otra cosa.
-            CHECK(s.entities.size() == placed(rts::sim::ScenarioPlacement::Kind::Unit));
-            CHECK(s.objects.size() == placed(rts::sim::ScenarioPlacement::Kind::Building) +
-                                          placed(rts::sim::ScenarioPlacement::Kind::Node));
+            CHECK(s.entities.size() == placed(reinos::sim::ScenarioPlacement::Kind::Unit));
+            CHECK(s.objects.size() == placed(reinos::sim::ScenarioPlacement::Kind::Building) +
+                                          placed(reinos::sim::ScenarioPlacement::Kind::Node));
             // Zonas de llegar: alcanzables por tierra desde la tropa del jugador.
             const auto& grid = world.movement().grid();
-            const auto mine = std::ranges::find(s.entities, rts::sim::PlayerId{0}, &rts::sim::SnapshotEntity::owner);
+            const auto mine =
+                std::ranges::find(s.entities, reinos::sim::PlayerId{0}, &reinos::sim::SnapshotEntity::owner);
             REQUIRE(mine != s.entities.end());
-            const std::uint32_t home = grid.component(rts::sim::tile_of(mine->pos));
-            for (const rts::sim::Objective& o : doc->params.objectives) {
-                if (o.kind != rts::sim::ObjectiveKind::Reach || o.player != 0) {
+            const std::uint32_t home = grid.component(reinos::sim::tile_of(mine->pos));
+            for (const reinos::sim::Objective& o : doc->params.objectives) {
+                if (o.kind != reinos::sim::ObjectiveKind::Reach || o.player != 0) {
                     continue;
                 }
                 std::int32_t reachable = 0;
@@ -560,8 +696,8 @@ TEST_CASE("Campaña: los capítulos de data/campaigns se cargan y se juegan") {
             // al principio (nadie gana en el primer minuto).
             auto params = data->engine.world;
             params.ai_players = {{0, params.ai_players.front().profile}, {1, params.ai_players.front().profile}};
-            rts::sim::World a(params);
-            rts::sim::World b(params);
+            reinos::sim::World a(params);
+            reinos::sim::World b(params);
             for (int t = 0; t < 600; ++t) {
                 a.step();
                 b.step();
@@ -579,26 +715,28 @@ namespace {
 // juega el otro bando. Devuelve el ganador (o -1), el tick y la tropa que le queda.
 struct Outcome {
     int winner = -1;
-    rts::sim::Tick tick = 0;
+    reinos::sim::Tick tick = 0;
     std::size_t army = 0;
     std::size_t army_start = 0;
 };
 
-Outcome scripted(const std::string& chapter, const std::vector<rts::sim::TileCoord>& route,
+Outcome scripted(const std::string& chapter, const std::vector<reinos::sim::TileCoord>& route,
                                        int max_ticks) {
     const auto& d = game_data();
     std::vector<std::string> errors;
-    const auto campaigns = rts::game::load_campaigns(RTS_DATA_DIR, errors);
-    const rts::game::Campaign& c = campaigns.front();
-    const auto ch = std::ranges::find(c.chapters, chapter, &rts::game::CampaignChapter::id);
-    const auto doc = rts::game::parse_scenario_doc(read_file(c.dir / ch->scenario), d);
-    rts::game::MatchSettings settings;
+    const auto campaigns = reinos::game::load_campaigns(REINOS_DATA_DIR, errors);
+    const auto navas = std::ranges::find(campaigns, std::string("navas"), &reinos::game::Campaign::id);
+    REQUIRE(navas != campaigns.end());
+    const reinos::game::Campaign& c = *navas;
+    const auto ch = std::ranges::find(c.chapters, chapter, &reinos::game::CampaignChapter::id);
+    const auto doc = reinos::game::parse_scenario_doc(read_file(c.dir / ch->scenario), d);
+    reinos::game::MatchSettings settings;
     settings.rival = ch->rival;
     settings.fog = ch->fog;
-    const auto data = rts::game::with_scenario(d, *doc, settings);
-    rts::sim::World world(data->engine.world);
+    const auto data = reinos::game::with_scenario(d, *doc, settings);
+    reinos::sim::World world(data->engine.world);
     std::size_t leg = 0;
-    rts::sim::Snapshot s;
+    reinos::sim::Snapshot s;
     Outcome out;
     for (int t = 0; t < max_ticks && !world.objectives().winner() && !world.objectives().lost(0); ++t) {
         if (t % 100 == 0) {
@@ -612,7 +750,7 @@ Outcome scripted(const std::string& chapter, const std::vector<rts::sim::TileCoo
                     continue;
                 }
                 army.push_back(e.id);
-                const auto tile = rts::sim::tile_of(e.pos);
+                const auto tile = reinos::sim::tile_of(e.pos);
                 near += std::abs(tile.x - route[leg].x) + std::abs(tile.y - route[leg].y) <= 8 ? 1 : 0;
             }
             out.army = army.size();
@@ -621,7 +759,7 @@ Outcome scripted(const std::string& chapter, const std::vector<rts::sim::TileCoo
                 ++leg;
             }
             if (t % 400 == 0 || near * 2 >= static_cast<int>(army.size())) {
-                world.issue(order(CommandType::AttackMove, 0, army, rts::sim::kNoObject, route[leg]));
+                world.issue(order(CommandType::AttackMove, 0, army, reinos::sim::kNoObject, route[leg]));
             }
         }
         world.step();
@@ -647,7 +785,7 @@ constexpr bool kSlowSkipped = true;
 TEST_CASE("Campaña: Las Navas se gana por la senda del oeste y no por el puerto guardado" *
           doctest::skip(kSlowSkipped)) {
     const Outcome west = scripted("navas", {{15, 30}, {18, 41}, {11, 46}, {19, 51}, {15, 62}, {64, 80}, {64, 93}},
-                                  2700 * rts::sim::kTicksPerSecond);
+                                  2700 * reinos::sim::kTicksPerSecond);
     MESSAGE("senda: ganador ", west.winner, " en el tick ", west.tick, ", tropa ", west.army, " de ", west.army_start);
     CHECK(west.winner == 0);
     const Outcome pass = scripted("navas", {{64, 30}, {64, 62}, {64, 80}, {64, 93}}, 10'000);
@@ -663,22 +801,24 @@ TEST_CASE("Campaña: Calatrava se toma con arietes, campamento abastecido y asal
           doctest::skip(kSlowSkipped)) {
     const auto& d = game_data();
     std::vector<std::string> errors;
-    const auto campaigns = rts::game::load_campaigns(RTS_DATA_DIR, errors);
-    const rts::game::Campaign& c = campaigns.front();
-    const auto ch = std::ranges::find(c.chapters, "calatrava", &rts::game::CampaignChapter::id);
-    const auto doc = rts::game::parse_scenario_doc(read_file(c.dir / ch->scenario), d);
-    rts::game::MatchSettings settings;
+    const auto campaigns = reinos::game::load_campaigns(REINOS_DATA_DIR, errors);
+    const auto navas = std::ranges::find(campaigns, std::string("navas"), &reinos::game::Campaign::id);
+    REQUIRE(navas != campaigns.end());
+    const reinos::game::Campaign& c = *navas;
+    const auto ch = std::ranges::find(c.chapters, "calatrava", &reinos::game::CampaignChapter::id);
+    const auto doc = reinos::game::parse_scenario_doc(read_file(c.dir / ch->scenario), d);
+    reinos::game::MatchSettings settings;
     settings.rival = ch->rival;
-    const auto data = rts::game::with_scenario(d, *doc, settings);
-    rts::sim::World world(data->engine.world);
-    rts::sim::Snapshot s;
+    const auto data = reinos::game::with_scenario(d, *doc, settings);
+    reinos::sim::World world(data->engine.world);
+    reinos::sim::Snapshot s;
     bool breached = false;
     for (int t = 0; t < 36000 && !world.objectives().winner() && !world.objectives().lost(0); ++t) {
         if (t % 100 == 0) {
             world.write_snapshot(s);
-            std::uint32_t gate = rts::sim::kNoObject;
+            std::uint32_t gate = reinos::sim::kNoObject;
             for (const auto& o : s.objects) {
-                if (o.kind == rts::sim::ObjectKind::Building && o.owner == 1 &&
+                if (o.kind == reinos::sim::ObjectKind::Building && o.owner == 1 &&
                     d.buildings.types[o.type].name == "puerta_muralla") {
                     gate = o.id;
                 }
@@ -686,9 +826,9 @@ TEST_CASE("Campaña: Calatrava se toma con arietes, campamento abastecido y asal
             std::vector<std::uint32_t> rams;
             std::vector<std::uint32_t> army;
             std::vector<std::uint32_t> carts;
-            std::uint32_t camp = rts::sim::kNoObject;
+            std::uint32_t camp = reinos::sim::kNoObject;
             for (const auto& o : s.objects) {
-                if (o.kind == rts::sim::ObjectKind::Building && o.owner == 0 &&
+                if (o.kind == reinos::sim::ObjectKind::Building && o.owner == 0 &&
                     d.buildings.types[o.type].name == "campamento") {
                     camp = o.id;
                 }
@@ -706,35 +846,36 @@ TEST_CASE("Campaña: Calatrava se toma con arietes, campamento abastecido y asal
             if (t == 0) {
                 world.issue(order(CommandType::Convoy, 0, carts, camp));
             }
-            if (gate == rts::sim::kNoObject && !breached) {
+            if (gate == reinos::sim::kNoObject && !breached) {
                 breached = true;
             }
             // Los que tienen hambre, al campamento; los demás, en guardia junto a él o al asalto.
             std::vector<std::uint32_t> fed;
             std::vector<std::uint32_t> hungry;
             for (const std::uint32_t id : army) {
-                const auto it = std::ranges::find(s.entities, id, &rts::sim::SnapshotEntity::id);
+                const auto it = std::ranges::find(s.entities, id, &reinos::sim::SnapshotEntity::id);
                 (it->hungry || it->rations <= 1 ? hungry : fed).push_back(id);
             }
             if (!hungry.empty()) {
-                world.issue(order(CommandType::Move, 0, hungry, rts::sim::kNoObject, {57, 74}));
+                world.issue(order(CommandType::Move, 0, hungry, reinos::sim::kNoObject, {57, 74}));
             }
             if (t % 400 == 0) {
                 if (!breached) {
                     world.issue(order(CommandType::Attack, 0, rams, gate));
-                    world.issue(order(CommandType::AttackMove, 0, fed, rts::sim::kNoObject, {62, 74}));
+                    world.issue(order(CommandType::AttackMove, 0, fed, reinos::sim::kNoObject, {62, 74}));
                 } else {
                     // Los arietes, al alcázar; la tropa limpia el recinto y luego también va a por él.
-                    std::uint32_t keep = rts::sim::kNoObject;
+                    std::uint32_t keep = reinos::sim::kNoObject;
                     for (const auto& o : s.objects) {
-                        if (o.kind == rts::sim::ObjectKind::Building && o.owner == 1 &&
+                        if (o.kind == reinos::sim::ObjectKind::Building && o.owner == 1 &&
                             d.buildings.types[o.type].name == "centro_urbano") {
                             keep = o.id;
                         }
                     }
                     world.issue(order(CommandType::Attack, 0, rams, keep));
-                    world.issue(t % 1200 == 0 ? order(CommandType::Attack, 0, fed, keep)
-                                              : order(CommandType::AttackMove, 0, fed, rts::sim::kNoObject, {88, 74}));
+                    world.issue(t % 1200 == 0
+                                    ? order(CommandType::Attack, 0, fed, keep)
+                                    : order(CommandType::AttackMove, 0, fed, reinos::sim::kNoObject, {88, 74}));
                 }
             }
         }
@@ -753,16 +894,18 @@ TEST_CASE("Campaña: Calatrava se toma con arietes, campamento abastecido y asal
 TEST_CASE("Campaña: en Toledo se puede reunir la hueste al otro lado del Tajo" * doctest::skip(kSlowSkipped)) {
     const auto& d = game_data();
     std::vector<std::string> errors;
-    const auto campaigns = rts::game::load_campaigns(RTS_DATA_DIR, errors);
-    const rts::game::Campaign& c = campaigns.front();
-    const auto doc = rts::game::parse_scenario_doc(read_file(c.dir / "1_toledo.toml"), d);
-    rts::game::MatchSettings settings;
+    const auto campaigns = reinos::game::load_campaigns(REINOS_DATA_DIR, errors);
+    const auto navas = std::ranges::find(campaigns, std::string("navas"), &reinos::game::Campaign::id);
+    REQUIRE(navas != campaigns.end());
+    const reinos::game::Campaign& c = *navas;
+    const auto doc = reinos::game::parse_scenario_doc(read_file(c.dir / "1_toledo.toml"), d);
+    reinos::game::MatchSettings settings;
     settings.rival = "normal";
-    const auto data = rts::game::with_scenario(d, *doc, settings);
+    const auto data = reinos::game::with_scenario(d, *doc, settings);
     auto params = data->engine.world;
     params.ai_players = {{0, params.ai_players.front().profile}};
-    rts::sim::World world(params);
-    rts::sim::Snapshot s;
+    reinos::sim::World world(params);
+    reinos::sim::Snapshot s;
     while (world.objectives().status()[1] != ObjectiveStatus::Done && world.tick() < 2400 * 20) {
         if (world.tick() % 200 == 0) {
             world.write_snapshot(s);
@@ -773,7 +916,7 @@ TEST_CASE("Campaña: en Toledo se puede reunir la hueste al otro lado del Tajo" 
                 }
             }
             if (army.size() >= 30) {
-                world.issue(order(CommandType::Move, 0, army, rts::sim::kNoObject, {65, 81}));
+                world.issue(order(CommandType::Move, 0, army, reinos::sim::kNoObject, {65, 81}));
             }
         }
         world.step();
@@ -784,16 +927,59 @@ TEST_CASE("Campaña: en Toledo se puede reunir la hueste al otro lado del Tajo" 
     CHECK_FALSE(world.objectives().winner());
 }
 
+// Tutorial (H1): se puede terminar jugando normal. La IA «facil» hace de aprendiz contra la
+// guarnición de la algara: cumple los pasos y gana. Se apunta cuándo cumple cada uno.
+TEST_CASE("Tutorial: la IA fácil, de aprendiz, cumple todos los pasos y gana" * doctest::skip(kSlowSkipped)) {
+    const auto& d = game_data();
+    std::vector<std::string> errors;
+    const auto campaigns = reinos::game::load_campaigns(REINOS_DATA_DIR, errors);
+    const auto tutorial = std::ranges::find(campaigns, std::string("aprendizaje"), &reinos::game::Campaign::id);
+    REQUIRE(tutorial != campaigns.end());
+    REQUIRE_FALSE(tutorial->chapters.empty());
+    const auto& ch = tutorial->chapters.front();
+    const auto doc = reinos::game::parse_scenario_doc(read_file(tutorial->dir / ch.scenario), d);
+    REQUIRE(doc.has_value());
+    CHECK(doc->objectives_in_order);
+    reinos::game::MatchSettings settings;
+    settings.rival = ch.rival;
+    const auto data = reinos::game::with_scenario(d, *doc, settings);
+    REQUIRE(data.has_value());
+    auto params = data->engine.world;
+    const auto& names = data->engine.ai_profile_names;
+    const auto easy = std::ranges::find(names, std::string("facil"));
+    REQUIRE(easy != names.end());
+    params.ai_players.push_back({0, static_cast<std::uint8_t>(easy - names.begin())});
+    reinos::sim::World world(params);
+    std::vector<reinos::sim::Tick> done_at(doc->params.objectives.size(), 0);
+    constexpr int kLimit = 40 * 60 * 20;  // 40 minutos
+    while (!world.objectives().winner() && !world.objectives().lost(0) && world.tick() < kLimit) {
+        world.step();
+        for (std::size_t i = 0; i < done_at.size(); ++i) {
+            if (done_at[i] == 0 && world.objectives().status()[i] == ObjectiveStatus::Done) {
+                done_at[i] = world.tick();
+            }
+        }
+    }
+    for (std::size_t i = 0; i < done_at.size(); ++i) {
+        MESSAGE("paso ", i + 1, " (", doc->objective_texts[i].get(), "): ", done_at[i] / 20, " s");
+    }
+    MESSAGE("tutorial: ganador ", world.objectives().winner() ? static_cast<int>(*world.objectives().winner()) : -1,
+            " en el minuto ", world.tick() / 1200);
+    REQUIRE(world.objectives().winner());
+    CHECK(*world.objectives().winner() == 0);
+    CHECK(world.tick() < kLimit);
+}
+
 TEST_CASE("Campaña: los textos se ven en el idioma elegido") {
-    rts::game::LocalizedText t("Hola");
+    reinos::game::LocalizedText t("Hola");
     t.set("en", "Hello");
-    REQUIRE(rts::game::set_language(RTS_DATA_DIR, "en").has_value());
+    REQUIRE(reinos::game::set_language(REINOS_DATA_DIR, "en").has_value());
     CHECK(t.get() == "Hello");
-    CHECK(rts::game::LocalizedText("Solo español").get() == "Solo español");
-    REQUIRE(rts::game::set_language(RTS_DATA_DIR, "es").has_value());
+    CHECK(reinos::game::LocalizedText("Solo español").get() == "Solo español");
+    REQUIRE(reinos::game::set_language(REINOS_DATA_DIR, "es").has_value());
     CHECK(t.get() == "Hola");
     // Ida y vuelta por el formato de escenario, con los dos idiomas.
-    rts::game::ScenarioDoc doc = parse(R"(
+    reinos::game::ScenarioDoc doc = parse(R"(
 name = { es = "Prueba", en = "Test" }
 players = 2
 width = 8
@@ -804,7 +990,7 @@ briefing.en = "One"
 )");
     CHECK(doc.name.es() == "Prueba");
     CHECK(doc.briefing.all().at("en") == "One");
-    const auto back = parse(rts::game::scenario_doc_toml(doc, game_data()));
+    const auto back = parse(reinos::game::scenario_doc_toml(doc, game_data()));
     CHECK(back.name == doc.name);
     CHECK(back.briefing == doc.briefing);
 }

@@ -18,7 +18,7 @@
 
 namespace {
 
-// Registro en consola y en rts.log junto al ejecutable (en Windows, al abrirlo con
+// Registro en consola y en reinos.log junto al ejecutable (en Windows, al abrirlo con
 // doble clic, la consola se cierra con el programa y su mensaje se pierde). Guarda el
 // último error para mostrarlo en una ventana si el arranque falla.
 std::string g_last_error;
@@ -27,7 +27,7 @@ void setup_logging() {
     std::vector<spdlog::sink_ptr> sinks;
     sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
     try {
-        const auto path = std::filesystem::path(rts::platform::executable_dir()) / "rts.log";
+        const auto path = std::filesystem::path(reinos::platform::executable_dir()) / "reinos.log";
         sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.string(), true));
     } catch (const spdlog::spdlog_ex&) {
         // Sin permiso de escritura junto al ejecutable: solo consola.
@@ -37,61 +37,61 @@ void setup_logging() {
             g_last_error.assign(msg.payload.data(), msg.payload.size());
         }
     }));
-    auto logger = std::make_shared<spdlog::logger>("rts", sinks.begin(), sinks.end());
+    auto logger = std::make_shared<spdlog::logger>("reinos", sinks.begin(), sinks.end());
     logger->flush_on(spdlog::level::info);
     spdlog::set_default_logger(logger);
 }
 
 // Error de arranque con ventana: un cuadro de diálogo que no se cierra solo.
 void show_error(const std::string& message) {
-    const std::string text = message + "\n\nDetalles en rts.log, junto a rts.exe.";
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "rts: no se pudo arrancar", text.c_str(), nullptr);
+    const std::string text = message + "\n\nDetalles en reinos.log, junto a reinos.exe.";
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "reinos: no se pudo arrancar", text.c_str(), nullptr);
 }
 
 int run(int argc, char** argv, bool& windowed) {
-    const auto options = rts::game::parse_arguments(argc, argv);
+    const auto options = reinos::game::parse_arguments(argc, argv);
     if (!options) {
         return 2;
     }
     windowed = !options->headless && options->verify_replay.empty();
     // Informes de errores (G3): una caída deja repetición y registro.
-    const std::filesystem::path exe_dir = rts::platform::executable_dir();
-    rts::game::install_crash_handlers(
-        options->report_dir.empty() ? exe_dir / rts::game::kReportDir : options->report_dir, exe_dir / "rts.log",
+    const std::filesystem::path exe_dir = reinos::platform::executable_dir();
+    reinos::game::install_crash_handlers(
+        options->report_dir.empty() ? exe_dir / reinos::game::kReportDir : options->report_dir, exe_dir / "reinos.log",
         [](std::string_view reason) {
             spdlog::error("Fallo: {}. Se escribe un informe.", reason);
             spdlog::default_logger()->flush();
         });
     // Las repeticiones llevan sus propios datos: no se lee data/.
     if (!options->verify_replay.empty()) {
-        return rts::game::run_verify_replay(options->verify_replay);
+        return reinos::game::run_verify_replay(options->verify_replay);
     }
     if (!options->replay.empty()) {
-        return rts::game::run_replay(options->replay, options->max_frames);
+        return reinos::game::run_replay(options->replay, options->max_frames);
     }
     if (!options->load.empty()) {
-        return rts::game::run_load(options->load, options->max_frames);
+        return reinos::game::run_load(options->load, options->max_frames);
     }
-    const auto data = rts::game::load_game_data(options->data_dir);
+    const auto data = reinos::game::load_game_data(options->data_dir);
     if (!data) {
         spdlog::error("Datos: {}", data.error());
         return 1;
     }
     if (options->headless && (options->host_port || !options->join_host.empty())) {
-        return rts::game::run_net_headless(*data, *options);
+        return reinos::game::run_net_headless(*data, *options);
     }
     if (options->host_port || !options->join_host.empty()) {
-        return rts::game::run_net_windowed(*data, *options);
+        return reinos::game::run_net_windowed(*data, *options);
     }
     if (options->headless) {
-        return rts::game::run_headless(*data, options->headless_ticks, options->record, options->crash_at);
+        return reinos::game::run_headless(*data, options->headless_ticks, options->record, options->crash_at);
     }
     // Sin límite de fotogramas (lo normal al abrirlo), el menú; con él (pruebas de humo),
     // directamente una partida.
     if (options->max_frames == 0) {
-        return rts::game::run_interactive(*data, options->data_dir);
+        return reinos::game::run_interactive(*data, options->data_dir);
     }
-    return rts::game::run_windowed(*data, options->max_frames);
+    return reinos::game::run_windowed(*data, options->max_frames);
 }
 
 }  // namespace

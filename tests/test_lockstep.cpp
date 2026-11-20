@@ -20,18 +20,18 @@
 #include "net/socket.hpp"
 #include "sim/world.hpp"
 
-using rts::game::GameData;
-using rts::game::LockstepSession;
-using rts::game::LockstepState;
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::World;
+using reinos::game::GameData;
+using reinos::game::LockstepSession;
+using reinos::game::LockstepState;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::World;
 
 namespace {
 
 const GameData& game_data() {
     static const GameData data = [] {
-        auto d = rts::game::load_game_data(RTS_DATA_DIR);
+        auto d = reinos::game::load_game_data(REINOS_DATA_DIR);
         REQUIRE_MESSAGE(d.has_value(), (d ? std::string() : d.error()));
         return std::move(*d);
     }();
@@ -44,7 +44,7 @@ constexpr std::uint16_t kAnyPort = 0;
 struct Side {
     LockstepSession session;
     World world;
-    rts::sim::Xoshiro256pp rng;
+    reinos::sim::Xoshiro256pp rng;
     std::size_t remote_orders = 0;
 
     Side(LockstepSession s, const GameData& data)
@@ -55,11 +55,11 @@ struct Side {
     // Un paso del bucle de juego: órdenes de prueba, red y, si se puede, un tick.
     void advance(const GameData& data, std::optional<Command>& extra) {
         const auto& probe = data.engine.net.probe;
-        if (world.tick() % static_cast<rts::sim::Tick>(probe.every_ticks) == 0 && last_probe != world.tick()) {
+        if (world.tick() % static_cast<reinos::sim::Tick>(probe.every_ticks) == 0 && last_probe != world.tick()) {
             last_probe = world.tick();
-            rts::sim::Snapshot snap;
+            reinos::sim::Snapshot snap;
             world.write_snapshot(snap);
-            for (Command& c : rts::game::probe_orders(snap, session.local_player(), probe,
+            for (Command& c : reinos::game::probe_orders(snap, session.local_player(), probe,
                                                       {world.map().width(), world.map().height()}, rng)) {
                 session.submit(std::move(c));
             }
@@ -84,11 +84,11 @@ struct Side {
         }
     }
 
-    std::optional<rts::sim::Tick> last_probe;
+    std::optional<reinos::sim::Tick> last_probe;
 };
 
-std::vector<std::uint32_t> units_of(const World& w, rts::sim::PlayerId p) {
-    rts::sim::Snapshot snap;
+std::vector<std::uint32_t> units_of(const World& w, reinos::sim::PlayerId p) {
+    reinos::sim::Snapshot snap;
     w.write_snapshot(snap);
     std::vector<std::uint32_t> ids;
     for (const auto& e : snap.entities) {
@@ -120,9 +120,9 @@ void play(const GameData& data, const std::vector<Side*>& sides, std::optional<C
 }
 
 // Anfitrión y un invitado, ya en partida.
-std::pair<LockstepSession, LockstepSession> connect_pair(const GameData& data, rts::sim::Tick end_tick,
-                                                         const rts::game::LockstepConfig& cfg) {
-    const std::uint64_t hash = rts::game::data_hash(data.files);
+std::pair<LockstepSession, LockstepSession> connect_pair(const GameData& data, reinos::sim::Tick end_tick,
+                                                         const reinos::game::LockstepConfig& cfg) {
+    const std::uint64_t hash = reinos::game::data_hash(data.files);
     auto host = LockstepSession::host(kAnyPort, 2, cfg, hash, end_tick);
     REQUIRE_MESSAGE(host.has_value(), (host ? std::string() : host.error()));
     auto guest = LockstepSession::join("127.0.0.1", host->port(), cfg, hash);
@@ -148,11 +148,11 @@ TEST_CASE("Red: una orden sale y vuelve igual del códec") {
     c.target = {-5, 40};
     c.object = 77;
     c.kind = 2;
-    rts::game::ByteWriter w;
-    rts::game::write_command(w, c);
-    rts::game::ByteReader r(w.out());
+    reinos::game::ByteWriter w;
+    reinos::game::write_command(w, c);
+    reinos::game::ByteReader r(w.out());
     Command d;
-    REQUIRE(rts::game::read_command(r, d));
+    REQUIRE(reinos::game::read_command(r, d));
     CHECK(d.tick == c.tick);
     CHECK(d.player == c.player);
     CHECK(d.type == c.type);
@@ -162,20 +162,20 @@ TEST_CASE("Red: una orden sale y vuelve igual del códec") {
     CHECK(d.kind == c.kind);
     // Truncada: falla sin leer fuera del búfer.
     std::vector<std::uint8_t> cut(w.out().begin(), w.out().end() - 1);
-    rts::game::ByteReader rc(cut);
-    CHECK_FALSE(rts::game::read_command(rc, d));
+    reinos::game::ByteReader rc(cut);
+    CHECK_FALSE(reinos::game::read_command(rc, d));
 }
 
 TEST_CASE("Red: órdenes de prueba solo para unidades propias y repetibles con la misma semilla") {
     const GameData& data = game_data();
     const World w(data.engine.world);
-    rts::sim::Snapshot snap;
+    reinos::sim::Snapshot snap;
     w.write_snapshot(snap);
-    rts::sim::Xoshiro256pp r1(1);
-    rts::sim::Xoshiro256pp r2(1);
-    const rts::sim::TileCoord size{w.map().width(), w.map().height()};
-    const auto a = rts::game::probe_orders(snap, 1, data.engine.net.probe, size, r1);
-    const auto b = rts::game::probe_orders(snap, 1, data.engine.net.probe, size, r2);
+    reinos::sim::Xoshiro256pp r1(1);
+    reinos::sim::Xoshiro256pp r2(1);
+    const reinos::sim::TileCoord size{w.map().width(), w.map().height()};
+    const auto a = reinos::game::probe_orders(snap, 1, data.engine.net.probe, size, r1);
+    const auto b = reinos::game::probe_orders(snap, 1, data.engine.net.probe, size, r2);
     REQUIRE(!a.empty());
     REQUIRE(a.size() == b.size());
     const auto own = units_of(w, 1);
@@ -194,7 +194,7 @@ TEST_CASE("Red: órdenes de prueba solo para unidades propias y repetibles con l
 TEST_CASE("Red: dos jugadores por bucle local acaban con el mismo hash, que es el de la repetición") {
     const GameData& data = game_data();
     const auto& cfg = data.engine.net.lockstep;
-    constexpr rts::sim::Tick kEnd = 300;
+    constexpr reinos::sim::Tick kEnd = 300;
     auto [h, g] = connect_pair(data, kEnd, cfg);
     CHECK(h.local_player() == 0);
     CHECK(g.local_player() == 1);
@@ -210,7 +210,7 @@ TEST_CASE("Red: dos jugadores por bucle local acaban con el mismo hash, que es e
     CHECK(host.remote_orders > 0);
     CHECK(guest.remote_orders > 0);
     // Hash cada hash_every_turns turnos, comparado con el único otro jugador.
-    const auto every = static_cast<rts::sim::Tick>(cfg.turn_ticks * cfg.hash_every_turns);
+    const auto every = static_cast<reinos::sim::Tick>(cfg.turn_ticks * cfg.hash_every_turns);
     CHECK(host.session.hashes_compared() >= kEnd / every - 1);
     CHECK(guest.session.hashes_compared() >= kEnd / every - 1);
 }
@@ -218,7 +218,7 @@ TEST_CASE("Red: dos jugadores por bucle local acaban con el mismo hash, que es e
 TEST_CASE("Red: con tres jugadores el anfitrión reenvía y los tres acaban igual") {
     const GameData& data = game_data();
     const auto& cfg = data.engine.net.lockstep;
-    const std::uint64_t hash = rts::game::data_hash(data.files);
+    const std::uint64_t hash = reinos::game::data_hash(data.files);
     auto h = LockstepSession::host(kAnyPort, 3, cfg, hash, 200);
     REQUIRE(h.has_value());
     auto g1 = LockstepSession::join("127.0.0.1", h->port(), cfg, hash);
@@ -267,8 +267,8 @@ TEST_CASE("Red: una orden que solo ve un mundo se detecta como desincronización
     CHECK(host.session.state() == LockstepState::Failed);
     CHECK(guest.session.state() == LockstepState::Failed);
     // Al menos uno lo ve como desincronización (el otro puede ver antes el corte).
-    const auto every = static_cast<rts::sim::Tick>(cfg.turn_ticks * cfg.hash_every_turns);
-    const rts::sim::Tick first_hash_after = (extra.tick / every + 1) * every;
+    const auto every = static_cast<reinos::sim::Tick>(cfg.turn_ticks * cfg.hash_every_turns);
+    const reinos::sim::Tick first_hash_after = (extra.tick / every + 1) * every;
     bool seen = false;
     for (const Side* s : {&host, &guest}) {
         if (const auto& d = s->session.desync()) {
@@ -284,7 +284,7 @@ TEST_CASE("Red: una orden que solo ve un mundo se detecta como desincronización
 TEST_CASE("Red: el anfitrión rechaza datos distintos y la partida completa") {
     const GameData& data = game_data();
     const auto& cfg = data.engine.net.lockstep;
-    const std::uint64_t hash = rts::game::data_hash(data.files);
+    const std::uint64_t hash = reinos::game::data_hash(data.files);
     auto host = LockstepSession::host(kAnyPort, 2, cfg, hash, 100);
     REQUIRE(host.has_value());
     auto wrong = LockstepSession::join("127.0.0.1", host->port(), cfg, hash + 1);
@@ -323,14 +323,14 @@ TEST_CASE("Red: sin noticias del otro jugador, la partida falla al cumplirse el 
     CHECK(host.session.state() == LockstepState::Failed);
     CHECK(host.session.error().find("jugadores 1") != std::string::npos);
     // Se paró justo donde faltaban las órdenes: los primeros turnos van vacíos.
-    CHECK(host.world.tick() == static_cast<rts::sim::Tick>(cfg.turn_ticks * cfg.input_delay_turns));
+    CHECK(host.world.tick() == static_cast<reinos::sim::Tick>(cfg.turn_ticks * cfg.input_delay_turns));
     CHECK(g.state() == LockstepState::Running);
 }
 
 TEST_CASE("Red: en la sala, el anfitrión empieza cuando quiere y los ajustes llegan a todos") {
     const GameData& data = game_data();
     const auto& cfg = data.engine.net.lockstep;
-    const std::uint64_t hash = rts::game::data_hash(data.files);
+    const std::uint64_t hash = reinos::game::data_hash(data.files);
     auto host = LockstepSession::host(kAnyPort, 0, cfg, hash, 0);
     REQUIRE(host.has_value());
     auto guest = LockstepSession::join("127.0.0.1", host->port(), cfg, hash);
@@ -378,7 +378,7 @@ TEST_CASE("Red: la charla se corta al máximo sin partir un carácter") {
     const GameData& data = game_data();
     auto cfg = data.engine.net.lockstep;
     cfg.chat_max_chars = 5;
-    const std::uint64_t hash = rts::game::data_hash(data.files);
+    const std::uint64_t hash = reinos::game::data_hash(data.files);
     auto host = LockstepSession::host(kAnyPort, 0, cfg, hash, 0);
     REQUIRE(host.has_value());
     host->send_chat("abcdñe");  // la ñ ocupa los bytes 4 y 5
@@ -387,15 +387,15 @@ TEST_CASE("Red: la charla se corta al máximo sin partir un carácter") {
 }
 
 TEST_CASE("Red: si un invitado se va, la IA toma su bando en el mismo tick en todas partes") {
-    rts::game::MatchSettings ms;
+    reinos::game::MatchSettings ms;
     ms.rival = game_data().engine.ai_profile_names.front();
     ms.seats = {"humano", "humano", "humano"};
-    const auto three = rts::game::with_match_settings(game_data(), ms);
+    const auto three = reinos::game::with_match_settings(game_data(), ms);
     REQUIRE(three.has_value());
     const GameData& data = *three;
     const auto& cfg = data.engine.net.lockstep;
-    const std::uint64_t hash = rts::game::data_hash(data.files);
-    constexpr rts::sim::Tick kEnd = 300;
+    const std::uint64_t hash = reinos::game::data_hash(data.files);
+    constexpr reinos::sim::Tick kEnd = 300;
     auto h = LockstepSession::host(kAnyPort, 3, cfg, hash, kEnd);
     REQUIRE(h.has_value());
     auto g1 = LockstepSession::join("127.0.0.1", h->port(), cfg, hash);
@@ -415,7 +415,7 @@ TEST_CASE("Red: si un invitado se va, la IA toma su bando en el mismo tick en to
     Side host(std::move(*h), data);
     Side a(std::move(*g1), data);
     auto b = std::make_unique<Side>(std::move(*g2), data);
-    const rts::sim::PlayerId gone = b->session.local_player();
+    const reinos::sim::PlayerId gone = b->session.local_player();
     std::optional<Command> none;
     // Juegan un rato los tres y el jugador 2 se va (se destruye su sesión: cierra).
     for (int guard = 0; guard < 100'000 && b->world.tick() < 100; ++guard) {
@@ -423,7 +423,7 @@ TEST_CASE("Red: si un invitado se va, la IA toma su bando en el mismo tick en to
         a.advance(data, none);
         b->advance(data, none);
     }
-    const rts::sim::Tick left_at = b->world.tick();
+    const reinos::sim::Tick left_at = b->world.tick();
     b.reset();
     play(data, {&host, &a});
     REQUIRE_MESSAGE(host.session.state() == LockstepState::Finished, host.session.error());
@@ -431,7 +431,7 @@ TEST_CASE("Red: si un invitado se va, la IA toma su bando en el mismo tick en to
     CHECK(host.world.state_hash() == a.world.state_hash());
     CHECK(host.world.tick() == kEnd);
     for (const Side* s : {&host, &a}) {
-        CHECK(s->session.dropped_players() == std::vector<rts::sim::PlayerId>{gone});
+        CHECK(s->session.dropped_players() == std::vector<reinos::sim::PlayerId>{gone});
         const auto& seats = s->world.ai().players();
         CHECK(std::ranges::any_of(seats, [&](const auto& p) { return p.player == gone; }));
         REQUIRE_FALSE(s->session.chat().empty());
@@ -444,11 +444,11 @@ TEST_CASE("Red: los ajustes con puestos crean una partida de cuatro, con IA dond
     const GameData& base = game_data();
     CHECK(base.engine.world.setup.starts.size() == 2);  // sin ajustes, la de siempre
     CHECK(base.engine.seat_starts.size() == 4);
-    rts::game::MatchSettings s;
+    reinos::game::MatchSettings s;
     s.seed = 5;
     s.rival = base.engine.ai_profile_names.front();
     s.seats = {"humano", "humano", "ia", "ia"};
-    const auto data = rts::game::with_match_settings(base, s);
+    const auto data = reinos::game::with_match_settings(base, s);
     REQUIRE_MESSAGE(data.has_value(), (data ? std::string() : data.error()));
     CHECK(data->engine.world.setup.starts.size() == 4);
     CHECK(data->engine.player_colors.size() == 4);
@@ -456,16 +456,16 @@ TEST_CASE("Red: los ajustes con puestos crean una partida de cuatro, con IA dond
     CHECK(data->engine.world.ai_players[0].player == 2);
     CHECK(data->engine.world.ai_players[1].player == 3);
     const World w(data->engine.world);
-    rts::sim::Snapshot snap;
+    reinos::sim::Snapshot snap;
     w.write_snapshot(snap);
     CHECK(snap.players.size() == 4);
-    for (rts::sim::PlayerId p = 0; p < 4; ++p) {
+    for (reinos::sim::PlayerId p = 0; p < 4; ++p) {
         CHECK_FALSE(units_of(w, p).empty());
     }
     s.seats = {"humano"};
-    CHECK_FALSE(rts::game::with_match_settings(base, s).has_value());
+    CHECK_FALSE(reinos::game::with_match_settings(base, s).has_value());
     s.seats = {"humano", "nadie"};
-    CHECK_FALSE(rts::game::with_match_settings(base, s).has_value());
+    CHECK_FALSE(reinos::game::with_match_settings(base, s).has_value());
 }
 
 TEST_CASE("Red: la orden de relevo pasa un jugador a la IA una sola vez") {
@@ -488,11 +488,11 @@ TEST_CASE("Red: la orden de relevo pasa un jugador a la IA una sola vez") {
 TEST_CASE("Red: unirse no espera; si el anfitrión aún no escucha se reintenta, y si no aparece se avisa") {
     const GameData& data = game_data();
     auto cfg = data.engine.net.lockstep;
-    const std::uint64_t hash = rts::game::data_hash(data.files);
+    const std::uint64_t hash = reinos::game::data_hash(data.files);
     // Un puerto libre: se abre y se cierra.
     std::uint16_t port = 0;
     {
-        auto probe = rts::net::Listener::listen(0);
+        auto probe = reinos::net::Listener::listen(0);
         REQUIRE(probe.has_value());
         port = probe->port();
     }
@@ -518,7 +518,7 @@ TEST_CASE("Red: unirse no espera; si el anfitrión aún no escucha se reintenta,
     // Otro puerto en el que nadie escucha nunca: se agota el plazo.
     std::uint16_t empty_port = 0;
     {
-        auto probe = rts::net::Listener::listen(0);
+        auto probe = reinos::net::Listener::listen(0);
         REQUIRE(probe.has_value());
         empty_port = probe->port();
     }

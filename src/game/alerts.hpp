@@ -12,7 +12,7 @@
 #include "game/config.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 enum class AlertKind : std::uint8_t { UnderAttack, Fire, Hunger, NoFood, UnitReady, Rout, Count };
 
@@ -45,4 +45,4 @@ private:
     std::vector<Alert> recent_;
 };
 
-}  // namespace rts::game
+}  // namespace reinos::game

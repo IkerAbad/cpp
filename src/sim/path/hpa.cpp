@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cassert>
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -308,4 +308,4 @@ std::optional<std::int32_t> HpaGraph::refine(const PassGrid& grid, TileCoord fro
     return search.astar(grid, from, to, box, &out);
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

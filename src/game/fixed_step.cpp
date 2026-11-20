@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cassert>
 
-namespace rts::game {
+namespace reinos::game {
 
 FixedStepClock::FixedStepClock(const FixedStepConfig& config) : config_(config) {
     assert(config_.tick_ns > 0);
@@ -25,4 +25,4 @@ StepPlan FixedStepClock::advance(std::int64_t elapsed_ns) {
     return plan;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

@@ -8,15 +8,15 @@
 #include "sim/map_gen.hpp"
 #include "test_helpers.hpp"
 
-using rts::render::Atlas;
-using rts::render::AtlasRegion;
-using rts::render::Camera;
-using rts::render::Marker;
-using rts::render::Scene;
-using rts::render::SceneBuilder;
-using rts::render::SpriteBatch;
-using rts::render::Vec2;
-using rts::render::ViewParams;
+using reinos::render::Atlas;
+using reinos::render::AtlasRegion;
+using reinos::render::Camera;
+using reinos::render::Marker;
+using reinos::render::Scene;
+using reinos::render::SceneBuilder;
+using reinos::render::SpriteBatch;
+using reinos::render::Vec2;
+using reinos::render::ViewParams;
 
 namespace {
 
@@ -44,7 +44,7 @@ const std::vector<std::array<std::uint8_t, 3>> kColors{{0, 0, 200}, {0, 200, 0},
 }  // namespace
 
 TEST_CASE("Atlas: regiones dentro del atlas, sin solaparse, con la forma esperada") {
-    const Atlas atlas = rts::render::build_atlas(test_view());
+    const Atlas atlas = reinos::render::build_atlas(test_view());
     CHECK(atlas.width == 128);  // potencia de dos mínima para 64 + 2x12 + 4 + relleno
     const std::array<AtlasRegion, 4> regions{atlas.tile_diamond, atlas.marker_disc, atlas.marker_ring, atlas.solid};
     for (std::size_t i = 0; i < regions.size(); ++i) {
@@ -67,9 +67,9 @@ TEST_CASE("Atlas: regiones dentro del atlas, sin solaparse, con la forma esperad
 }
 
 TEST_CASE("Escena: casillas visibles + marcadores + anillos + rectángulo = instancias") {
-    const auto map_params = rts::test::test_map_params();
-    const rts::sim::TileMap map = rts::sim::generate_map(map_params);
-    const Atlas atlas = rts::render::build_atlas(test_view());
+    const auto map_params = reinos::test::test_map_params();
+    const reinos::sim::TileMap map = reinos::sim::generate_map(map_params);
+    const Atlas atlas = reinos::render::build_atlas(test_view());
     SceneBuilder builder(test_view(), atlas, kColors);
 
     const std::vector<Marker> markers{
@@ -80,11 +80,11 @@ TEST_CASE("Escena: casillas visibles + marcadores + anillos + rectángulo = inst
     Scene scene;
     scene.map = &map;
     scene.screen = {1280.0f, 720.0f};
-    const rts::render::IsoProjection proj(test_view());
+    const reinos::render::IsoProjection proj(test_view());
     scene.camera.center_on(proj.tile_to_world({128.0f, 128.0f}), scene.screen);
     scene.markers = markers;
-    scene.drag_rect = rts::render::Rect{{10.0f, 10.0f}, {50.0f, 40.0f}};
-    scene.hovered_tile = rts::sim::TileCoord{128, 128};
+    scene.drag_rect = reinos::render::Rect{{10.0f, 10.0f}, {50.0f, 40.0f}};
+    scene.hovered_tile = reinos::sim::TileCoord{128, 128};
 
     SpriteBatch batch;
     const auto stats = builder.build(scene, batch);
@@ -95,12 +95,12 @@ TEST_CASE("Escena: casillas visibles + marcadores + anillos + rectángulo = inst
 }
 
 TEST_CASE("Escena: a igual terreno, la casilla más alta es más clara") {
-    rts::sim::TileMap map(2, 1);
+    reinos::sim::TileMap map(2, 1);
     map.set_terrain({0, 0}, 1);
     map.set_terrain({1, 0}, 1);
     map.set_elevation({0, 0}, 0);
     map.set_elevation({1, 0}, 7);
-    const Atlas atlas = rts::render::build_atlas(test_view());
+    const Atlas atlas = reinos::render::build_atlas(test_view());
     SceneBuilder builder(test_view(), atlas, kColors);
     const auto low = builder.tile_color(map, {0, 0});
     const auto high = builder.tile_color(map, {1, 0});
@@ -112,10 +112,10 @@ TEST_CASE("Escena: a igual terreno, la casilla más alta es más clara") {
 }
 
 TEST_CASE("Escena: objetos con base, cuerpo y resaltado; anillo de dueño y punto de carga") {
-    const Atlas atlas = rts::render::build_atlas(test_view());
+    const Atlas atlas = reinos::render::build_atlas(test_view());
     SceneBuilder builder(test_view(), atlas, kColors);
-    const rts::render::IsoProjection proj(test_view());
-    std::vector<rts::render::SceneObject> objects(3);
+    const reinos::render::IsoProjection proj(test_view());
+    std::vector<reinos::render::SceneObject> objects(3);
     objects[0].origin = {128, 128};  // edificio: base + cuerpo + resaltado
     objects[0].size = 3;
     objects[0].base = {0, 0, 255, 255};

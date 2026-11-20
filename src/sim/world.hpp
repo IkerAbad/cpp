@@ -26,13 +26,14 @@
 #include "sim/movement.hpp"
 #include "sim/objectives.hpp"
 #include "sim/rng.hpp"
+#include "sim/season.hpp"
 #include "sim/supply.hpp"
 #include "sim/tick.hpp"
 #include "sim/tile_map.hpp"
 #include "sim/units.hpp"
 #include "sim/vision.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 // Unidades de prueba sueltas (movimiento, banco): count unidades de un tipo del jugador
 // indicado, repartidas en un cuadrado de area_tiles casillas centrado en el mapa.
@@ -121,6 +122,7 @@ struct WorldParams {
     MarketParams market;
     VisionParams vision;
     ObjectiveParams objectives;
+    SeasonParams season;  // H2: estación de campaña
     AiParams ai;
     std::vector<AiSeat> ai_players;  // jugadores que controla la IA y su perfil
     SetupParams setup;
@@ -220,6 +222,7 @@ struct Snapshot {
     // Niebla de guerra: luz del día (% de la vista), capa por jugador (Fog por casilla;
     // vacía si no hay niebla) y edificios enemigos recordados por cada jugador.
     std::int32_t daylight_percent = 100;
+    std::uint8_t season = kSummer;  // H2: índice de la estación (season_at)
     std::vector<std::shared_ptr<const std::vector<std::uint8_t>>> fog;
     std::vector<std::vector<RememberedBuilding>> memory;
     std::array<std::int32_t, kResourceCount> market_prices{};  // oro por lote (C3)
@@ -255,6 +258,7 @@ public:
     [[nodiscard]] const VisionSystem& vision() const noexcept { return vision_; }
     [[nodiscard]] const AiSystem& ai() const noexcept { return ai_; }
     [[nodiscard]] const ObjectiveSystem& objectives() const noexcept { return objectives_; }
+    [[nodiscard]] std::uint8_t season() const noexcept { return season_at(season_, tick_); }
     [[nodiscard]] const entt::registry& registry() const noexcept { return registry_; }
     // Solo para preparar escenarios en pruebas y herramientas: tocar el estado fuera de
     // las órdenes rompe las repeticiones.
@@ -306,6 +310,7 @@ private:
     VisionSystem vision_;
     AiSystem ai_;
     ObjectiveSystem objectives_;
+    SeasonParams season_;
     entt::registry registry_;
     Xoshiro256pp rng_;
     struct StartSite {
@@ -323,4 +328,4 @@ private:
     Tick tick_ = 0;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

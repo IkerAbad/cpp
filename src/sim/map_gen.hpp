@@ -8,7 +8,7 @@
 
 #include "sim/tile_map.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 // Elevación normalizada del generador: [0, kElevationRange).
 inline constexpr std::int32_t kElevationRange = 65536;
@@ -56,4 +56,4 @@ struct MapGenParams {
 
 [[nodiscard]] TileMap generate_map(const MapGenParams& params);
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

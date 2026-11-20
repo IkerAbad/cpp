@@ -2,7 +2,7 @@
 
 #include "sim/fog.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -56,4 +56,4 @@ std::vector<MinimapDot> minimap_dots(const sim::Snapshot& snap, std::optional<si
     return dots;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

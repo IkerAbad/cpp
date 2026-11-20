@@ -8,7 +8,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -340,7 +340,12 @@ bool SupplySystem::forage(entt::registry& registry, MovementSystem& movement, Ec
             return true;
         }
     }
-    if (forest && (entt::to_integral(e) + tick) % static_cast<Tick>(params_.forest_forage_ticks) == 0) {
+    // Fuera de verano, el bosque da más o menos: una ración cada forest_forage_ticks x 100 / %.
+    const std::int32_t forest_ticks =
+        forage_percent_ == kPercent
+            ? params_.forest_forage_ticks
+            : (forage_percent_ > 0 ? std::max(params_.forest_forage_ticks * kPercent / forage_percent_, 1) : 0);
+    if (forest && forest_ticks > 0 && (entt::to_integral(e) + tick) % static_cast<Tick>(forest_ticks) == 0) {
         ++stats_.foraged;
         return true;
     }
@@ -382,7 +387,11 @@ void SupplySystem::update(entt::registry& registry, MovementSystem& movement, Ec
 
         // 1. Consumo de víveres y hambre.
         if (st.rations > 0) {
-            if (s.rations > 0 && ++s.ration_timer >= st.ration_ticks) {
+            // Con frío se come más: cada ración dura ration_ticks x 100 / ration_percent.
+            const std::int32_t ration_ticks =
+                ration_percent_ == kPercent ? st.ration_ticks
+                                            : std::max(st.ration_ticks * kPercent / std::max(ration_percent_, 1), 1);
+            if (s.rations > 0 && ++s.ration_timer >= ration_ticks) {
                 s.ration_timer = 0;
                 --s.rations;
             }
@@ -456,4 +465,4 @@ void SupplySystem::hash_into(StateHasher& h, const entt::registry& registry) con
     }
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

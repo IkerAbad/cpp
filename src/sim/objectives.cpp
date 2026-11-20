@@ -6,7 +6,7 @@
 
 #include "sim/state_hash.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 ObjectiveSystem::ObjectiveSystem(const ObjectiveParams& params, std::vector<Objective> objectives,
                                  std::vector<UnitType> unit_types, std::size_t player_count)
@@ -29,10 +29,10 @@ std::int32_t ObjectiveSystem::count_matching(const entt::registry& registry, con
             if (own.player != owner || !o.in_zone(tile_of(pos))) {
                 continue;
             }
-            // Cualquier tipo: en Reach, solo la tropa (lo que tiene moral), no aldeanos ni bagaje.
-            const bool match = o.type == kAnyObjectType
-                                   ? (o.kind != ObjectiveKind::Reach || unit_types_[unit.type].morale_resolve > 0)
-                                   : unit.type == o.type;
+            // Cualquier tipo: en Reach y Have, solo la tropa (lo que tiene moral), no aldeanos ni bagaje.
+            const bool troops_only = o.kind == ObjectiveKind::Reach || o.kind == ObjectiveKind::Have;
+            const bool match = o.type == kAnyObjectType ? (!troops_only || unit_types_[unit.type].morale_resolve > 0)
+                                                        : unit.type == o.type;
             n += match ? 1 : 0;
         }
         return n;
@@ -40,8 +40,10 @@ std::int32_t ObjectiveSystem::count_matching(const entt::registry& registry, con
     const auto view = registry.view<const Building, const Footprint, const Owner>();
     for (const entt::entity e : view) {
         const auto& [b, f, own] = view.get<const Building, const Footprint, const Owner>(e);
-        // Un edificio de piedra quemado ya no sirve: cuenta como destruido.
-        if (own.player != owner || b.burned || (o.type != kAnyObjectType && b.type != o.type)) {
+        // Un edificio de piedra quemado ya no sirve: cuenta como destruido. Para tener uno,
+        // además, ha de estar terminado: una obra a medias no es una casa.
+        if (own.player != owner || b.burned || (o.type != kAnyObjectType && b.type != o.type) ||
+            (o.kind == ObjectiveKind::Have && !b.complete)) {
             continue;
         }
         bool inside = !o.zoned;
@@ -77,11 +79,17 @@ void ObjectiveSystem::update(const entt::registry& registry, const EconomySystem
                 s = tick >= o.ticks ? ObjectiveStatus::Done : s;
                 break;
             case ObjectiveKind::Reach:
+            case ObjectiveKind::Have:
                 s = count_matching(registry, o, o.player) >= o.count ? ObjectiveStatus::Done : s;
                 break;
             case ObjectiveKind::Gather:
                 s = economy.players()[o.player].stock[resource_index(o.resource)] >= o.count ? ObjectiveStatus::Done
                                                                                               : s;
+                break;
+            case ObjectiveKind::Collect:
+                s = economy.players()[o.player].stats.gathered[resource_index(o.resource)] >= o.count
+                        ? ObjectiveStatus::Done
+                        : s;
                 break;
             case ObjectiveKind::Defeat:
                 s = o.target < economy.players().size() && economy.players()[o.target].defeated ? ObjectiveStatus::Done
@@ -133,4 +141,4 @@ void ObjectiveSystem::hash_into(StateHasher& h) const {
     h.add_i32(winner_ ? static_cast<std::int32_t>(*winner_) : -1);
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

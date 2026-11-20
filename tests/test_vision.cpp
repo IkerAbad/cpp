@@ -10,20 +10,20 @@
 #include "sim/vision.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Footprint;
-using rts::sim::Owner;
-using rts::sim::Position;
-using rts::sim::TileCoord;
-using rts::sim::TileMap;
-using rts::sim::VisionParams;
-using rts::sim::VisionSystem;
-using namespace rts::test;
+using reinos::sim::Footprint;
+using reinos::sim::Owner;
+using reinos::sim::Position;
+using reinos::sim::TileCoord;
+using reinos::sim::TileMap;
+using reinos::sim::VisionParams;
+using reinos::sim::VisionSystem;
+using namespace reinos::test;
 
 namespace {
 
 constexpr std::int32_t kSize = 64;
 constexpr std::int32_t kSight = 6;  // vista del soldado de prueba
-constexpr rts::sim::NodeTypeId kTreeType = 0;
+constexpr reinos::sim::NodeTypeId kTreeType = 0;
 
 VisionParams params() {
     VisionParams p;
@@ -43,19 +43,19 @@ VisionParams params() {
 struct Fixture {
     TileMap map{kSize, kSize};
     entt::registry registry;
-    std::vector<rts::sim::UnitType> units = test_unit_types();
-    std::vector<rts::sim::BuildingType> buildings = test_building_types();
-    std::vector<rts::sim::ResourceNodeType> nodes{{rts::sim::Resource::Wood, 100, 1, true}};
+    std::vector<reinos::sim::UnitType> units = test_unit_types();
+    std::vector<reinos::sim::BuildingType> buildings = test_building_types();
+    std::vector<reinos::sim::ResourceNodeType> nodes{{reinos::sim::Resource::Wood, 100, 1, true}};
 
     Fixture() { units[kSoldier].combat.sight_tiles = kSight; }
 
     VisionSystem vision(const VisionParams& p = params()) { return {p, map, units, buildings, nodes, 2}; }
 
-    entt::entity unit(rts::sim::PlayerId owner, TileCoord t) {
+    entt::entity unit(reinos::sim::PlayerId owner, TileCoord t) {
         const auto e = registry.create();
-        registry.emplace<rts::sim::Unit>(e, kSoldier, units[kSoldier].radius, units[kSoldier].speed);
-        registry.emplace<Position>(e, rts::sim::Fixed::from_int(t.x) + rts::sim::Fixed::from_ratio(1, 2),
-                                   rts::sim::Fixed::from_int(t.y) + rts::sim::Fixed::from_ratio(1, 2));
+        registry.emplace<reinos::sim::Unit>(e, kSoldier, units[kSoldier].radius, units[kSoldier].speed);
+        registry.emplace<Position>(e, reinos::sim::Fixed::from_int(t.x) + reinos::sim::Fixed::from_ratio(1, 2),
+                                   reinos::sim::Fixed::from_int(t.y) + reinos::sim::Fixed::from_ratio(1, 2));
         registry.emplace<Owner>(e, owner);
         return e;
     }
@@ -63,18 +63,18 @@ struct Fixture {
     void tree(TileCoord t) {
         const auto e = registry.create();
         registry.emplace<Footprint>(e, t, 1);
-        registry.emplace<rts::sim::ResourceNode>(e, kTreeType, rts::sim::Resource::Wood, 100);
+        registry.emplace<reinos::sim::ResourceNode>(e, kTreeType, reinos::sim::Resource::Wood, 100);
     }
 
-    entt::entity building(rts::sim::PlayerId owner, TileCoord origin) {
+    entt::entity building(reinos::sim::PlayerId owner, TileCoord origin) {
         const auto e = registry.create();
         registry.emplace<Footprint>(e, origin, 2);
-        rts::sim::Building b;
+        reinos::sim::Building b;
         b.type = kHouse;
         b.complete = true;
-        registry.emplace<rts::sim::Building>(e, b);
+        registry.emplace<reinos::sim::Building>(e, b);
         registry.emplace<Owner>(e, owner);
-        registry.emplace<rts::sim::Health>(e, 500, 500);
+        registry.emplace<reinos::sim::Health>(e, 500, 500);
         return e;
     }
 };
@@ -101,7 +101,7 @@ TEST_CASE("Visión: lo explorado se queda al irse; lo visible, no") {
     const auto e = f.unit(0, {20, 20});
     VisionSystem v = f.vision();
     v.update(f.registry, 0, true);
-    f.registry.replace<Position>(e, rts::sim::Fixed::from_int(50), rts::sim::Fixed::from_int(50));
+    f.registry.replace<Position>(e, reinos::sim::Fixed::from_int(50), reinos::sim::Fixed::from_int(50));
     v.update(f.registry, 1, true);
     CHECK_FALSE(v.visible(0, {20, 20}));
     CHECK(v.explored(0, {20, 20}));
@@ -126,7 +126,7 @@ TEST_CASE("Visión: los árboles dejan ver un par de casillas de bosque y escond
     CHECK(v.sees_unit(f.registry, 0, close));
     // Talar el bosque abre la vista.
     std::vector<entt::entity> trees;
-    for (const auto e : f.registry.view<rts::sim::ResourceNode>()) {
+    for (const auto e : f.registry.view<reinos::sim::ResourceNode>()) {
         trees.push_back(e);
     }
     f.registry.destroy(trees.begin(), trees.end());
@@ -177,12 +177,12 @@ TEST_CASE("Visión: un edificio enemigo se recuerda como se vio, aunque caiga si
     REQUIRE(v.memory(0).size() == 1);
     CHECK(v.memory(0)[0].entity == house);
     // El explorador se va y la casa cae: se sigue recordando.
-    f.registry.replace<Position>(scout, rts::sim::Fixed::from_int(55), rts::sim::Fixed::from_int(55));
+    f.registry.replace<Position>(scout, reinos::sim::Fixed::from_int(55), reinos::sim::Fixed::from_int(55));
     f.registry.destroy(house);
     v.update(f.registry, 1, true);
     CHECK(v.memory(0).size() == 1);
     // Al volver a ver el sitio vacío, se olvida.
-    f.registry.replace<Position>(scout, rts::sim::Fixed::from_int(20), rts::sim::Fixed::from_int(20));
+    f.registry.replace<Position>(scout, reinos::sim::Fixed::from_int(20), reinos::sim::Fixed::from_int(20));
     v.update(f.registry, 2, true);
     CHECK(v.memory(0).empty());
 }

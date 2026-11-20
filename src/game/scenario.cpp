@@ -9,7 +9,7 @@
 
 #include "game/localized_toml.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 namespace {
 
@@ -26,8 +26,8 @@ constexpr std::int64_t kMaxSeconds = 24 * 3600;  // un día de partida
 constexpr std::string_view kDefaultTree = "arbol";
 
 // En el orden de sim::ObjectiveKind.
-constexpr std::array<std::string_view, 6> kObjectiveKeys{"destruir", "conservar", "sobrevivir",
-                                                         "llegar",   "reunir",    "derrotar"};
+constexpr std::array<std::string_view, 8> kObjectiveKeys{"destruir", "conservar", "sobrevivir", "llegar",
+                                                         "reunir",   "derrotar",  "tener",      "recoger"};
 
 // Ruido de una casilla para los bosques (splitmix64): mismo fichero, mismos árboles.
 std::uint64_t tile_noise(sim::TileCoord c, std::size_t salt) {
@@ -116,6 +116,36 @@ std::int32_t placement_size(const sim::ScenarioPlacement& p, const GameData& dat
 
 }  // namespace
 
+ObjectivesView objectives_view(std::span<const sim::Objective> objectives,
+                               std::span<const sim::ObjectiveStatus> status, sim::PlayerId local, bool in_order) {
+    ObjectivesView v;
+    if (status.size() != objectives.size()) {
+        return v;
+    }
+    bool next_shown = false;
+    for (std::size_t i = 0; i < objectives.size(); ++i) {
+        const sim::Objective& o = objectives[i];
+        const sim::ObjectiveStatus s = status[i];
+        if (o.player != local) {
+            if (o.kind == sim::ObjectiveKind::Survive && s == sim::ObjectiveStatus::Pending) {
+                v.shown.push_back(i);  // el plazo de otro: cuánto queda
+            }
+            continue;
+        }
+        const bool step = o.kind != sim::ObjectiveKind::Keep;
+        v.steps += step ? 1 : 0;
+        v.steps_done += step && s == sim::ObjectiveStatus::Done ? 1 : 0;
+        if (in_order && step && s == sim::ObjectiveStatus::Pending) {
+            if (next_shown) {
+                continue;
+            }
+            next_shown = true;
+        }
+        v.shown.push_back(i);
+    }
+    return v;
+}
+
 std::string_view objective_kind_key(sim::ObjectiveKind k) noexcept {
     return kObjectiveKeys[static_cast<std::size_t>(k)];
 }
@@ -132,6 +162,13 @@ std::expected<ScenarioDoc, std::string> parse_scenario_doc(std::string_view text
     ScenarioDoc doc;
     doc.name = read_localized(root.get("name")).value_or(LocalizedText("Sin nombre"));
     doc.briefing = read_localized(root.get("briefing")).value_or(LocalizedText());
+    doc.objectives_in_order = root["objectives_in_order"].value_or(false);
+    doc.season = root["season"].value_or(std::string());
+    if (!doc.season.empty() &&
+        std::ranges::find(data.engine.season_names, doc.season) == data.engine.season_names.end()) {
+        return std::unexpected(std::format("{}: 'season' = \"{}\": no es una estación de [[season.kind]]", source,
+                                           doc.season));
+    }
     sim::ScenarioParams& s = doc.params;
     s.players = static_cast<std::int32_t>(root["players"].value_or(std::int64_t{0}));
     s.width = static_cast<std::int32_t>(root["width"].value_or(std::int64_t{0}));
@@ -429,8 +466,8 @@ std::expected<ScenarioDoc, std::string> parse_scenario_doc(std::string_view text
             const std::string kind = (*t)["kind"].value_or(std::string());
             const auto k = std::ranges::find(kObjectiveKeys, kind);
             if (k == kObjectiveKeys.end()) {
-                return bad(std::format("'kind' = \"{}\": debe ser destruir, conservar, sobrevivir, llegar, reunir o "
-                                       "derrotar",
+                return bad(std::format("'kind' = \"{}\": debe ser destruir, conservar, sobrevivir, llegar, reunir, "
+                                       "derrotar, tener o recoger",
                                        kind));
             }
             o.kind = static_cast<sim::ObjectiveKind>(k - kObjectiveKeys.begin());
@@ -463,12 +500,15 @@ std::expected<ScenarioDoc, std::string> parse_scenario_doc(std::string_view text
             if (o.kind == sim::ObjectiveKind::Reach) {
                 o.units = true;  // llegar es cosa de unidades (sin tipo: cualquier tropa)
             }
+            if (o.kind == sim::ObjectiveKind::Have && !o.units && o.type == sim::kAnyObjectType) {
+                return bad("tener necesita 'building' o 'unit' (\"*\": cualquier tropa)");
+            }
             const auto count = (*t)["count"].value_or(std::int64_t{1});
             if (count < 1 || count > kMaxStock) {
                 return bad(std::format("'count' debe estar entre 1 y {}", kMaxStock));
             }
             o.count = static_cast<std::int32_t>(count);
-            if (o.kind == sim::ObjectiveKind::Gather) {
+            if (o.kind == sim::ObjectiveKind::Gather || o.kind == sim::ObjectiveKind::Collect) {
                 const auto r = resource_of((*t)["resource"].value_or(std::string()));
                 if (!r) {
                     return bad("'resource' debe ser un recurso (comida, madera...)");
@@ -516,6 +556,12 @@ std::string scenario_doc_toml(const ScenarioDoc& doc, const GameData& data) {
     if (!doc.briefing.empty()) {
         out += std::format("briefing = {}\n", localized_toml(doc.briefing));
     }
+    if (doc.objectives_in_order) {
+        out += "objectives_in_order = true\n";
+    }
+    if (!doc.season.empty()) {
+        out += std::format("season = \"{}\"\n", doc.season);
+    }
     const auto rows = [&](const auto& layer, char base) {
         std::string r = "[\n";
         for (std::int32_t y = 0; y < s.height; ++y) {
@@ -543,7 +589,7 @@ std::string scenario_doc_toml(const ScenarioDoc& doc, const GameData& data) {
         } else if (o.type != sim::kAnyObjectType) {
             out += std::format("building = \"{}\"\n", data.buildings.types[o.type].name);
         }
-        if (o.kind == sim::ObjectiveKind::Gather) {
+        if (o.kind == sim::ObjectiveKind::Gather || o.kind == sim::ObjectiveKind::Collect) {
             out += std::format("resource = \"{}\"\n", resource_key(o.resource));
         }
         if (o.kind == sim::ObjectiveKind::Survive) {
@@ -701,4 +747,4 @@ bool erase_at(sim::ScenarioParams& s, sim::TileCoord tile, const GameData& data)
     return false;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

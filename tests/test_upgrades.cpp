@@ -11,23 +11,23 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::UpgradeType;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::UpgradeType;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
-constexpr rts::sim::UpgradeId kSharp = 0;   // +1 cuerpo a cuerpo a la infantería
-constexpr rts::sim::UpgradeId kSteel = 1;   // +1 más, exige la anterior
-constexpr rts::sim::UpgradeId kArmor = 2;   // +1/+1 de armadura a la infantería
+constexpr reinos::sim::UpgradeId kSharp = 0;   // +1 cuerpo a cuerpo a la infantería
+constexpr reinos::sim::UpgradeId kSteel = 1;   // +1 más, exige la anterior
+constexpr reinos::sim::UpgradeId kArmor = 2;   // +1/+1 de armadura a la infantería
 constexpr std::int32_t kTicks = 50;
 
 WorldParams forge_params() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;
     UpgradeType u;
     u.at = kBarracks;  // en la prueba, el cuartel hace de herrería
@@ -46,7 +46,7 @@ WorldParams forge_params() {
     return p;
 }
 
-Command research(std::uint32_t forge, rts::sim::UpgradeId u, rts::sim::PlayerId player = 0) {
+Command research(std::uint32_t forge, reinos::sim::UpgradeId u, reinos::sim::PlayerId player = 0) {
     Command c;
     c.type = CommandType::Research;
     c.player = player;
@@ -55,8 +55,8 @@ Command research(std::uint32_t forge, rts::sim::UpgradeId u, rts::sim::PlayerId 
     return c;
 }
 
-std::int32_t gold(const World& w, rts::sim::PlayerId p = 0) {
-    return w.player_state(p).stock[rts::sim::resource_index(rts::sim::Resource::Gold)];
+std::int32_t gold(const World& w, reinos::sim::PlayerId p = 0) {
+    return w.player_state(p).stock[reinos::sim::resource_index(reinos::sim::Resource::Gold)];
 }
 
 void run(World& w, int ticks) {

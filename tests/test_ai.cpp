@@ -11,10 +11,10 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::Snapshot;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::Snapshot;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
@@ -35,8 +35,8 @@ WorldParams ai_game(bool both_ai, std::uint8_t profile = 0) {
     p.setup.tree_type = kTree;
     p.setup.tree_density_permille = 300;
     p.setup.clear_radius = 7;
-    p.ai_players = both_ai ? std::vector<rts::sim::AiSeat>{{0, profile}, {1, profile}}
-                           : std::vector<rts::sim::AiSeat>{{1, profile}};
+    p.ai_players = both_ai ? std::vector<reinos::sim::AiSeat>{{0, profile}, {1, profile}}
+                           : std::vector<reinos::sim::AiSeat>{{1, profile}};
     return p;
 }
 
@@ -48,7 +48,7 @@ struct Census {
     std::int32_t houses = 0;
 };
 
-Census census(const World& world, rts::sim::PlayerId player) {
+Census census(const World& world, reinos::sim::PlayerId player) {
     Snapshot s;
     world.write_snapshot(s);
     Census c;
@@ -58,7 +58,7 @@ Census census(const World& world, rts::sim::PlayerId player) {
         }
     }
     for (const auto& o : s.objects) {
-        if (o.kind == rts::sim::ObjectKind::Building && o.owner == player && o.complete) {
+        if (o.kind == reinos::sim::ObjectKind::Building && o.owner == player && o.complete) {
             c.barracks += o.type == kBarracks ? 1 : 0;
             c.farms += o.type == kFarm ? 1 : 0;
             c.houses += o.type == kHouse ? 1 : 0;
@@ -119,7 +119,7 @@ TEST_CASE("IA: dos IA juegan la misma partida tick a tick") {
 
 TEST_CASE("Derrota: sin unidades ni edificios después de haberlos tenido") {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;  // dos jugadores
     World world(p);
     const auto mine = world.spawn_unit(0, kSoldier, {100, 100});
@@ -127,8 +127,8 @@ TEST_CASE("Derrota: sin unidades ni edificios después de haberlos tenido") {
     world.step();
     CHECK(world.player_state(1).started);
     CHECK_FALSE(world.player_state(1).defeated);
-    rts::sim::Command attack;
-    attack.type = rts::sim::CommandType::Attack;
+    reinos::sim::Command attack;
+    attack.type = reinos::sim::CommandType::Attack;
     attack.player = 0;
     attack.units = {mine};
     attack.object = lone;
@@ -142,7 +142,7 @@ TEST_CASE("Derrota: sin unidades ni edificios después de haberlos tenido") {
 
 TEST_CASE("Derrota: al caer el último centro urbano terminado; lo demás se retira del mapa") {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;  // dos jugadores
     p.building_types[kCenter].hp = 60;  // que caiga pronto
     World world(p);
@@ -158,8 +158,8 @@ TEST_CASE("Derrota: al caer el último centro urbano terminado; lo demás se ret
     }
     world.step();
     CHECK(world.player_state(1).had_vital);
-    rts::sim::Command attack;
-    attack.type = rts::sim::CommandType::Attack;
+    reinos::sim::Command attack;
+    attack.type = reinos::sim::CommandType::Attack;
     attack.player = 0;
     attack.units = attackers;
     attack.object = *center;
@@ -179,7 +179,7 @@ TEST_CASE("Derrota: al caer el último centro urbano terminado; lo demás se ret
         CHECK(e.id != villager);
     }
     for (const auto& o : s.objects) {
-        CHECK_FALSE((o.kind == rts::sim::ObjectKind::Building && o.owner == 1));
+        CHECK_FALSE((o.kind == reinos::sim::ObjectKind::Building && o.owner == 1));
     }
     // La derrota es definitiva.
     for (int k = 0; k < 40; ++k) {

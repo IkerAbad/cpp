@@ -1,0 +1,184 @@
+# Aprendizaje, capítulo 1 (H1): el tutorial. Mapa pequeño escrito a mano (formato en
+# src/game/scenario.hpp). La puebla al oeste, con bosque y bayas a mano; al este, el
+# real de una algara enemiga: su cuartel (que la abastece de su propio almacén) y una
+# torre de madera. El rival usa el perfil «guarnicion»: solo se defiende.
+name.es = "Una puebla en la frontera"
+name.en = "A settlement on the frontier"
+players = 2
+width = 64
+height = 48
+base = "pradera"
+base_level = 2
+objectives_in_order = true
+briefing.es = """
+El señor de estas tierras os ha dado carta puebla: tierra y fueros a cambio de poblarla y defenderla. Llegáis cuatro aldeanos con lo puesto. Al este ha acampado una algara enemiga.
+
+Cómo se juega:
+- Elegir: clic sobre una unidad o arrastrar un recuadro con el botón izquierdo. Mayús añade a la selección; Esc la vacía.
+- Ordenar: clic derecho. Sobre un árbol o unas bayas, recoger; sobre el suelo, ir; sobre un enemigo, atacar; sobre una obra propia, construir.
+- Construir: con aldeanos elegidos, botón del edificio en el panel «Selección» y clic en el suelo.
+- Adiestrar: clic sobre un edificio propio y los botones de su panel.
+- Cámara: flechas o WASD, o el ratón en el borde de la ventana. F2 abre la ayuda.
+
+Los objetivos aparecen de uno en uno, arriba a la derecha.
+"""
+briefing.en = """
+The lord of these lands has granted you a "carta puebla": land and rights in exchange for settling and defending it. You arrive as four villagers with nothing but what you carry. To the east, an enemy raiding party has made camp.
+
+How to play:
+- Select: click a unit or drag a box with the left button. Shift adds to the selection; Esc clears it.
+- Give orders: right-click. On a tree or berries, gather; on the ground, move; on an enemy, attack; on a building of yours under construction, build.
+- Build: with villagers selected, the building's button in the "Selection" panel, then click on the ground.
+- Train: click a building of yours and the buttons in its panel.
+- Camera: arrows or WASD, or the mouse at the edge of the window. F2 opens the help.
+
+The objectives appear one at a time, at the top right.
+"""
+
+# Bosque al norte y al sur de la puebla.
+[[forest]]
+at = [8, 10]
+radius = 6
+density = 450
+
+[[forest]]
+at = [10, 40]
+radius = 5
+density = 450
+
+# Bosque junto al real de la algara.
+[[forest]]
+at = [58, 8]
+radius = 5
+density = 400
+
+# Bayas junto al centro urbano.
+[[node]]
+type = "arbusto_bayas"
+at = [19, 19]
+
+[[node]]
+type = "arbusto_bayas"
+at = [20, 21]
+
+[[node]]
+type = "arbusto_bayas"
+at = [19, 23]
+
+[[node]]
+type = "arbusto_bayas"
+at = [21, 25]
+
+[[building]]
+player = 0
+type = "centro_urbano"
+at = [12, 23]
+
+[[unit]]
+player = 0
+type = "aldeano"
+at = [15, 27]
+count = 4
+cols = 4
+
+[[building]]
+player = 1
+type = "cuartel"
+at = [52, 22]
+
+[[building]]
+player = 1
+type = "torre_madera"
+at = [47, 27]
+
+[[unit]]
+player = 1
+type = "leva"
+at = [48, 20]
+count = 3
+cols = 3
+
+[[unit]]
+player = 1
+type = "arquero"
+at = [50, 30]
+count = 1
+cols = 1
+
+# Poca madera y comida: lo primero es recogerlas. La algara come de su almacén.
+[[player]]
+stock = { comida = 50, madera = 20, piedra = 0, oro = 0, hierro = 0 }
+
+[[player]]
+stock = { comida = 400, madera = 0, piedra = 0, oro = 0, hierro = 0 }
+
+# Los pasos, en orden. Cada uno cuenta en cuanto se cumple; la interfaz enseña el primero
+# que falta. «recoger» cuenta lo recogido desde el principio, aunque se gaste: quien
+# aprende no tiene que ahorrar para cumplir el paso.
+[[objective]]
+player = 0
+kind = "recoger"
+text.es = "Tala: elige a los aldeanos y haz clic derecho en un árbol. Recoge 60 de madera"
+text.en = "Chop wood: select the villagers and right-click a tree. Gather 60 wood"
+resource = "madera"
+count = 60
+
+[[objective]]
+player = 0
+kind = "tener"
+text.es = "Construye una casa (30 de madera): da 5 plazas de población"
+text.en = "Build a house (30 wood): it gives 5 population places"
+building = "casa"
+
+[[objective]]
+player = 0
+kind = "recoger"
+text.es = "Recoge bayas: clic derecho en un arbusto de bayas. Recoge 100 de comida"
+text.en = "Gather berries: right-click a berry bush. Gather 100 food"
+resource = "comida"
+count = 100
+
+[[objective]]
+player = 0
+kind = "tener"
+text.es = "Adiestra aldeanos en el centro urbano hasta tener 6"
+text.en = "Train villagers at the town centre until you have 6"
+unit = "aldeano"
+count = 6
+
+[[objective]]
+player = 0
+kind = "tener"
+text.es = "Construye una granja (60 de madera): da 250 de comida sin salir de la puebla"
+text.en = "Build a farm (60 wood): it yields 250 food without leaving the settlement"
+building = "granja"
+
+[[objective]]
+player = 0
+kind = "tener"
+text.es = "Construye un cuartel (175 de madera)"
+text.en = "Build barracks (175 wood)"
+building = "cuartel"
+
+[[objective]]
+player = 0
+kind = "tener"
+text.es = "Adiestra 5 soldados en el cuartel (la leva es la más barata)"
+text.en = "Train 5 soldiers at the barracks (the levy is the cheapest)"
+unit = "*"
+count = 5
+
+[[objective]]
+player = 0
+kind = "destruir"
+text.es = "Destruye el cuartel de la algara, al este: elige la tropa y clic derecho sobre él"
+text.en = "Destroy the raiders' barracks, to the east: select the troops and right-click it"
+target = 1
+building = "cuartel"
+
+[[objective]]
+player = 0
+kind = "conservar"
+text.es = "El centro urbano no puede caer"
+text.en = "The town centre must not fall"
+building = "centro_urbano"

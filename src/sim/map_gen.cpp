@@ -6,7 +6,7 @@
 
 #include "sim/rng.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 namespace {
 
@@ -216,4 +216,4 @@ TileMap generate_map(const MapGenParams& params) {
     return map;
 }
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

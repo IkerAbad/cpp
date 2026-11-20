@@ -1,7 +1,7 @@
 // Sonidos en WAV (F2): escribe cada receta y cada pieza de data/sound.toml como un .wav
 // (PCM de 16 bits, mono) para oírlos sin abrir el juego.
 //
-//   rts_sound_wav --data data --out sonidos/
+//   reinos_sound_wav --data data --out sonidos/
 
 #include <algorithm>
 #include <cmath>
@@ -61,22 +61,22 @@ int main(int argc, char** argv) {
             out_dir = argv[i + 1];
         }
     }
-    const auto data = rts::game::load_game_data(data_dir);
+    const auto data = reinos::game::load_game_data(data_dir);
     if (!data) {
         std::fprintf(stderr, "%s\n", data.error().c_str());
         return 1;
     }
-    const rts::audio::SoundSpec& spec = data->sound;
+    const reinos::audio::SoundSpec& spec = data->sound;
     std::filesystem::create_directories(out_dir);
     for (std::size_t r = 0; r < spec.recipes.size(); ++r) {
         const auto& rec = spec.recipes[r];
-        const auto s = rts::audio::render(rec, spec.config.sample_rate, 0, static_cast<std::uint32_t>(r + 1));
+        const auto s = reinos::audio::render(rec, spec.config.sample_rate, 0, static_cast<std::uint32_t>(r + 1));
         if (!write_wav(out_dir / (rec.name + ".wav"), s, spec.config.sample_rate)) {
             return 1;
         }
     }
     for (const auto& m : spec.music) {
-        if (!write_wav(out_dir / ("musica_" + m.name + ".wav"), rts::audio::compose(m, spec.config.sample_rate),
+        if (!write_wav(out_dir / ("musica_" + m.name + ".wav"), reinos::audio::compose(m, spec.config.sample_rate),
                        spec.config.sample_rate)) {
             return 1;
         }

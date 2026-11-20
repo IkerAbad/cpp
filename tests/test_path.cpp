@@ -12,17 +12,17 @@
 #include "sim/rng.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::FlowField;
-using rts::sim::GridSearch;
-using rts::sim::HpaGraph;
-using rts::sim::HpaParams;
-using rts::sim::kUnreached;
-using rts::sim::PassGrid;
-using rts::sim::SearchRect;
-using rts::sim::SectorMask;
-using rts::sim::TileCoord;
-using rts::sim::TileMap;
-using rts::sim::Xoshiro256pp;
+using reinos::sim::FlowField;
+using reinos::sim::GridSearch;
+using reinos::sim::HpaGraph;
+using reinos::sim::HpaParams;
+using reinos::sim::kUnreached;
+using reinos::sim::PassGrid;
+using reinos::sim::SearchRect;
+using reinos::sim::SectorMask;
+using reinos::sim::TileCoord;
+using reinos::sim::TileMap;
+using reinos::sim::Xoshiro256pp;
 
 namespace {
 
@@ -57,7 +57,7 @@ std::int32_t path_cost(TileCoord start, const std::vector<TileCoord>& path) {
     TileCoord prev = start;
     for (const TileCoord& c : path) {
         const bool diagonal = c.x != prev.x && c.y != prev.y;
-        cost += diagonal ? rts::sim::kDiagonalCost : rts::sim::kStraightCost;
+        cost += diagonal ? reinos::sim::kDiagonalCost : reinos::sim::kStraightCost;
         prev = c;
     }
     return cost;
@@ -67,23 +67,23 @@ std::int32_t path_cost(TileCoord start, const std::vector<TileCoord>& path) {
 
 TEST_CASE("isqrt: exacta para todo n < 10^6 y en los extremos de 64 bits") {
     for (std::uint64_t n = 0; n < 1'000'000; ++n) {
-        const std::uint64_t r = rts::sim::isqrt(n);
+        const std::uint64_t r = reinos::sim::isqrt(n);
         REQUIRE(r * r <= n);
         REQUIRE((r + 1) * (r + 1) > n);
     }
-    CHECK(rts::sim::isqrt(UINT64_MAX) == 0xFFFFFFFFULL);
-    CHECK(rts::sim::isqrt(std::uint64_t{1} << 62) == std::uint64_t{1} << 31);
-    CHECK(rts::sim::isqrt((std::uint64_t{1} << 62) - 1) == (std::uint64_t{1} << 31) - 1);
+    CHECK(reinos::sim::isqrt(UINT64_MAX) == 0xFFFFFFFFULL);
+    CHECK(reinos::sim::isqrt(std::uint64_t{1} << 62) == std::uint64_t{1} << 31);
+    CHECK(reinos::sim::isqrt((std::uint64_t{1} << 62) - 1) == (std::uint64_t{1} << 31) - 1);
 }
 
 TEST_CASE("FVec2: longitud y reescalado") {
-    using rts::sim::Fixed;
-    const rts::sim::FVec2 v{Fixed::from_int(3), Fixed::from_int(4)};
-    CHECK(rts::sim::length(v) == Fixed::from_int(5));
-    const auto u = rts::sim::with_length(v, Fixed::from_int(10));
+    using reinos::sim::Fixed;
+    const reinos::sim::FVec2 v{Fixed::from_int(3), Fixed::from_int(4)};
+    CHECK(reinos::sim::length(v) == Fixed::from_int(5));
+    const auto u = reinos::sim::with_length(v, Fixed::from_int(10));
     CHECK(u.x == Fixed::from_int(6));
     CHECK(u.y == Fixed::from_int(8));
-    CHECK(rts::sim::clamp_length(v, Fixed::from_int(10)) == v);
+    CHECK(reinos::sim::clamp_length(v, Fixed::from_int(10)) == v);
 }
 
 TEST_CASE("Rejilla: sin atajar esquinas y componentes conexas") {
@@ -94,7 +94,7 @@ TEST_CASE("Rejilla: sin atajar esquinas y componentes conexas") {
     map.set_terrain({0, 1}, 1);
     const PassGrid g(map, kPassable01);
     // De (0,0) a (1,1) en diagonal rozaría dos muros: prohibido.
-    CHECK_FALSE(g.can_step({0, 0}, {1, 1, rts::sim::kDiagonalCost}));
+    CHECK_FALSE(g.can_step({0, 0}, {1, 1, reinos::sim::kDiagonalCost}));
     CHECK(g.component({0, 0}) != g.component({1, 1}));
     CHECK(g.component({1, 1}) == g.component({2, 0}));
     CHECK(g.component({1, 0}) == 0);
@@ -132,10 +132,10 @@ TEST_CASE("A*: coste óptimo (igual que Dijkstra) en 300 consultas sobre mapas c
 }
 
 TEST_CASE("HPA*: camino válido y como mucho un 10 % más largo que el óptimo") {
-    auto params = rts::test::test_map_params();
+    auto params = reinos::test::test_map_params();
     params.width = 128;
     params.height = 128;
-    const TileMap map = rts::sim::generate_map(params);
+    const TileMap map = reinos::sim::generate_map(params);
     const PassGrid g(map, kPassableGen);
     GridSearch search(128, 128);
     GridSearch reference(128, 128);
@@ -204,7 +204,7 @@ TEST_CASE("Campo de flujo: desde cualquier casilla alcanzada se baja hasta el de
                 REQUIRE(next.has_value());
                 REQUIRE(field.cost(g, *next) < field.cost(g, c));
                 c = *next;
-                REQUIRE(++steps <= start_cost / rts::sim::kStraightCost + 1);
+                REQUIRE(++steps <= start_cost / reinos::sim::kStraightCost + 1);
             }
         }
     }
@@ -261,8 +261,9 @@ std::int32_t weighted_cost(const PassGrid& g, TileCoord start, const std::vector
     std::int32_t cost = 0;
     TileCoord prev = start;
     for (const TileCoord& c : path) {
-        const rts::sim::Direction d{c.x - prev.x, c.y - prev.y,
-                                    c.x != prev.x && c.y != prev.y ? rts::sim::kDiagonalCost : rts::sim::kStraightCost};
+        const reinos::sim::Direction d{
+            c.x - prev.x, c.y - prev.y,
+            c.x != prev.x && c.y != prev.y ? reinos::sim::kDiagonalCost : reinos::sim::kStraightCost};
         REQUIRE(g.can_step(prev, d));
         cost += g.step_cost(prev, d);
         prev = c;
@@ -273,12 +274,12 @@ std::int32_t weighted_cost(const PassGrid& g, TileCoord start, const std::vector
 }  // namespace
 
 TEST_CASE("Pesos: llano 10/14 como antes; camino, bosque y vado en proporción a su velocidad") {
-    using rts::sim::kDiagonalCost;
-    using rts::sim::kStraightCost;
-    using rts::sim::tile_weight;
-    using rts::sim::weighted_step;
+    using reinos::sim::kDiagonalCost;
+    using reinos::sim::kStraightCost;
+    using reinos::sim::tile_weight;
+    using reinos::sim::weighted_step;
     const std::int32_t plain = tile_weight(100);
-    CHECK(plain == rts::sim::kWeightUnit);
+    CHECK(plain == reinos::sim::kWeightUnit);
     CHECK(weighted_step(kStraightCost, plain, plain) == kStraightCost);
     CHECK(weighted_step(kDiagonalCost, plain, plain) == kDiagonalCost);
     CHECK(weighted_step(kStraightCost, tile_weight(kRoadPercent), tile_weight(kRoadPercent)) == 8);
@@ -302,7 +303,7 @@ TEST_CASE("A* con pesos: coste óptimo (igual que Dijkstra) y heurística consis
             const TileCoord a = random_passable(g, rng);
             const TileCoord b = random_passable(g, rng);
             // Consistencia: ningún paso baja la heurística más de lo que cuesta.
-            for (const auto& d : rts::sim::kDirections) {
+            for (const auto& d : reinos::sim::kDirections) {
                 if (g.can_step(a, d)) {
                     REQUIRE(g.heuristic(a, b) <= g.step_cost(a, d) + g.heuristic({a.x + d.dx, a.y + d.dy}, b));
                 }
@@ -441,9 +442,9 @@ TEST_CASE("Campo de flujo con pesos: bajando por él se paga exactamente su cost
             while (!(c == field.goal())) {
                 const auto next = field.next_step(g, c);
                 REQUIRE(next.has_value());
-                const rts::sim::Direction d{next->x - c.x, next->y - c.y,
-                                            next->x != c.x && next->y != c.y ? rts::sim::kDiagonalCost
-                                                                             : rts::sim::kStraightCost};
+                const reinos::sim::Direction d{next->x - c.x, next->y - c.y,
+                                            next->x != c.x && next->y != c.y ? reinos::sim::kDiagonalCost
+                                                                             : reinos::sim::kStraightCost};
                 paid += g.step_cost(c, d);
                 c = *next;
             }

@@ -12,25 +12,25 @@
 #include "sim/world.hpp"
 #include "test_helpers.hpp"
 
-using rts::sim::AiBehavior;
-using rts::sim::AiParams;
-using rts::sim::AiSystem;
-using rts::sim::Command;
-using rts::sim::CommandType;
-using rts::sim::World;
-using rts::sim::WorldParams;
-using namespace rts::test;
+using reinos::sim::AiBehavior;
+using reinos::sim::AiParams;
+using reinos::sim::AiSystem;
+using reinos::sim::Command;
+using reinos::sim::CommandType;
+using reinos::sim::World;
+using reinos::sim::WorldParams;
+using namespace reinos::test;
 
 namespace {
 
-constexpr rts::sim::PlayerId kAi = 1;
-constexpr rts::sim::PlayerId kRival = 0;
+constexpr reinos::sim::PlayerId kAi = 1;
+constexpr reinos::sim::PlayerId kRival = 0;
 // El jugador 1 decide en los ticks con tick % 20 == 1.
-constexpr rts::sim::Tick kThinkTick = 1;
+constexpr reinos::sim::Tick kThinkTick = 1;
 
 WorldParams flat_two_players() {
     WorldParams p = test_world_params(0, 16);
-    p.map.bands = {{rts::sim::kElevationRange, 1}};
+    p.map.bands = {{reinos::sim::kElevationRange, 1}};
     p.demo.player = 1;  // dos jugadores
     return p;
 }
@@ -39,7 +39,7 @@ WorldParams flat_two_players() {
 std::vector<Command> think_with(const World& world, std::vector<AiBehavior> behaviors) {
     AiParams params = test_ai_params();
     params.profiles[1].behaviors = std::move(behaviors);
-    AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+    AiSystem ai(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
     std::vector<Command> out;
     ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
     return out;
@@ -133,7 +133,7 @@ TEST_CASE("IA normal: ataca cuando su fuerza supera a la enemiga, y no antes") {
         REQUIRE(out.size() == 1);
         CHECK(out[0].type == CommandType::AttackMove);
         CHECK(out[0].units.size() == 8);
-        CHECK(out[0].target == rts::sim::TileCoord{51, 51});  // centro de la casa
+        CHECK(out[0].target == reinos::sim::TileCoord{51, 51});  // centro de la casa
     }
     SUBCASE("ocho soldados contra veinte: espera") {
         World world(flat_two_players());
@@ -163,7 +163,7 @@ TEST_CASE("IA normal: las unidades que quedan sueltas lejos de casa no se quedan
         const auto out = think_with(world, {AiBehavior::AttackStrength});
         REQUIRE(out.size() == 1);
         CHECK(out[0].type == CommandType::AttackMove);
-        CHECK(out[0].target == rts::sim::TileCoord{51, 51});  // centro del centro urbano enemigo
+        CHECK(out[0].target == reinos::sim::TileCoord{51, 51});  // centro del centro urbano enemigo
         std::vector<std::uint32_t> units = out[0].units;
         std::ranges::sort(units);
         CHECK(units == stranded);
@@ -187,7 +187,7 @@ TEST_CASE("IA normal: las unidades que quedan sueltas lejos de casa no se quedan
         CHECK(out[0].type == CommandType::AttackMove);
         CHECK(out[0].units == std::vector<std::uint32_t>{loose});
         // Hacia el centro del ejército en campaña, no al objetivo.
-        CHECK(out[0].target != rts::sim::TileCoord{51, 51});
+        CHECK(out[0].target != reinos::sim::TileCoord{51, 51});
         CHECK(std::abs(out[0].target.x - 61) <= 1);
         CHECK(std::abs(out[0].target.y - 70) <= 1);
     }
@@ -224,7 +224,7 @@ TEST_CASE("IA normal: se retira de una batalla perdida") {
     const auto out = think_with(world, {AiBehavior::AttackStrength});
     REQUIRE(out.size() == 1);
     CHECK(out[0].type == CommandType::Move);
-    CHECK(out[0].target == rts::sim::TileCoord{151, 151});  // centro del centro urbano
+    CHECK(out[0].target == reinos::sim::TileCoord{151, 151});  // centro del centro urbano
     std::vector<std::uint32_t> units = out[0].units;
     std::ranges::sort(units);
     CHECK(units == std::vector<std::uint32_t>{std::min(a, b), std::max(a, b)});
@@ -251,12 +251,12 @@ TEST_CASE("IA normal: manda aldeanos a apagar sus edificios en llamas") {
     world.issue(attack);
     // Hasta que el fuego se sostiene solo (por encima de 200).
     const auto& reg = world.registry();
-    for (int t = 0; t < 600 && (!reg.all_of<rts::sim::Fire>(static_cast<entt::entity>(house)) ||
-                                reg.get<rts::sim::Fire>(static_cast<entt::entity>(house)).intensity < 300);
+    for (int t = 0; t < 600 && (!reg.all_of<reinos::sim::Fire>(static_cast<entt::entity>(house)) ||
+                                reg.get<reinos::sim::Fire>(static_cast<entt::entity>(house)).intensity < 300);
          ++t) {
         world.step();
     }
-    REQUIRE(world.registry().all_of<rts::sim::Fire>(static_cast<entt::entity>(house)));
+    REQUIRE(world.registry().all_of<reinos::sim::Fire>(static_cast<entt::entity>(house)));
     // Con los incendiarios aún junto a la casa no manda a nadie a su lado.
     CHECK(think_with(world, {AiBehavior::Extinguish}).empty());
     // Se retiran: ahora sí.
@@ -269,7 +269,7 @@ TEST_CASE("IA normal: manda aldeanos a apagar sus edificios en llamas") {
     for (int t = 0; t < 100; ++t) {
         world.step();
     }
-    REQUIRE(world.registry().all_of<rts::sim::Fire>(static_cast<entt::entity>(house)));
+    REQUIRE(world.registry().all_of<reinos::sim::Fire>(static_cast<entt::entity>(house)));
     const auto out = think_with(world, {AiBehavior::Extinguish});
     REQUIRE(out.size() == 1);
     CHECK(out[0].type == CommandType::Extinguish);
@@ -335,7 +335,7 @@ TEST_CASE("IA: la tropa corta de víveres vuelve a abastecerse; la que ya está 
     REQUIRE(out.size() == 1);
     CHECK(out[0].type == CommandType::Move);
     CHECK(out[0].units == std::vector<std::uint32_t>{far});
-    CHECK(out[0].target == rts::sim::TileCoord{151, 151});  // centro del centro urbano
+    CHECK(out[0].target == reinos::sim::TileCoord{151, 151});  // centro del centro urbano
     CHECK(std::ranges::find(out[0].units, near) == out[0].units.end());
 }
 
@@ -345,14 +345,14 @@ namespace {
 struct BaggageSetup {
     WorldParams params = flat_two_players();
     AiParams ai = test_ai_params();
-    rts::sim::UnitTypeId mule = 0;
+    reinos::sim::UnitTypeId mule = 0;
 
     BaggageSetup() {
-        rts::sim::UnitType m = params.unit_types[kVillager];
+        reinos::sim::UnitType m = params.unit_types[kVillager];
         m.worker = false;
         m.carry_capacity = 0;
         m.convoy_capacity = 20;
-        mule = static_cast<rts::sim::UnitTypeId>(params.unit_types.size());
+        mule = static_cast<reinos::sim::UnitTypeId>(params.unit_types.size());
         params.unit_types.push_back(m);
         params.building_types[kCenter].trains.push_back(mule);
         params.building_types[kCenter].supplies = true;
@@ -362,7 +362,7 @@ struct BaggageSetup {
         params.supply.resupply_interval_ticks = 1000;
         params.supply.ration_cost = stock(1, 0, 0, 0);
         params.supply.convoy_mix = stock(100, 0, 0, 0);
-        params.supply.convoy_reach = rts::sim::Fixed::from_ratio(4, 5);
+        params.supply.convoy_reach = reinos::sim::Fixed::from_ratio(4, 5);
         ai.carrier = mule;
         auto& p = ai.profiles[1];
         p.behaviors = {AiBehavior::Resupply, AiBehavior::Logistics};
@@ -449,7 +449,7 @@ TEST_CASE("IA: el bagaje cargado sigue al ejército en campaña por detrás; las
     for (std::int32_t t = 0; t < 300; ++t) {
         world.step();
     }
-    REQUIRE(world.registry().get<rts::sim::Carrier>(static_cast<entt::entity>(mule)).load[0] == 20);
+    REQUIRE(world.registry().get<reinos::sim::Carrier>(static_cast<entt::entity>(mule)).load[0] == 20);
     // Ejército en campaña lejos de la base, avanzando hacia el enemigo.
     std::vector<std::uint32_t> army;
     for (std::int32_t i = 0; i < 3; ++i) {
@@ -492,13 +492,13 @@ TEST_CASE("IA: la incursión va antes a por el bagaje enemigo sin escolta que a 
 TEST_CASE("IA: con campamento en uso y almacén suficiente, monta allí el ingenio de asedio") {
     BaggageSetup s;
     // Campamento de prueba (copia de la casa) que monta arietes con su almacén.
-    rts::sim::BuildingType camp = s.params.building_types[kHouse];
+    reinos::sim::BuildingType camp = s.params.building_types[kHouse];
     camp.supplies = true;
     camp.store_capacity = 500;
     camp.store_target = stock(0, 200, 0, 0, 50);
     camp.trains = {kRam};
     camp.population = 0;
-    const auto camp_type = static_cast<rts::sim::BuildingTypeId>(s.params.building_types.size());
+    const auto camp_type = static_cast<reinos::sim::BuildingTypeId>(s.params.building_types.size());
     s.params.building_types.push_back(camp);
     s.ai.camp = camp_type;
     s.ai.siege_engine = kRam;
@@ -554,21 +554,21 @@ TEST_CASE("IA: con niebla y sin conocer al enemigo, manda un explorador a lo no 
 TEST_CASE("IA: ante un recinto cerrado abre brecha en el muro más cercano; si hay paso, no") {
     WorldParams p = flat_two_players();
     p.unit_types[kSoldier].climbs = true;
-    rts::sim::BuildingType wall = p.building_types[kHouse];
+    reinos::sim::BuildingType wall = p.building_types[kHouse];
     wall.size = 1;
     wall.population = 0;
-    wall.material = rts::sim::Material::Stone;
+    wall.material = reinos::sim::Material::Stone;
     wall.climbable = true;
-    const auto wall_type = static_cast<rts::sim::BuildingTypeId>(p.building_types.size());
+    const auto wall_type = static_cast<reinos::sim::BuildingTypeId>(p.building_types.size());
     p.building_types.push_back(wall);
 
     const auto ring = [&](World& world, bool gap) {
         // Centro urbano del rival en (60, 60)-(62, 62), rodeado a 2 casillas.
         world.spawn_building(kRival, kCenter, {60, 60}, true);
         for (std::int32_t i = 57; i <= 65; ++i) {
-            for (const rts::sim::TileCoord t : {rts::sim::TileCoord{i, 57}, rts::sim::TileCoord{i, 65},
-                                                rts::sim::TileCoord{57, i}, rts::sim::TileCoord{65, i}}) {
-                if (gap && t == rts::sim::TileCoord{61, 65}) {
+            for (const reinos::sim::TileCoord t : {reinos::sim::TileCoord{i, 57}, reinos::sim::TileCoord{i, 65},
+                                                reinos::sim::TileCoord{57, i}, reinos::sim::TileCoord{65, i}}) {
+                if (gap && t == reinos::sim::TileCoord{61, 65}) {
                     continue;
                 }
                 world.spawn_building(kRival, wall_type, t, true);
@@ -593,7 +593,7 @@ TEST_CASE("IA: ante un recinto cerrado abre brecha en el muro más cercano; si h
         AiParams params = test_ai_params();
         params.profiles[1].behaviors = {AiBehavior::Assault};
         params.ladder_cost = stock(0, 15, 0, 0);
-        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        AiSystem ai(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
         std::vector<Command> out;
         ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
         const auto attack = std::ranges::find(out, CommandType::Attack, &Command::type);
@@ -604,7 +604,7 @@ TEST_CASE("IA: ante un recinto cerrado abre brecha en el muro más cercano; si h
         CHECK(climb->units.size() == 3);   // los soldados
         CHECK(attack->object == climb->object);
         // Un tramo del lado sur, el más cercano al ejército.
-        const auto& f = world.registry().get<rts::sim::Footprint>(static_cast<entt::entity>(climb->object));
+        const auto& f = world.registry().get<reinos::sim::Footprint>(static_cast<entt::entity>(climb->object));
         CHECK(f.origin.y == 65);
     }
     SUBCASE("con un hueco: se llega, no hace falta brecha") {
@@ -654,7 +654,7 @@ TEST_CASE("IA: con hambre lejos de casa, saquea la granja enemiga sin defensa; d
     const auto [guarded_out, s2] = orders(true);
     // Defendida: vuelve a casa a abastecerse.
     REQUIRE(guarded_out.size() == 1);
-    CHECK(guarded_out[0].target == rts::sim::TileCoord{151, 151});
+    CHECK(guarded_out[0].target == reinos::sim::TileCoord{151, 151});
     (void)s2;
 }
 
@@ -663,19 +663,19 @@ TEST_CASE("IA: sanidad: levanta el puesto, le pone enfermero y cirujano y le man
     for (auto& u : p.unit_types) {
         u.treatable = !u.combat.buildings_only;
     }
-    rts::sim::UnitType surgeon = p.unit_types[kVillager];
+    reinos::sim::UnitType surgeon = p.unit_types[kVillager];
     surgeon.worker = false;
     surgeon.care_skill = 250;
-    const auto surgeon_type = static_cast<rts::sim::UnitTypeId>(p.unit_types.size());
+    const auto surgeon_type = static_cast<reinos::sim::UnitTypeId>(p.unit_types.size());
     p.unit_types.push_back(surgeon);
-    rts::sim::BuildingType post = p.building_types[kHouse];
+    reinos::sim::BuildingType post = p.building_types[kHouse];
     post.population = 0;
     post.beds = 4;
     post.nurses = 1;
     post.care_percent = 100;
     post.heal_to_percent = 100;
     post.trains = {surgeon_type};
-    const auto post_type = static_cast<rts::sim::BuildingTypeId>(p.building_types.size());
+    const auto post_type = static_cast<reinos::sim::BuildingTypeId>(p.building_types.size());
     p.building_types.push_back(post);
     AiParams params = test_ai_params();
     params.medical_post = post_type;
@@ -685,7 +685,7 @@ TEST_CASE("IA: sanidad: levanta el puesto, le pone enfermero y cirujano y le man
     params.profiles[1].wounded_percent = 50;
     params.profiles[1].surgeons = 1;
     const auto think = [&](const World& world) {
-        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        AiSystem ai(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
         std::vector<Command> out;
         ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
         return out;
@@ -719,7 +719,7 @@ TEST_CASE("IA: sanidad: levanta el puesto, le pone enfermero y cirujano y le man
         atk.units = {foe};
         atk.object = hurt;
         world.issue(atk);
-        const auto& h = world.registry().get<rts::sim::Health>(static_cast<entt::entity>(hurt));
+        const auto& h = world.registry().get<reinos::sim::Health>(static_cast<entt::entity>(hurt));
         for (int t = 0; t < 2000 && h.hp * 2 >= h.max_hp; ++t) {
             world.step();
         }
@@ -770,7 +770,7 @@ WorldParams foggy(std::int32_t start_tick) {
 }
 
 std::vector<Command> think_fog(const World& world, AiParams params) {
-    AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+    AiSystem ai(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
     std::vector<Command> out;
     ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out, &world.vision());
     return out;
@@ -840,7 +840,7 @@ TEST_CASE("IA: emboscada de tiradores en un claro del bosque, camino del enemigo
     CHECK(std::abs(go->target.x - 126) <= 1);  // en el claro
     CHECK(std::abs(go->target.y - 151) <= 1);
     // Sin niebla no hay emboscada.
-    AiSystem plain(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+    AiSystem plain(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
     std::vector<Command> none;
     plain.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, none);
     CHECK(none.empty());
@@ -860,7 +860,7 @@ TEST_CASE("IA: localizado el enemigo, el explorador sigue vigilando alrededor de
     REQUIRE(out.size() == 1);
     CHECK(out[0].units == std::vector<std::uint32_t>{scout});
     CHECK(std::max(std::abs(out[0].target.x - 101), std::abs(out[0].target.y - 151)) == 15);
-    CHECK_FALSE(world.vision().sees_footprint(kAi, rts::sim::Footprint{out[0].target, 1}));
+    CHECK_FALSE(world.vision().sees_footprint(kAi, reinos::sim::Footprint{out[0].target, 1}));
     // Sin patrulla, el explorador vuelve a ser tropa.
     params.profiles[1].patrol_radius_tiles = 0;
     CHECK(think_fog(world, params).empty());
@@ -868,11 +868,11 @@ TEST_CASE("IA: localizado el enemigo, el explorador sigue vigilando alrededor de
 
 TEST_CASE("IA: levanta torres hacia el enemigo y, si atacan la base, las guarnece") {
     WorldParams p = flat_two_players();
-    rts::sim::BuildingType t = p.building_types[kHouse];
+    reinos::sim::BuildingType t = p.building_types[kHouse];
     t.size = 1;
     t.population = 0;
     t.garrison = 2;
-    const auto tower = static_cast<rts::sim::BuildingTypeId>(p.building_types.size());
+    const auto tower = static_cast<reinos::sim::BuildingTypeId>(p.building_types.size());
     p.building_types.push_back(t);
     AiParams params = test_ai_params();
     params.tower = tower;
@@ -880,7 +880,7 @@ TEST_CASE("IA: levanta torres hacia el enemigo y, si atacan la base, las guarnec
     params.profiles[1].towers = 1;
     params.profiles[1].tower_offset_tiles = 10;
     const auto think = [&](const World& world) {
-        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        AiSystem ai(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
         std::vector<Command> out;
         ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
         return out;
@@ -924,8 +924,8 @@ WorldParams formed() {
     WorldParams p = flat_two_players();
     p.formation.enabled = true;
     p.formation.min_members = 1;
-    p.formation.cohesion_radius = rts::sim::Fixed::from_int(3);
-    p.formation.spacing = rts::sim::Fixed::from_int(1);
+    p.formation.cohesion_radius = reinos::sim::Fixed::from_int(3);
+    p.formation.spacing = reinos::sim::Fixed::from_int(1);
     return p;
 }
 
@@ -937,8 +937,8 @@ AiParams tactics_params() {
     return params;
 }
 
-std::uint8_t form_kind(rts::sim::FormationKind k) {
-    return static_cast<std::uint8_t>(rts::sim::kFormationBase + static_cast<std::uint8_t>(k));
+std::uint8_t form_kind(reinos::sim::FormationKind k) {
+    return static_cast<std::uint8_t>(reinos::sim::kFormationBase + static_cast<std::uint8_t>(k));
 }
 
 }  // namespace
@@ -952,24 +952,24 @@ TEST_CASE("IA: en campaña marcha en columna; ante el enemigo, línea de tirador
     const auto at_home = world.spawn_unit(kAi, kSoldier, {148, 148});
     world.spawn_unit(kRival, kArcher, {60, 66});  // «caballería» enemiga a 4 casillas
     world.step();
-    AiSystem ai(tactics_params(), rts::sim::SupplyParams{}, {{kAi, 1}});
+    AiSystem ai(tactics_params(), reinos::sim::SupplyParams{}, {{kAi, 1}});
     std::vector<Command> out;
     ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
-    const auto ordered = [&](std::uint32_t id, rts::sim::FormationKind k) {
+    const auto ordered = [&](std::uint32_t id, reinos::sim::FormationKind k) {
         return std::ranges::any_of(out, [&](const Command& c) {
             return c.type == CommandType::SetStance && c.kind == form_kind(k) &&
                    std::ranges::find(c.units, id) != c.units.end();
         });
     };
-    CHECK(ordered(marching, rts::sim::FormationKind::Column));
-    CHECK(ordered(archer, rts::sim::FormationKind::Line));
-    CHECK(ordered(pike, rts::sim::FormationKind::Square));
-    CHECK_FALSE(ordered(at_home, rts::sim::FormationKind::Column));  // en casa, sin formación
+    CHECK(ordered(marching, reinos::sim::FormationKind::Column));
+    CHECK(ordered(archer, reinos::sim::FormationKind::Line));
+    CHECK(ordered(pike, reinos::sim::FormationKind::Square));
+    CHECK_FALSE(ordered(at_home, reinos::sim::FormationKind::Column));  // en casa, sin formación
 }
 
 TEST_CASE("IA: herrería con aldeanos de sobra; terminada, investiga para su ejército") {
     WorldParams p = flat_two_players();
-    rts::sim::UpgradeType up;
+    reinos::sim::UpgradeType up;
     up.at = kWorkshop;  // en la prueba, el taller hace de herrería
     up.cost = stock(0, 0, 0, 10);
     up.research_ticks = 10;
@@ -981,7 +981,7 @@ TEST_CASE("IA: herrería con aldeanos de sobra; terminada, investiga para su ej�
     params.profiles[1].behaviors = {AiBehavior::Forge};
     params.profiles[1].forge_at_villagers = 2;
     const auto think = [&](const World& world) {
-        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        AiSystem ai(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
         std::vector<Command> out;
         ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
         return out;
@@ -1036,16 +1036,16 @@ TEST_CASE("IA: si la moral de su ejército en campaña flaquea, se retira antes 
         world.issue(am);
         world.step();
         for (const auto id : ids) {
-            world.registry_for_setup().get<rts::sim::Morale>(static_cast<entt::entity>(id)).value = morale;
+            world.registry_for_setup().get<reinos::sim::Morale>(static_cast<entt::entity>(id)).value = morale;
         }
         AiParams params = test_ai_params();
         params.profiles[1].behaviors = {AiBehavior::AttackStrength};
         params.profiles[1].retreat_morale = 400;
-        AiSystem ai(params, rts::sim::SupplyParams{}, {{kAi, 1}});
+        AiSystem ai(params, reinos::sim::SupplyParams{}, {{kAi, 1}});
         std::vector<Command> out;
         ai.think(world.registry(), world.economy(), world.movement().grid(), kThinkTick, out);
         return std::ranges::any_of(out, [](const Command& c) {
-            return c.type == CommandType::Move && c.target == rts::sim::TileCoord{151, 151};
+            return c.type == CommandType::Move && c.target == reinos::sim::TileCoord{151, 151};
         });
     };
     CHECK(retreats(300));        // moral baja: a casa

@@ -217,7 +217,7 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   batalla de 2000 contra 2000, media 18,8 ms y máximo 37,8 ms. La CI lo comprueba en
   cada cambio (pasa también en su máquina).
 - [x] **G2. Pruebas aleatorias de órdenes.** Órdenes al azar sobre partidas reales
-  sin que nada se rompa ni se desincronice. Hecho: `rts_fuzz` (y pruebas cortas)
+  sin que nada se rompa ni se desincronice. Hecho: `reinos_fuzz` (y pruebas cortas)
   con órdenes válidas y mal formadas, invariantes, dos mundos a la par y la
   repetición verificada. Encontró una caída real (una unidad repetida en una orden,
   posible por la red), ya arreglada. Medido: 672 000 órdenes en Release y 63 000 con
@@ -227,6 +227,40 @@ controles cómodos, guardarla y terminarla sabiendo qué ha pasado.
   capturar) o una desincronización en red, `informes/informe-<fecha>/` con la
   repetición hasta ese tick, el registro y un resumen. Una prueba de CTest provoca una
   caída y comprueba que la repetición del informe se reproduce.
+
+### Fase H — Que lo juegue una persona, y más guerra de verdad
+
+Con A–G cerradas, el juego está completo pero no lo ha probado nadie. Primero, que se
+aprenda solo; después, lo que más pesaba en una campaña medieval y aún falta.
+
+- [x] **H1. Tutorial.** Un capítulo corto que enseña los controles con un objetivo a la
+  vista cada vez. *Terminado:* la campaña «Primeros pasos» (`data/campaigns/aprendizaje`):
+  - ocho pasos, de talar a destruir el real de una algara;
+  - objetivos nuevos `tener` y `recoger`, y pasos de uno en uno (`objectives_in_order`);
+  - un rival que solo se defiende (perfil `guarnicion`);
+  - la IA `facil`, de aprendiz, lo termina en 18 min (prueba en Release).
+- [x] **H2. La estación de campaña.** Las guerras se hacían de primavera a otoño: en
+  invierno no se forrajea, los caminos de tierra se embarran y el ejército come más de lo
+  que encuentra. *Terminado:*
+  - cuatro estaciones con efecto en granjas, forraje del bosque, marcha y consumo de
+    víveres, medido en pruebas (`tests/test_season.cpp`);
+  - fuente citada (Wikipedia, «Military campaign»);
+  - el verano, neutro;
+  - la estación se elige en el menú o la fija el escenario. Fija por partida, porque un
+    día de juego dura 18 min; el ciclo del año existe (`season_ticks`), apagado.
+  - Pendiente para la IA: que tenga en cuenta la estación.
+- [ ] **H3. Enfermedad en el real.** Los asedios largos se perdían por disentería tanto
+  como por las armas: un real abarrotado, sin agua limpia ni cirujanos, enferma.
+  *Terminado cuando:* la enfermedad aparece y se contagia según hacinamiento, agua y
+  tiempo; la sanidad la frena, y lo comprueban las pruebas; con fuente.
+- [ ] **H4. Reinos distintos.** Castilla, Aragón, Navarra y el califato almohade, con
+  tropas y costes propios sacados de fuentes (no de otros juegos). *Terminado cuando:*
+  cada bando tiene sus unidades en los datos, la IA juega con cualquiera, y el torneo
+  muestra que ninguno gana siempre.
+- [ ] **H5. Partidas de personas.** Al terminar, un resumen que se guarda (duración,
+  pasos del tutorial, pérdidas), para ajustar la dificultad con datos de jugadores y no
+  solo de la IA. *Terminado cuando:* el resumen se escribe junto a la repetición y una
+  prueba lo lee.
 
 ## 4. Cómo se trabaja cada punto
 

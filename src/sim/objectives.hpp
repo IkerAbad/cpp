@@ -18,7 +18,7 @@
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -29,6 +29,8 @@ enum class ObjectiveKind : std::uint8_t {
     Reach,    // tener `count` unidades propias del tipo (o tropa) en la zona
     Gather,   // tener `count` de `resource` en el almacén
     Defeat,   // que target quede derrotado
+    Have,     // tener `count` unidades del tipo (sin tipo: tropa) o edificios terminados, en la zona si la hay
+    Collect,  // haber recogido `count` de `resource` desde el principio (lo entregado, aunque se gaste)
 };
 
 enum class ObjectiveStatus : std::uint8_t { Pending, Done, Failed };
@@ -39,10 +41,10 @@ struct Objective {
     ObjectiveKind kind = ObjectiveKind::Survive;
     PlayerId player = 0;  // de quién es el objetivo
     PlayerId target = 0;  // dueño de lo que se destruye, conserva o derrota
-    bool units = false;   // Destroy, Keep, Reach: `type` es un tipo de unidad (si no, de edificio)
+    bool units = false;   // Destroy, Keep, Reach, Have: `type` es un tipo de unidad (si no, de edificio)
     std::uint8_t type = kAnyObjectType;  // kAnyObjectType: cualquiera (Reach: cualquier tropa)
-    std::int32_t count = 1;              // Reach: unidades; Gather: cantidad
-    Resource resource = Resource::Food;  // Gather
+    std::int32_t count = 1;              // Reach, Have: unidades o edificios; Gather: cantidad
+    Resource resource = Resource::Food;  // Gather, Collect
     bool zoned = false;                  // con zona; si no, todo el mapa
     TileCoord zone_min;                  // esquinas de la zona, incluidas
     TileCoord zone_max;
@@ -86,4 +88,4 @@ private:
     std::optional<PlayerId> winner_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

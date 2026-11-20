@@ -50,7 +50,7 @@
 #include "sim/units.hpp"
 #include "sim/world.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 inline constexpr std::uint32_t kLockstepProtocolVersion = 2;
 
@@ -247,4 +247,4 @@ private:
     std::optional<std::chrono::steady_clock::time_point> waiting_since_;
 };
 
-}  // namespace rts::game
+}  // namespace reinos::game

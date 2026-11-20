@@ -1,6 +1,6 @@
-# RTS medieval con capa de logística (nombre provisional)
+# Reinos (nombre provisional)
 
-RTS medieval en C++23, de la escuela de Tzar y Age of Empires II, con una capa de logística opcional modelada como grafo.
+Juego de estrategia medieval en tiempo real (RTS) en C++23, de la escuela de Tzar y Age of Empires II, con una capa de logística opcional modelada como grafo. «Reinos» es un nombre de trabajo; hasta noviembre de 2026 el proyecto se llamaba solo «rts».
 Todo el código y todos los recursos son originales o de licencia compatible. No se usa ningún contenido del juego original.
 
 ## Estado
@@ -28,7 +28,7 @@ El plan completo, con lo que falta y en qué orden, está en [docs/PLAN.md](docs
 |---|---|---|
 | CMake | 3.28 | |
 | Linux | Ubuntu 24.04, **Clang ≥ 19** o **GCC ≥ 14**, Ninja | Clang 18 no ve `std::expected` en libstdc++ (medido: define `__cpp_concepts = 201907L`, libstdc++ exige `202002L`) |
-| Windows | Visual Studio 2022 o posterior (la CI usa VS 2026, MSVC 14.51) con MSVC o clang-cl, Ninja | |
+| Windows | Visual Studio 2022 o posterior (la CI usa VS 2026, MSVC 14.52) con MSVC o clang-cl, Ninja | clang-cl ha de ser el que trae Visual Studio («C++ Clang tools»): su STL rechaza otro Clang más viejo (la de MSVC 14.52 exige Clang 22). La CI lo elige con ruta completa |
 | GPU | Vulkan 1.0 (Linux y Windows) o Direct3D 12 nivel 11_0 (Windows) | Requisitos de SDL_GPU, ver `SDL_gpu.h` |
 | vcpkg | cualquier versión reciente, con `VCPKG_ROOT` definido | modo manifiesto, baseline fijado en `vcpkg.json` |
 
@@ -38,9 +38,16 @@ Paquetes de sistema en Ubuntu 24.04:
 sudo apt-get install ninja-build clang-20 g++-14 pkg-config \
   libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
   libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
-  libdbus-1-dev libibus-1.0-dev
+  libdbus-1-dev libibus-1.0-dev \
+  libasound2-dev libpulse-dev libpipewire-0.3-dev libdecor-0-dev
 # opcional, para ejecutar con ventana sin GPU (como la CI): xvfb mesa-vulkan-drivers
 ```
+
+SDL3 sale de vcpkg con un *overlay port* (`vcpkg-ports/sdl3`, activado en `vcpkg-configuration.json`): el port de serie apaga en Linux PipeWire, PulseAudio, libdecor y casi todas las extensiones de X11, y el juego quedaba mudo y, en Wayland, sin bordes de ventana. El overlay es la misma receta con eso encendido y cargado al arrancar; por eso hacen falta las cabeceras de sonido y de libdecor de la lista de arriba (sin ellas, SDL compila igual, pero sin esos soportes).
+
+### Jugar sin compilar
+
+Cada cambio en la CI deja dos paquetes listos para jugar en los artefactos de su ejecución (30 días): `reinos-windows` (una carpeta con `reinos.exe`) y `reinos-linux` (`reinos-linux-x86_64.tar.gz`, para cualquier Linux x86_64 con glibc 2.39 o posterior: Arch, Ubuntu 24.04, Fedora 40, Debian 13...). El de Linux se descomprime y se juega con `./reinos`; su `LEEME.txt` dice qué hace falta (Vulkan y el controlador de la gráfica) y lo que hacer si no arranca. El trabajo comprueba antes que el ejecutable sabe cargar el sonido y la ventana de Linux y que juega 2 minutos sin ventana.
 
 ## Compilar y ejecutar
 
@@ -49,16 +56,16 @@ cmake --preset linux-clang-debug         # o windows-msvc-debug, windows-clang-c
 cmake --build --preset linux-clang-debug
 ctest --preset linux-clang-debug
 
-./build/linux-clang-debug/src/rts                           # con ventana
-./build/linux-clang-debug/src/rts --frames 600              # con ventana, sale tras 600 fotogramas e imprime tiempos
-./build/linux-clang-debug/src/rts --headless --ticks 12000  # sin ventana: imprime el hash de estado
-./build/linux-clang-debug/src/rts --data <carpeta>          # otra carpeta de datos
-./build/linux-clang-debug/src/rts --replay <fichero.rtsrep>        # ver una repetición
-./build/linux-clang-debug/src/rts --verify-replay <fichero.rtsrep> # reproducirla sin ventana y comprobar sus hashes
-./build/linux-clang-debug/src/rts --headless --ticks 2400 --record r.rtsrep  # grabar el guion sin ventana
+./build/linux-clang-debug/src/reinos                           # con ventana
+./build/linux-clang-debug/src/reinos --frames 600              # con ventana, sale tras 600 fotogramas e imprime tiempos
+./build/linux-clang-debug/src/reinos --headless --ticks 12000  # sin ventana: imprime el hash de estado
+./build/linux-clang-debug/src/reinos --data <carpeta>          # otra carpeta de datos
+./build/linux-clang-debug/src/reinos --replay <fichero.rep>        # ver una repetición
+./build/linux-clang-debug/src/reinos --verify-replay <fichero.rep> # reproducirla sin ventana y comprobar sus hashes
+./build/linux-clang-debug/src/reinos --headless --ticks 2400 --record r.rep  # grabar el guion sin ventana
 ```
 
-Cada partida con ventana se graba sola al cerrar en `replays/partida-<fecha>_<hora>.rtsrep`, junto al ejecutable.
+Cada partida con ventana se graba sola al cerrar en `replays/partida-<fecha>_<hora>.rep`, junto al ejecutable.
 
 Controles:
 
@@ -78,7 +85,21 @@ Controles:
 | Postura | Botones «Agresiva» y «Mantener posición» del panel «Selección» |
 | Repetición: pausa y velocidad | Espacio; teclas 1-4 para x1, x2, x4 y x8 (o el panel «Repetición») |
 
-Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `RTS_WERROR` (ON), `RTS_TRACY` (OFF) y `RTS_BUILD_TESTS` (ON).
+Cada preset tiene su versión `-release` (RelWithDebInfo). Opciones de CMake: `REINOS_WERROR` (ON), `REINOS_TRACY` (OFF), `REINOS_BUILD_TESTS` (ON), `REINOS_BUILD_BENCH` (ON) y `REINOS_BUILD_GAME` (ON).
+
+#### Solo el núcleo, sin ventana
+
+Con `REINOS_BUILD_GAME=OFF` se compilan la simulación, el sonido, la red, la configuración, las pruebas y los bancos (torneos de IA incluidos), sin SDL3, imgui, spdlog ni dxc. Basta con EnTT, toml++ y doctest, de vcpkg o del sistema. Por ejemplo, en Ubuntu 24.04 (EnTT no está en apt; sirve una copia de sus cabeceras):
+
+```bash
+sudo apt install clang-20 g++-14 ninja-build libtomlplusplus-dev doctest-dev
+cmake -S . -B build/nucleo -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+      -DCMAKE_CXX_COMPILER=clang++-20 -DREINOS_BUILD_GAME=OFF -DCMAKE_PREFIX_PATH=<ruta de EnTT>
+cmake --build build/nucleo
+ctest --test-dir build/nucleo --output-on-failure
+```
+
+Faltan las dos pruebas que arrancan el ejecutable (`headless_smoke` y `crash_report`); el resto, y los hashes de referencia de los bancos, salen iguales que con vcpkg.
 
 ## Arquitectura
 
@@ -96,14 +117,14 @@ tests/         doctest + pruebas de CTest
 Grafo de bibliotecas (las flechas solo bajan):
 
 ```
-rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
+reinos ─┬─ reinos_render ─┬─ reinos_platform ── SDL3
      │              ├─ imgui, shaders (dxc)
-     │              └─ rts_render_core     proyección, atlas, escena: sin SDL, se prueba sin GPU
-     ├─ rts_game_core ── toml++, rts_render_core   cámara, selección, configuración
-     └─ rts_sim ── EnTT                    sin SDL, sin E/S, sin coma flotante
+     │              └─ reinos_render_core     proyección, atlas, escena: sin SDL, se prueba sin GPU
+     ├─ reinos_game_core ── toml++, reinos_render_core   cámara, selección, configuración
+     └─ reinos_sim ── EnTT                    sin SDL, sin E/S, sin coma flotante
 ```
 
-`rts_sim` no enlaza SDL, así que un `#include <SDL3/...>` en `src/sim/` no compila.
+`reinos_sim` no enlaza SDL, así que un `#include <SDL3/...>` en `src/sim/` no compila.
 
 ### Render (M1)
 
@@ -155,7 +176,11 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - En cadena, al tocar a una compañera ya llegada dentro del radio esperado del racimo.
   - Por atasco, tras `stuck_arrive_ticks` casi parada.
   - Las llegadas quedan quietas y son obstáculos para las demás.
-  - **Limitación conocida:** dos columnas que se cruzan de frente en un paso de una casilla (un puente estrecho) pueden quedarse atascadas: ninguna cede. Probé dejar que una unidad atascada pase entre las suyas. Arreglaba el puente, pero cambiaba demasiado otras situaciones (los defensores de Calatrava salían en tromba por su puerta), y lo dejé fuera.
+- **Cruce de frente.** Dos columnas del mismo dueño que se cruzan de frente en un paso de una casilla (un puente estrecho) ya no se atascan para siempre.
+  - Tras `pass_friends_after_ticks` (1 s) casi parada y lejos de su destino, una unidad se cruza durante `pass_friends_ticks` (2 s) con las suyas que vienen de cara.
+  - Solo de frente, las dos en marcha y ninguna peleando ni en ataque-movimiento. A un guardia parado, a una primera línea o a quien va delante en la misma cola no se los atraviesa, y nunca a una enemiga.
+  - Prueba: seis soldados por cada orilla de un puente de una casilla. Antes cruzaban 8 de 12 y el resto se quedaba atascado; ahora cruzan los 12 en 471 ticks.
+  - Una primera versión, más amplia (cualquier compañera atascada), hacía que los defensores de Calatrava salieran en tromba por su puerta. Esta no: Calatrava sigue cayendo en 4 min.
 - **Sin coma flotante.** Todo el movimiento usa `Fixed` y enteros; la raíz cuadrada es entera (`isqrt`). El mismo hash tras 1200 ticks de movimiento con Clang 20 y GCC 14.
 
 ### Economía (M3)
@@ -244,7 +269,7 @@ rts ─┬─ rts_render ─┬─ rts_platform ── SDL3
   - `ataque_fuerza`: ataca cuando la fuerza estimada de su ejército (vida × daño por tick) llega al 130 % de la enemiga conocida, y se retira si en la batalla baja del 60 %. Esa histéresis evita que oscile entre atacar y retirarse.
   - `concentrar`: cada unidad que pelea remata al enemigo armado que necesita menos golpes suyos. Los aldeanos enemigos no son prioridad: primero, lo que amenaza al ejército.
   - Economía: dos aldeanos en cola y casas con más margen.
-- **Medido** con `rts_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `facil` 33 de 40 (82 %) y `experto` 36 de 40 (90 %). Casi todas se deciden a los puntos (valor vivo de unidades y edificios): rematar exige asedio.
+- **Medido** con `reinos_ai_match`, 40 partidas de 30 minutos (20 semillas con los lados cambiados): `normal` gana a `facil` 33 de 40 (82 %) y `experto` 36 de 40 (90 %). Casi todas se deciden a los puntos (valor vivo de unidades y edificios): rematar exige asedio.
 
 ### Arte propio (F1)
 
@@ -277,7 +302,7 @@ Ningún píxel viene de fuera: todo se pinta por código al arrancar (62 ms en R
   - Un edificio en obra enseña su parte de abajo, que crece con el trabajo. El fantasma de colocación es el edificio mismo, translúcido, en verde o rojo.
   - Un edificio en llamas lleva llamas animadas, más cuanto más arde, y bocanadas de humo que suben, crecen y se deshacen.
   - Todo eso es reloj de la presentación, no de la simulación.
-- **Ver el arte entero.** `rts_art_sheet --data data --out hoja.pam` lo pinta todo en una hoja (PAM de Netpbm; `convert hoja.pam hoja.png`). Esta es [docs/arte.png](docs/arte.png).
+- **Ver el arte entero.** `reinos_art_sheet --data data --out hoja.pam` lo pinta todo en una hoja (PAM de Netpbm; `convert hoja.pam hoja.png`). Esta es [docs/arte.png](docs/arte.png).
 - **Límites conocidos.**
   - Solo hay dos sentidos (derecha e izquierda en espejo), no ocho.
   - No hay animación de muerte.
@@ -318,8 +343,8 @@ Ningún sonido se graba ni se carga: todo se sintetiza al abrir la ventana desde
 - **Salida.**
   - SDL3 sin hilos propios: cada fotograma se mezclan las muestras justas para mantener 60 ms en cola.
   - Sin dispositivo de audio, como en la CI, el juego sigue en silencio.
-- **Oírlo sin jugar.** `rts_sound_wav --data data --out sonidos` escribe cada efecto y cada pieza en WAV.
-- **Límite conocido.** No he oído el resultado: el contenedor no tiene salida de sonido. Lo medido es la duración, la costura, que no sature y que el nivel quede por debajo de los efectos (`tests/test_audio.cpp`); `rts_sound_wav` escribe los bucles en WAV para oírlos.
+- **Oírlo sin jugar.** `reinos_sound_wav --data data --out sonidos` escribe cada efecto y cada pieza en WAV.
+- **Límite conocido.** No he oído el resultado: el contenedor no tiene salida de sonido. Lo medido es la duración, la costura, que no sature y que el nivel quede por debajo de los efectos (`tests/test_audio.cpp`); `reinos_sound_wav` escribe los bucles en WAV para oírlos.
 
 ### Mapas: ríos con vados, de 2 a 4 jugadores y editor de escenarios (F3)
 
@@ -365,7 +390,29 @@ Menú → «Opciones»: idioma, pantalla completa, tamaño de la ventana, volume
 - **Pruebas** (`tests/test_i18n.cpp`). Leen el código fuente: todo texto marcado tiene traducción con los mismos especificadores (`%d`, `{}`...), no sobra ninguna traducción, y todo tipo de los datos, perfil de IA y tipo de mapa tiene nombre en cada idioma.
 - **Opciones** (`data/opciones.toml` por omisión, `opciones.toml` del jugador junto al ejecutable). No son datos de la partida: no van en repeticiones ni por la red, así que cambiarlas no rompe nada.
 - **Textos de los datos.** La campaña y los escenarios (nombre, informe, objetivos, capítulos, notas, obras citadas) van en los dos idiomas: en el fichero, `clave.es = "..."` y `clave.en = "..."`, o una cadena sola (español). Se ven en el idioma elegido y, si falta, en español. Las citas de las fuentes quedan en su idioma original. Una prueba exige el inglés de cada texto propio de la campaña.
-- **Lo que no está traducido:** los mensajes del registro (`rts.log`) y el título provisional de la ventana.
+- **Lo que no está traducido:** los mensajes del registro (`reinos.log`) y el título provisional de la ventana.
+
+### Tutorial: «Primeros pasos» (H1)
+
+Menú → «Campaña» → «Primeros pasos». Una partida corta en un mapa pequeño que enseña los controles con un objetivo a la vista cada vez (arriba a la derecha, «Paso k de n»):
+
+1. Recoger 60 de madera (talar).
+2. Construir una casa.
+3. Recoger 100 de comida (bayas).
+4. Tener 6 aldeanos (adiestrarlos en el centro urbano).
+5. Construir una granja.
+6. Construir un cuartel.
+7. Tener 5 soldados.
+8. Destruir el cuartel de una algara enemiga acampada al este.
+
+Mientras tanto, el centro urbano no puede caer. El informe del principio explica los controles (elegir, ordenar con clic derecho, construir, adiestrar, cámara).
+
+- **Ambientación.** Una puebla de frontera con carta puebla, en Castilla en el siglo XII. Fuente: las cartas pueblas se daban «con el fin de obtener la repoblación de ciertas zonas de interés económico o estratégico durante la Reconquista» y «Con ellas se pretendía asegurar las nuevas fronteras» ([Wikipedia, «Carta puebla»](https://es.wikipedia.org/wiki/Carta_puebla)). La puebla, la algara y el mapa son inventados.
+- **El rival** usa el perfil nuevo `guarnicion`: solo el módulo `defensa`. No recoge, no construye ni ataca; su tropa pelea con quien se acerca. También aparece en el menú como rival para practicar.
+- **Cómo se hace.**
+  - El escenario marca `objectives_in_order = true`, y la interfaz enseña los pasos propios de uno en uno (`game::objectives_view`). Los de conservar se ven siempre. Las reglas no cambian: un paso cumplido antes de tiempo cuenta igual.
+  - Dos objetivos nuevos: `tener` (N unidades de un tipo, o N edificios terminados; una obra a medias no cuenta) y `recoger` (lo recogido desde el principio, para que quien aprende no tenga que ahorrar).
+- **Medido** (`tests/test_campaign.cpp`, en Release): con la IA `facil` de aprendiz, los ocho pasos se cumplen y gana en el minuto 18. La comida se recoge a los 3 min, el cuartel está a los 7 y la algara cae a los 18,5. Lo que no sé: cuánto tarda una persona que no conoce el juego.
 
 ### Campaña: Las Navas de Tolosa, 1212 (F4)
 
@@ -377,16 +424,16 @@ Menú → «Campaña». Tres capítulos en orden; ganar uno desbloquea el siguie
 
 Los mapas, las cifras de cada ejército y los plazos son del juego, no datos históricos; las notas lo dicen.
 
-- **Objetivos** (`sim/objectives.hpp`): destruir, conservar, sobrevivir, llegar a una zona, reunir recursos y derrotar a un jugador. Son reglas de la simulación: deterministas, en el hash solo si el escenario los tiene (las partidas normales no cambian). Gana quien cumple todos los suyos (los de conservar cuentan mientras no fallen); pierde quien falla uno de conservar o ve ganar a otro. Un plazo es un «sobrevivir» del rival. En partida, a la derecha: cada objetivo con su estado y lo que queda de plazo.
+- **Objetivos** (`sim/objectives.hpp`): destruir, conservar, sobrevivir, llegar a una zona, reunir recursos (tenerlos en el almacén), derrotar a un jugador, tener unidades o edificios terminados, y recoger (lo recogido desde el principio, aunque se gaste). Son reglas de la simulación: deterministas, en el hash solo si el escenario los tiene (las partidas normales no cambian). Gana quien cumple todos los suyos (los de conservar cuentan mientras no fallen); pierde quien falla uno de conservar o ve ganar a otro. Un plazo es un «sobrevivir» del rival. En partida, a la derecha: cada objetivo con su estado y lo que queda de plazo.
 - **Escenarios escritos a mano.** Además del formato del editor, `base` + pinceladas (`[[paint]]`: terreno y altura a lo largo de un trazo), bosques (`[[forest]]`: densidad por mil, siempre los mismos árboles), bloques de unidades (`count`, `cols`), almacén inicial por jugador (`[[player]] stock`) y campamentos ya abastecidos (`store`). Formato completo en `src/game/scenario.hpp`.
-- **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 41 de 66 tropas) y se pierde el ejército forzando el puerto (23 de 66 a los 8 min); Calatrava cae en 4 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 19 (de un plazo de 30). Son las cifras desde que la búsqueda de caminos pesa el terreno; antes eran 50, 12, 4 min y minuto 16. Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
+- **Equilibrio medido** (`tests/test_campaign.cpp`, en Release en el CI): con el guion más simple, Las Navas se gana por la senda del oeste (quedan 42 de 66 tropas) y se pierde el ejército forzando el puerto (32 de 66 a los 8 min); Calatrava cae en 4 min con arietes a la puerta, la tropa junto al campamento abastecido y el asalto por la brecha, y un asalto a ciegas lo pierde todo; en Toledo, con la economía de la IA, la hueste está reunida al otro lado del Tajo en el minuto 19 (de un plazo de 30). Son las cifras desde que las columnas se ceden el paso de frente; antes eran 41 y 23 en Las Navas, y antes aún, sin pesar el terreno en la búsqueda de caminos, 50, 12, 4 min y minuto 16. El puerto queda justo en el límite que fija la prueba (perder más de la mitad: 32 es el máximo). Lo que no sé: si es fácil o difícil para una persona; ningún jugador humano lo ha probado aún.
 
 ### Repeticiones (M5)
 
 - **Qué se graba.** Una copia de los ficheros de `data/` (unos 20 KB) y las órdenes humanas, cada una con el tick en que se emitió. La IA vive dentro de la simulación y es determinista: sus órdenes no se graban, se regeneran. Una repetición se reproduce con los datos con que se jugó aunque luego cambien los de `data/`.
 - **Comprobación.** Cada 10 s de juego (`[replay]` en `engine.toml`) se graba el hash de estado, y al final el hash final. Al reproducir, el primer hash distinto localiza la divergencia con esa resolución.
-- **Formato `.rtsrep`.** Binario little-endian explícito: cabecera, versión del formato, hash de los datos, ficheros, órdenes, checkpoints y una suma FNV-1a de todo. Se rechaza un fichero ajeno, truncado o corrupto, o de otra versión, y el error dice cuál de los casos es.
-- **Reproductor.** `rts --replay`: pausa, x1/x2/x4/x8, sin órdenes, con el estado de la verificación en pantalla. No hay retroceso.
+- **Formato `.rep`.** Binario little-endian explícito: cabecera, versión del formato, hash de los datos, ficheros, órdenes, checkpoints y una suma FNV-1a de todo. Se rechaza un fichero ajeno, truncado o corrupto, o de otra versión, y el error dice cuál de los casos es.
+- **Reproductor.** `reinos --replay`: pausa, x1/x2/x4/x8, sin órdenes, con el estado de la verificación en pantalla. No hay retroceso.
 - **Límite conocido.** Si cambia el formato de los datos (por ejemplo, los perfiles de IA), las repeticiones anteriores no se pueden cargar y el error dice qué clave falta.
 - **Límite conocido.** El fichero no guarda la versión del código. Si cambia la simulación, las repeticiones antiguas divergen y se avisa; no se reproducen mal en silencio.
 
@@ -404,8 +451,8 @@ Lockstep, el esquema de Age of Empires: las máquinas no se mandan el estado, si
   - Si alguien se calla durante 30 s, la partida falla y nombra a quién se espera.
 - **Sin ventana.**
   - Para probarlo hay dos órdenes:
-    - `rts --headless --ticks 2400 --host 47000 [--players N]` abre la partida.
-    - `rts --headless --join 127.0.0.1:47000` se une a ella.
+    - `reinos --headless --ticks 2400 --host 47000 [--players N]` abre la partida.
+    - `reinos --headless --join 127.0.0.1:47000` se une a ella.
   - La duración la fija el anfitrión.
   - Cada proceso da a su jugador órdenes de prueba al azar (`[net.probe]`) que el otro solo conoce por la red, y la IA juega dentro de la simulación.
   - Con `--record`, cada uno graba su repetición, y las dos salen idénticas byte a byte.
@@ -491,13 +538,13 @@ Un ejército no vive del aire. Fuentes: ["Military logistics"](https://en.wikipe
   - Ambos perfiles guardan comida para las raciones (`upkeep_reserve_percent`).
   - Asedio: solo con su ejército en campaña a 20 casillas o menos del objetivo (`siege_front_tiles`), campamento a 9 casillas de él, convoyes hacia allí y hasta 2 trabuquetes montados con lo que traen (`siege_engines`). Medido: un campamento sin el ejército delante se perdía enseguida; con esta condición, ni gana ni pierde partidas (10 a 10 contra la misma IA sin asedio): los convoyes rara vez reúnen un trabuquete antes de los 30 minutos.
   - `incendiar` va antes a por el bagaje enemigo sin escolta (cortar convoyes) que a quemar edificios.
-- **Torneo con traza:** `rts_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos, almacén y lo cerca que está su ejército del centro enemigo.
-- **Niveles (D4).** Cada mapa del torneo se juega desde los dos lados, y en muchos gana el mismo lado juegue quien juegue (decide el mapa, no la IA). Por eso `rts_ai_match` cuenta aparte los mapas que una IA gana desde los dos lados (`--min-both-sides N`: al menos N para la de arriba y al menos el doble que la de abajo).
+- **Torneo con traza:** `reinos_ai_match --trace 120` imprime cada 2 min aldeanos, ejército, hambre, munición, bagaje, campamentos, almacén y lo cerca que está su ejército del centro enemigo.
+- **Niveles (D4).** Cada mapa del torneo se juega desde los dos lados, y en muchos gana el mismo lado juegue quien juegue (decide el mapa, no la IA). Por eso `reinos_ai_match` cuenta aparte los mapas que una IA gana desde los dos lados (`--min-both-sides N`: al menos N para la de arriba y al menos el doble que la de abajo).
   - Desde que la búsqueda de caminos pesa el terreno, la escalera se rehízo. La comida es lo que frena a las IAs (aldeanos y raciones), y es lo que separa los niveles: los de abajo recogen menos (normal 30 %, difícil 40 %, experto 45 %). Por encima de 45 ya no ayuda: el experto a 50 perdía con el difícil a 45 (17 de 40).
   - Medido con 40 partidas (20 mapas desde los dos lados): normal contra fácil 77 % (12 mapas a 1), difícil contra normal 65 % (9 a 3), experto contra difícil 67 % (7 a 0). La CI lo exige con 40 partidas: con 20, el ruido (unos 11 puntos) tapaba diferencias reales.
   - Lo que no movió los resultados (medido): más aldeanos objetivo (nunca se alcanzan: limita la comida), la paciencia para atacar, torres, el tiempo de reacción, quitar módulos (táctica, sanidad, logística, incendiar y apagar), mapas reflejados y un módulo de mercado (`mercado`, que vende lo que sobra y compra lo que falta con el oro parado; está en el código, pero ningún perfil lo usa porque no ganaba nada).
   - **Lo que no sé:** si para una persona los niveles se notan. Las diferencias entre IAs son pequeñas frente al caos de cada partida.
-- **¿Por qué gana tanto un mismo lado?** `rts_start_report` mide lo que rodea a cada inicio: comida, oro, piedra y hierro cercanos son siempre iguales (los recursos garantizados); madera, colinas, altura y terreno transitable varían, pero en 30 mapas ninguna diferencia predice al ganador (correlaciones entre −0,27 y +0,08) y ningún lado sale favorecido en conjunto. La prueba definitiva: con `rts_ai_match --symmetric` cada mapa se juega reflejado por el centro (idéntico para los dos) y, con la misma IA en los dos lados, cada mapa sigue teniendo un ganador claro (6 para un lado y 4 para el otro, con márgenes como 3200 contra 720). Lo decide el caos de la partida: desempates que no son simétricos al reflejar (caminos, orden de turnos) y que una economía con bola de nieve agranda en 30 minutos. Igualar más el generador no lo arreglaría; para eso se mide con muchos mapas.
+- **¿Por qué gana tanto un mismo lado?** `reinos_start_report` mide lo que rodea a cada inicio: comida, oro, piedra y hierro cercanos son siempre iguales (los recursos garantizados); madera, colinas, altura y terreno transitable varían, pero en 30 mapas ninguna diferencia predice al ganador (correlaciones entre −0,27 y +0,08) y ningún lado sale favorecido en conjunto. La prueba definitiva: con `reinos_ai_match --symmetric` cada mapa se juega reflejado por el centro (idéntico para los dos) y, con la misma IA en los dos lados, cada mapa sigue teniendo un ganador claro (6 para un lado y 4 para el otro, con márgenes como 3200 contra 720). Lo decide el caos de la partida: desempates que no son simétricos al reflejar (caminos, orden de turnos) y que una economía con bola de nieve agranda en 30 minutos. Igualar más el generador no lo arreglaría; para eso se mide con muchos mapas.
 - **Mapa Espejo.** En el menú, tipo de mapa «Espejo»: el generado con la mitad de un jugador reflejada sobre la del otro, para partidas de dos sin diferencias de terreno ni de recursos (`mirror = true` en `[[map.preset]]`; con más de dos jugadores no se refleja).
 - **Vados.** Se pasa por encima pero no se construye (`buildable = false` en `terrain.toml`): un muro o una casa taparían el único paso del río. Tampoco caminos: un vado ya se cruza.
 
@@ -657,6 +704,29 @@ Muros, puertas, torres y escalas (B4). Todo de una casilla, para trazarlo tramo 
 - **IA** (módulo `asalto` del perfil «normal»): la búsqueda de caminos rodea los muros. Si su ejército no puede llegar al objetivo (recinto cerrado), abre brecha en el tramo más cercano: los ingenios lo golpean, la infantería lo escala si hay madera y el resto le prende fuego si es de madera.
 - **Limitación:** dos tramos en diagonal dejan pasar por la esquina; hay que trazar los muros en línea recta.
 
+### La estación de campaña (H2)
+
+Las guerras de antes se hacían con buen tiempo. «In premodern times, campaigns were usually interrupted during the winter season», y en Europa la campaña iba «between the planting (late spring) and harvest times (late autumn)» ([Wikipedia, «Military campaign»](https://en.wikipedia.org/wiki/Military_campaign)).
+
+Cada estación cambia cuatro cosas, en tanto por ciento:
+
+| Estación | Granjas (cosecha) | Forraje del bosque | Marcha | Lo que come la tropa |
+|---|---|---|---|---|
+| Primavera | 50 | 75 | 90 | 100 |
+| Verano | 100 | 100 | 100 | 100 |
+| Otoño | 125 | 125 | 90 | 100 |
+| Invierno | 0 | 25 | 75 | 125 |
+
+- **El verano es la estación de campaña** y va al 100 % en todo: con él, el juego es el de siempre (mismos hashes, torneos y campaña). Las cifras son de diseño (`[[season.kind]]` en `engine.toml`).
+- **La estación se fija por partida.** Un día de juego dura 18 minutos, así que una partida cubre dos o tres días y la estación no cambia en ella. Se elige en el menú («Estación») o la fija el escenario (`season = "invierno"`), que manda sobre el menú. Con `season_ticks > 0` cambiaría cada tantos ticks, en el orden de la lista.
+- **Campaña.** Los tres capítulos de Las Navas son de verano: Calatrava (finales de junio) y Las Navas (julio) por su fecha. Toledo (mayo y junio) también, porque ya es tiempo de campaña; la «primavera» del juego es la de la siembra, sin nada que cosechar. Medido: con primavera, la IA tardaba 30 minutos en reunir la hueste en Toledo, en vez de 19.
+- **Cómo se hace.**
+  - `sim/season.hpp` dice qué estación toca en cada tick.
+  - El mundo pasa sus efectos cada tick a la economía (ritmo de cosecha en las granjas; los recursos naturales no cambian), al abastecimiento (forraje del bosque y duración de cada ración) y al movimiento (velocidad).
+  - La estación se ve en la barra de recursos.
+- **Medido** (`tests/test_season.cpp`): un soldado junto al bosque, sin fuente propia, saca 40 raciones del bosque en 800 ticks en verano y 10 en invierno, y en invierno come 100 en vez de 80. En invierno se marcha al 75 % y la granja no da nada; en primavera, la mitad. En un torneo corto en invierno, normal gana a fácil 9 de 10 (en verano, 8 de 10), con la mitad de valor en el ejército al final y menos desbandadas (3 de 10 partidas, frente a 10 de 10): se pelea menos.
+- **Lo que no sé:** si el invierno es divertido para una persona, y la IA no sabe de estaciones (construye granjas en invierno, que no dan nada hasta que cambie la estación).
+
 ### Fatiga
 
 Marchar cansa y descansar repone (`[fatigue]` en `engine.toml`; `stamina` por tipo en `units.toml`).
@@ -705,7 +775,7 @@ Al terminar la partida se muestran las estadísticas de cada jugador: recogido, 
 
 ### Guardar y cargar
 
-F5 guarda la partida en `replays/guardada-<fecha>.rtssav`. Una partida guardada es su repetición hasta ese momento, con los datos y las órdenes. Cargarla (`rts --load fichero.rtssav`, o arrastrar el fichero sobre el ejecutable) la rehace a toda velocidad y sigue grabando desde ahí. Como la simulación es determinista, el estado es exactamente el mismo; se comprueba con el hash guardado y, si no coincide (fichero manipulado, datos distintos), se rechaza. Una prueba guarda a mitad de una partida con IA y niebla, carga, sigue y obtiene el mismo hash que sin haber parado.
+F5 guarda la partida en `replays/guardada-<fecha>.sav`. Una partida guardada es su repetición hasta ese momento, con los datos y las órdenes. Cargarla (`reinos --load fichero.sav`, o arrastrar el fichero sobre el ejecutable) la rehace a toda velocidad y sigue grabando desde ahí. Como la simulación es determinista, el estado es exactamente el mismo; se comprueba con el hash guardado y, si no coincide (fichero manipulado, datos distintos), se rechaza. Una prueba guarda a mitad de una partida con IA y niebla, carga, sigue y obtiene el mismo hash que sin haber parado.
 
 ### Controles de mando
 
@@ -765,7 +835,7 @@ Dentro de cada clase, el más cercano. Con la lista vacía, solo cuenta la dista
 | `headless_smoke` | El ejecutable arranca, lee `data/` y simula un minuto sin ventana ejecutando `data/scenarios/headless.toml` |
 | CI "Humo con ventana" | En Linux, con Xvfb y lavapipe (Vulkan por software), crea el dispositivo SDL_GPU, compila el pipeline, sube el atlas y presenta 120 fotogramas |
 | CI `determinism` | El hash tras 2400 ticks del guion de `data/scenarios/headless.toml` es idéntico en MSVC, clang-cl, Clang y GCC |
-| CI `bench` | `rts_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
+| CI `bench` | `reinos_bench` en Release con 1000 y 2000 unidades en movimiento y en batalla, y 30 minutos de IA contra IA: falla si algún tick supera 50 ms. Además graba 30 minutos de partida y la reproduce con los mismos 180 hashes intermedios y el mismo hash final |
 | CI torneo de IA | `normal` y `experto` ganan a `facil` al menos en el 70 % de 20 partidas de 30 minutos |
 | CI humo en red con ventana | En Linux, con Xvfb y lavapipe, anfitrión e invitado con ventana juegan 300 fotogramas por red |
 | CI partida en red | En las cuatro plataformas, anfitrión e invitado (dos procesos) juegan 2400 ticks por bucle local: mismo hash, repeticiones idénticas byte a byte y verificadas |
@@ -776,22 +846,22 @@ Si el hash de regresión cambia **sin** cambio de diseño, es un fallo. Si el ca
 
 ### Órdenes al azar (G2)
 
-`rts_fuzz --data data [--seeds N] [--ticks T] [--orders K] [--only texto] [--first-seed S]` juega partidas reales (2 y 4 jugadores, con y sin niebla, y cada capítulo de la campaña) dándoles órdenes al azar: muchas válidas y otras mal formadas a propósito (unidades ajenas o inexistentes y repetidas, casillas fuera del mapa, tipos y jugadores que no existen). Cada 20 ticks comprueba las invariantes (unidades dentro del mapa, vida en rango, almacenes y cargas sin negativos), que otro mundo con las mismas órdenes tenga el mismo hash y, al final, que la repetición grabada se reproduzca igual. Encontró una caída: una orden con una unidad repetida la guarnecía dos veces y EnTT abortaba; ahora cada unidad cuenta una vez.
+`reinos_fuzz --data data [--seeds N] [--ticks T] [--orders K] [--only texto] [--first-seed S]` juega partidas reales (2 y 4 jugadores, con y sin niebla, y cada capítulo de la campaña) dándoles órdenes al azar: muchas válidas y otras mal formadas a propósito (unidades ajenas o inexistentes y repetidas, casillas fuera del mapa, tipos y jugadores que no existen). Cada 20 ticks comprueba las invariantes (unidades dentro del mapa, vida en rango, almacenes y cargas sin negativos), que otro mundo con las mismas órdenes tenga el mismo hash y, al final, que la repetición grabada se reproduzca igual. Encontró una caída: una orden con una unidad repetida la guarnecía dos veces y EnTT abortaba; ahora cada unidad cuenta una vez.
 
 
 ### Informe de errores (G3)
 
 Si el juego se cae (violación de memoria, `abort` o una aserción, una excepción que nadie captura) o una partida en red se desincroniza, escribe `informes/informe-<fecha>/` junto al ejecutable (o en `--report-dir`):
 
-- `partida.rtsrep`: la repetición hasta ese tick. `rts --verify-replay` la reproduce y `--replay` la enseña, así que el fallo se repite en otra máquina.
-- `rts.log`: el registro.
+- `partida.rep`: la repetición hasta ese tick. `reinos --verify-replay` la reproduce y `--replay` la enseña, así que el fallo se repite en otra máquina.
+- `reinos.log`: el registro.
 - `informe.txt`: qué pasó, en qué tick y con qué compilación.
 
 Ante una señal, escribir ficheros no es del todo seguro; es un último intento y luego el programa termina como lo habría hecho. La prueba `crash_report` de CTest provoca una caída (`--crash-at 200`, solo para eso) y comprueba el informe en las cuatro plataformas.
 
 ## Rendimiento medido
 
-Release, Clang 20, contenedor de 4 núcleos. Guion de `rts_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.
+Release, Clang 20, contenedor de 4 núcleos. Guion de `reinos_bench`: un grupo grande con campo de flujo, dos mitades que se cruzan y 400 grupos de 5 con HPA\* individual.
 
 Presupuesto del planificador: 60 000 nodos por tick desde M3. Los valores de M2 (20 000 nodos) van entre paréntesis.
 

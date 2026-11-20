@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-namespace rts::game {
+namespace reinos::game {
 
 bool AlertTracker::allow(AlertKind kind, sim::TileCoord where, sim::Tick tick) {
     const std::int32_t z = std::max(params_.zone_tiles, 1);
@@ -97,4 +97,4 @@ std::vector<Alert> AlertTracker::shown(sim::Tick now) const {
     return out;
 }
 
-}  // namespace rts::game
+}  // namespace reinos::game

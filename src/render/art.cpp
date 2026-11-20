@@ -7,7 +7,7 @@
 #include <tuple>
 #include <utility>
 
-namespace rts::render {
+namespace reinos::render {
 
 namespace {
 
@@ -1347,4 +1347,4 @@ Image paint_ground_ring(std::int32_t width_px) {
     return c.to_image({static_cast<float>(w) * 0.5f, static_cast<float>(h) * 0.5f});
 }
 
-}  // namespace rts::render
+}  // namespace reinos::render

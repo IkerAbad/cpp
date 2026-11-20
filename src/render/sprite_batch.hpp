@@ -11,7 +11,7 @@
 #include "render/projection.hpp"
 #include "render/view_params.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 // Disposición idéntica a la entrada del vertex shader (sprite.vert.hlsl).
 struct SpriteInstance {
@@ -43,4 +43,4 @@ private:
     std::vector<SpriteInstance> instances_;
 };
 
-}  // namespace rts::render
+}  // namespace reinos::render

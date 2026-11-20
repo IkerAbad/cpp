@@ -12,7 +12,7 @@
 #include "render/art.hpp"
 #include "render/view_params.hpp"
 
-namespace rts::render {
+namespace reinos::render {
 
 // Rectángulo de un sprite en el atlas, en coordenadas UV normalizadas a 16 bits
 // (0 = borde izquierdo/superior, 65535 = derecho/inferior), como las lee el shader.
@@ -70,4 +70,4 @@ struct Atlas {
 // Tamaño cuadrado del atlas: la potencia de dos más pequeña en la que cabe todo.
 [[nodiscard]] Atlas build_atlas(const ViewParams& view, const ArtSpec& art = {});
 
-}  // namespace rts::render
+}  // namespace reinos::render

@@ -5,8 +5,8 @@
 
 #include "sim/rng.hpp"
 
-using rts::sim::SplitMix64;
-using rts::sim::Xoshiro256pp;
+using reinos::sim::SplitMix64;
+using reinos::sim::Xoshiro256pp;
 
 // Vectores de referencia generados con las implementaciones en C de los autores
 // (prng.di.unimi.it), tal como los recogen las pruebas del crate rand_xoshiro:

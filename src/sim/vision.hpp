@@ -32,7 +32,7 @@
 #include "sim/tile_map.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -118,4 +118,4 @@ private:
     std::uint64_t digest_ = 0;  // resumen del estado, rehecho en cada cálculo
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

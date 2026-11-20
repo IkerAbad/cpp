@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-namespace rts::net {
+namespace reinos::net {
 
 // Descriptor del sistema; el tipo concreto (int o SOCKET) queda en socket.cpp.
 class Socket {
@@ -93,4 +93,4 @@ private:
 // escribir, si want_write). Vuelve antes si pasa algo.
 void wait(std::span<const Socket::Handle> read, std::span<const Socket::Handle> write, std::int32_t timeout_ms);
 
-}  // namespace rts::net
+}  // namespace reinos::net

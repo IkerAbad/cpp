@@ -7,7 +7,7 @@
 
 #include "game/config.hpp"
 
-namespace rts::game {
+namespace reinos::game {
 
 struct LaunchOptions {
     std::filesystem::path data_dir;
@@ -19,7 +19,7 @@ struct LaunchOptions {
     std::filesystem::path record;         // headless: grabar la repetición aquí
     std::filesystem::path replay;         // ver esta repetición con ventana
     std::filesystem::path verify_replay;  // reproducirla sin ventana y comprobar sus hashes
-    std::filesystem::path load;           // cargar esta partida guardada (.rtssav) y seguir jugando
+    std::filesystem::path load;           // cargar esta partida guardada (.sav) y seguir jugando
     // Partida en red sin ventana (E1): anfitrión en este puerto o invitado de esta dirección.
     std::optional<std::uint16_t> host_port;
     std::uint8_t net_players = 2;  // anfitrión: jugadores en total, él incluido
@@ -71,4 +71,4 @@ int run_replay(const std::filesystem::path& path, std::int64_t max_frames);
 // Reproduce la repetición sin ventana y compara todos sus hashes. 0 si coinciden.
 int run_verify_replay(const std::filesystem::path& path);
 
-}  // namespace rts::game
+}  // namespace reinos::game

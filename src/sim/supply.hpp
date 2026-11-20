@@ -32,7 +32,7 @@
 #include "sim/tick.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -105,6 +105,11 @@ public:
                                            PlayerId player, FVec2 pos, bool worker) const;
 
     [[nodiscard]] const SupplyParams& params() const noexcept { return params_; }
+    // Estación de campaña (H2): % del forraje del bosque (0: nada) y de lo que come la tropa.
+    void set_season(std::int32_t forage_percent, std::int32_t ration_percent) noexcept {
+        forage_percent_ = forage_percent;
+        ration_percent_ = ration_percent;
+    }
     [[nodiscard]] const SupplyTickStats& last_stats() const noexcept { return stats_; }
     void hash_into(StateHasher& h, const entt::registry& registry) const;
 
@@ -130,6 +135,8 @@ private:
                   Supply& s, const SupplyStats& st);
 
     SupplyParams params_;
+    std::int32_t forage_percent_ = 100;  // H2: estación (100: sin efecto)
+    std::int32_t ration_percent_ = 100;
     std::vector<UnitType> units_;
     std::vector<BuildingType> buildings_;
     std::vector<entt::entity> dead_;
@@ -139,4 +146,4 @@ private:
     SupplyTickStats stats_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim

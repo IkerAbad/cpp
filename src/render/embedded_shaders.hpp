@@ -7,11 +7,11 @@
 #include <cstdint>
 #include <span>
 
-namespace rts::render::shaders {
+namespace reinos::render::shaders {
 
 std::span<const std::uint8_t> sprite_vert_spirv();
 std::span<const std::uint8_t> sprite_vert_dxil();
 std::span<const std::uint8_t> sprite_frag_spirv();
 std::span<const std::uint8_t> sprite_frag_dxil();
 
-}  // namespace rts::render::shaders
+}  // namespace reinos::render::shaders

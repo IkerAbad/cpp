@@ -21,7 +21,7 @@
 #include "sim/tile_map.hpp"
 #include "sim/units.hpp"
 
-namespace rts::sim {
+namespace reinos::sim {
 
 class StateHasher;
 
@@ -312,6 +312,8 @@ public:
     // Estadísticas: una unidad de victim muere (a manos de killer, si lo hay).
     void record_loss(PlayerId victim, std::optional<PlayerId> killer = std::nullopt);
     [[nodiscard]] const EconomyParams& params() const noexcept { return params_; }
+    // Estación de campaña (H2): % del ritmo de la cosecha en las granjas (0: no se cosecha).
+    void set_farm_percent(std::int32_t percent) noexcept { farm_percent_ = percent; }
     [[nodiscard]] const EconomyCatalog& catalog() const noexcept { return catalog_; }
     // Mejoras (C1).
     [[nodiscard]] bool researched(PlayerId p, UpgradeId u) const noexcept;
@@ -369,6 +371,7 @@ private:
     std::int32_t width_;
     std::int32_t height_;
     EconomyParams params_;
+    std::int32_t farm_percent_ = 100;  // H2: estación (100: sin efecto)
     EconomyCatalog catalog_;
     std::vector<PlayerState> players_;
     std::vector<entt::entity> occupant_;  // casilla -> objeto estático que la ocupa
@@ -377,4 +380,4 @@ private:
     EconomyTickStats stats_;
 };
 
-}  // namespace rts::sim
+}  // namespace reinos::sim
