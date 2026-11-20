@@ -97,6 +97,9 @@ Fixed MovementSystem::effective_speed(const entt::registry& registry, entt::enti
     if (const Formation* fm = registry.try_get<Formation>(e); fm != nullptr && fm->active) {
         percent = percent * fm->speed_percent / kPercent;  // formación
     }
+    if (march_percent_ != kPercent) {
+        percent = percent * march_percent_ / kPercent;  // estación: lluvia, barro, nieve
+    }
     if (percent == kPercent) {
         return unit.speed;
     }

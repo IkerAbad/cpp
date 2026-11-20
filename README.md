@@ -704,6 +704,29 @@ Muros, puertas, torres y escalas (B4). Todo de una casilla, para trazarlo tramo 
 - **IA** (módulo `asalto` del perfil «normal»): la búsqueda de caminos rodea los muros. Si su ejército no puede llegar al objetivo (recinto cerrado), abre brecha en el tramo más cercano: los ingenios lo golpean, la infantería lo escala si hay madera y el resto le prende fuego si es de madera.
 - **Limitación:** dos tramos en diagonal dejan pasar por la esquina; hay que trazar los muros en línea recta.
 
+### La estación de campaña (H2)
+
+Las guerras de antes se hacían con buen tiempo. «In premodern times, campaigns were usually interrupted during the winter season», y en Europa la campaña iba «between the planting (late spring) and harvest times (late autumn)» ([Wikipedia, «Military campaign»](https://en.wikipedia.org/wiki/Military_campaign)).
+
+Cada estación cambia cuatro cosas, en tanto por ciento:
+
+| Estación | Granjas (cosecha) | Forraje del bosque | Marcha | Lo que come la tropa |
+|---|---|---|---|---|
+| Primavera | 50 | 75 | 90 | 100 |
+| Verano | 100 | 100 | 100 | 100 |
+| Otoño | 125 | 125 | 90 | 100 |
+| Invierno | 0 | 25 | 75 | 125 |
+
+- **El verano es la estación de campaña** y va al 100 % en todo: con él, el juego es el de siempre (mismos hashes, torneos y campaña). Las cifras son de diseño (`[[season.kind]]` en `engine.toml`).
+- **La estación se fija por partida.** Un día de juego dura 18 minutos, así que una partida cubre dos o tres días y la estación no cambia en ella. Se elige en el menú («Estación») o la fija el escenario (`season = "invierno"`), que manda sobre el menú. Con `season_ticks > 0` cambiaría cada tantos ticks, en el orden de la lista.
+- **Campaña.** Los tres capítulos de Las Navas son de verano: Calatrava (finales de junio) y Las Navas (julio) por su fecha. Toledo (mayo y junio) también, porque ya es tiempo de campaña; la «primavera» del juego es la de la siembra, sin nada que cosechar. Medido: con primavera, la IA tardaba 30 minutos en reunir la hueste en Toledo, en vez de 19.
+- **Cómo se hace.**
+  - `sim/season.hpp` dice qué estación toca en cada tick.
+  - El mundo pasa sus efectos cada tick a la economía (ritmo de cosecha en las granjas; los recursos naturales no cambian), al abastecimiento (forraje del bosque y duración de cada ración) y al movimiento (velocidad).
+  - La estación se ve en la barra de recursos.
+- **Medido** (`tests/test_season.cpp`): un soldado junto al bosque, sin fuente propia, saca 40 raciones del bosque en 800 ticks en verano y 10 en invierno, y en invierno come 100 en vez de 80. En invierno se marcha al 75 % y la granja no da nada; en primavera, la mitad. En un torneo corto en invierno, normal gana a fácil 9 de 10 (en verano, 8 de 10), con la mitad de valor en el ejército al final y menos desbandadas (3 de 10 partidas, frente a 10 de 10): se pelea menos.
+- **Lo que no sé:** si el invierno es divertido para una persona, y la IA no sabe de estaciones (construye granjas en invierno, que no dan nada hasta que cambie la estación).
+
 ### Fatiga
 
 Marchar cansa y descansar repone (`[fatigue]` en `engine.toml`; `stamina` por tipo en `units.toml`).

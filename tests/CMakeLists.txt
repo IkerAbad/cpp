@@ -39,6 +39,7 @@ add_executable(reinos_tests
     test_scenario.cpp
     test_rng.cpp
     test_scene.cpp
+    test_season.cpp
     test_selection.cpp
     test_sim_regression.cpp)
 target_link_libraries(reinos_tests PRIVATE reinos_game_core reinos_render_core reinos_sim doctest::doctest)

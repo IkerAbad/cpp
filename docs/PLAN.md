@@ -239,10 +239,16 @@ aprenda solo; después, lo que más pesaba en una campaña medieval y aún falta
   - objetivos nuevos `tener` y `recoger`, y pasos de uno en uno (`objectives_in_order`);
   - un rival que solo se defiende (perfil `guarnicion`);
   - la IA `facil`, de aprendiz, lo termina en 18 min (prueba en Release).
-- [ ] **H2. La estación de campaña.** Las guerras se hacían de primavera a otoño: en
+- [x] **H2. La estación de campaña.** Las guerras se hacían de primavera a otoño: en
   invierno no se forrajea, los caminos de tierra se embarran y el ejército come más de lo
-  que encuentra. *Terminado cuando:* un año de estaciones en la simulación, con su efecto
-  en forrajeo, granjas y marcha medido en pruebas, y la fuente citada.
+  que encuentra. *Terminado:*
+  - cuatro estaciones con efecto en granjas, forraje del bosque, marcha y consumo de
+    víveres, medido en pruebas (`tests/test_season.cpp`);
+  - fuente citada (Wikipedia, «Military campaign»);
+  - el verano, neutro;
+  - la estación se elige en el menú o la fija el escenario. Fija por partida, porque un
+    día de juego dura 18 min; el ciclo del año existe (`season_ticks`), apagado.
+  - Pendiente para la IA: que tenga en cuenta la estación.
 - [ ] **H3. Enfermedad en el real.** Los asedios largos se perdían por disentería tanto
   como por las armas: un real abarrotado, sin agua limpia ni cirujanos, enferma.
   *Terminado cuando:* la enfermedad aparece y se contagia según hacinamiento, agua y

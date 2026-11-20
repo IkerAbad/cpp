@@ -376,6 +376,38 @@ stops_charge = true
 [objectives]
 check_every_ticks = 10
 
+[season]
+start = "verano"
+season_ticks = 0
+
+[[season.kind]]
+name = "primavera"
+farm_percent = 50
+forage_percent = 75
+march_percent = 90
+ration_percent = 100
+
+[[season.kind]]
+name = "verano"
+farm_percent = 100
+forage_percent = 100
+march_percent = 100
+ration_percent = 100
+
+[[season.kind]]
+name = "otono"
+farm_percent = 125
+forage_percent = 125
+march_percent = 90
+ration_percent = 100
+
+[[season.kind]]
+name = "invierno"
+farm_percent = 0
+forage_percent = 25
+march_percent = 75
+ration_percent = 125
+
 [market]
 enabled = false
 lot = 100

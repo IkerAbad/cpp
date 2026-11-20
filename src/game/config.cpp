@@ -1450,6 +1450,38 @@ std::expected<EngineConfig, std::string> parse_engine_config(std::string_view to
 
     cfg.world.objectives.check_every_ticks = r.get_i32("objectives.check_every_ticks", 1, kMaxTicks);
 
+    // Estación de campaña (H2): cuatro, en orden (primavera, verano, otoño, invierno).
+    {
+        constexpr std::int64_t kMaxSeasonPercent = 400;
+        constexpr std::int64_t kMinPacePercent = 10;  // marcha y consumo: nunca parados del todo
+        sim::SeasonParams& season = cfg.world.season;
+        for_each_table(r.get_table_array("season.kind"), source_name, "season.kind", error,
+                       [&](Reader& sr, std::size_t i) {
+                           if (i >= sim::kSeasonCount) {
+                               sr.fail(std::format("hay más de {} estaciones", sim::kSeasonCount));
+                               return;
+                           }
+                           cfg.season_names.push_back(sr.get_string("name"));
+                           sim::SeasonEffects& se = season.seasons[i];
+                           se.farm_percent = sr.get_i32("farm_percent", 0, kMaxSeasonPercent);
+                           se.forage_percent = sr.get_i32("forage_percent", 0, kMaxSeasonPercent);
+                           se.march_percent = sr.get_i32("march_percent", kMinPacePercent, kMaxSeasonPercent);
+                           se.ration_percent = sr.get_i32("ration_percent", kMinPacePercent, kMaxSeasonPercent);
+                       });
+        if (!error && cfg.season_names.size() != sim::kSeasonCount) {
+            r.fail(std::format("'season.kind' debe tener {} estaciones: primavera, verano, otoño e invierno",
+                               sim::kSeasonCount));
+        }
+        const std::string start = r.get_string("season.start");
+        const auto it = std::ranges::find(cfg.season_names, start);
+        if (!error && it == cfg.season_names.end()) {
+            r.fail(std::format("'season.start' = \"{}\": no es ninguna de 'season.kind'", start));
+        } else if (!error) {
+            season.start = static_cast<std::uint8_t>(it - cfg.season_names.begin());
+        }
+        season.season_ticks = static_cast<sim::Tick>(r.get_i32("season.season_ticks", 0, kMaxTicks));
+    }
+
     sim::MarketParams& mk = cfg.world.market;
     mk.enabled = r.get_bool("market.enabled");
     mk.lot = r.get_i32("market.lot", 1, kMaxAmount);
@@ -1975,6 +2007,17 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         if (root->contains("map")) {
             map_type = r.get_string("map");
         }
+        // Opcional (H2): estación.
+        if (root->contains("season")) {
+            const std::string season = r.get_string("season");
+            const auto& seasons = data.engine.season_names;
+            const auto s = std::ranges::find(seasons, season);
+            if (!error && s == seasons.end()) {
+                r.fail(std::format("'season' = \"{}\": no es una estación de [[season.kind]]", season));
+            } else if (!error) {
+                data.engine.world.season.start = static_cast<std::uint8_t>(s - seasons.begin());
+            }
+        }
         const auto& names = data.engine.ai_profile_names;
         const auto it = std::ranges::find(names, rival);
         if (!error && it == names.end()) {
@@ -2038,6 +2081,11 @@ std::expected<GameData, std::string> parse_game_data(std::vector<DataFile> files
         data.scenario_briefing = std::move(doc->briefing);
         data.objective_texts = std::move(doc->objective_texts);
         data.objectives_in_order = doc->objectives_in_order;
+        if (!doc->season.empty()) {  // validada al leer el escenario
+            const auto& seasons = data.engine.season_names;
+            data.engine.world.season.start =
+                static_cast<std::uint8_t>(std::ranges::find(seasons, doc->season) - seasons.begin());
+        }
     }
     return data;
 }
@@ -2047,6 +2095,9 @@ std::string match_settings_toml(const MatchSettings& s) {
                                   s.seed, s.rival, s.fog ? "true" : "false");
     if (!s.map.empty()) {
         out += std::format("map = \"{}\"\n", s.map);
+    }
+    if (!s.season.empty()) {
+        out += std::format("season = \"{}\"\n", s.season);
     }
     if (!s.seats.empty()) {
         out += "seats = [";

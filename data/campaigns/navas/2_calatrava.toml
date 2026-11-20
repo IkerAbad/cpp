@@ -8,6 +8,7 @@ players = 2
 width = 128
 height = 96
 base = "pradera"
+season = "verano"  # H2: finales de junio
 base_level = 2
 briefing.es = """
 Junio de 1212. La hueste ha bajado de Toledo y ha tomado Malagón. Delante está Calatrava, que los almohades ganaron tras Alarcos y guardan desde entonces: una ciudad amurallada sobre un cerro, con el Guadiana al norte y un foso alrededor.

@@ -29,6 +29,7 @@
 //
 //   briefing = "..."                  # lo que se cuenta antes de jugar
 //   objectives_in_order = true        # tutorial: la interfaz enseña los pasos de uno en uno
+//   season = "invierno"               # estación del escenario (H2, [[season.kind]])
 //   [[player]] stock = { comida = 300, madera = 200 }   # almacén inicial, por orden
 //   [[building]] ... store = { comida = 240 }           # campamento ya abastecido
 //   [[objective]] player = 0, kind = "destruir", text = "...", target = 1,
@@ -61,6 +62,9 @@ struct ScenarioDoc {
     // objectives_in_order = true (un tutorial): la interfaz enseña los objetivos propios
     // de uno en uno, en el orden del fichero. Las reglas no cambian: se cumplen igual.
     bool objectives_in_order = false;
+    // season = "verano" (H2): la estación del escenario; manda sobre la del menú. Vacía: la
+    // del menú o la de engine.toml.
+    std::string season;
 };
 
 // Qué objetivos enseña la interfaz al jugador `local`: los suyos y los plazos pendientes

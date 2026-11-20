@@ -123,6 +123,9 @@ TEST_CASE("Idiomas: cada nombre de los datos tiene nombre a la vista en cada idi
     for (const auto& m : data->engine.map_presets) {
         ids.push_back(m.name);
     }
+    for (const auto& s : data->engine.season_names) {
+        ids.push_back(s);
+    }
     for (const std::string_view code : {"es", "en"}) {
         const auto t = load(code);
         for (const std::string& id : ids) {

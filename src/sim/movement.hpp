@@ -56,6 +56,8 @@ public:
     // Camino (C4): % de velocidad en la casilla c (0 lo quita: vuelve la del terreno).
     // La búsqueda de caminos lo pesa igual que la marcha (en commit_grid_changes).
     void set_road(TileCoord c, std::int32_t percent);
+    // Estación de campaña (H2): % de la velocidad de marcha de todas las unidades.
+    void set_march_percent(std::int32_t percent) noexcept { march_percent_ = percent; }
     // ¿Puede la unidad de owner entrar en la casilla c? (rejilla y puertas)
     [[nodiscard]] bool can_enter(TileCoord c, std::int32_t owner) const noexcept;
     [[nodiscard]] bool grid_dirty() const noexcept { return grid_dirty_ || costs_dirty_; }
@@ -135,6 +137,7 @@ private:
     MovementParams params_;
     std::int32_t width_ = 0;
     std::vector<std::int32_t> tile_speed_;
+    std::int32_t march_percent_ = 100;  // H2: estación (100: sin efecto)
     std::vector<std::int32_t> gate_owner_;
     std::vector<std::int32_t> road_;  // por casilla: % de velocidad del camino (vacío = ninguno)  // por casilla: dueño de la puerta (vacío = ninguna)  // % de velocidad por casilla (vacío = 100 en todas)
     PassGrid grid_;

@@ -163,6 +163,12 @@ std::expected<ScenarioDoc, std::string> parse_scenario_doc(std::string_view text
     doc.name = read_localized(root.get("name")).value_or(LocalizedText("Sin nombre"));
     doc.briefing = read_localized(root.get("briefing")).value_or(LocalizedText());
     doc.objectives_in_order = root["objectives_in_order"].value_or(false);
+    doc.season = root["season"].value_or(std::string());
+    if (!doc.season.empty() &&
+        std::ranges::find(data.engine.season_names, doc.season) == data.engine.season_names.end()) {
+        return std::unexpected(std::format("{}: 'season' = \"{}\": no es una estación de [[season.kind]]", source,
+                                           doc.season));
+    }
     sim::ScenarioParams& s = doc.params;
     s.players = static_cast<std::int32_t>(root["players"].value_or(std::int64_t{0}));
     s.width = static_cast<std::int32_t>(root["width"].value_or(std::int64_t{0}));
@@ -552,6 +558,9 @@ std::string scenario_doc_toml(const ScenarioDoc& doc, const GameData& data) {
     }
     if (doc.objectives_in_order) {
         out += "objectives_in_order = true\n";
+    }
+    if (!doc.season.empty()) {
+        out += std::format("season = \"{}\"\n", doc.season);
     }
     const auto rows = [&](const auto& layer, char base) {
         std::string r = "[\n";

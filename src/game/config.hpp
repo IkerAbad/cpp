@@ -191,6 +191,7 @@ struct MatchSettings {
     // jugadores de engine.toml tal cual.
     std::vector<std::string> seats;
     std::string map;  // tipo de mapa (F3, [[map.preset]]); vacío: el de engine.toml
+    std::string season;  // H2: estación ([[season.kind]]); vacía: la de engine.toml
 };
 
 inline constexpr std::string_view kMatchSettingsFile = "config/partida.toml";
@@ -223,6 +224,7 @@ struct EngineConfig {
     std::vector<std::array<std::uint8_t, 3>> seat_colors;
     std::vector<std::string> hero_names;                     // por índice de CombatParams
     std::vector<std::string> ai_profile_names;               // por índice de AiParams::profiles
+    std::vector<std::string> season_names;                   // H2: por índice de SeasonParams::seasons
 };
 
 // Los errores son textos legibles que nombran el fichero y la clave que falla.

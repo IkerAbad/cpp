@@ -7,6 +7,10 @@ players = 2
 width = 128
 height = 96
 base = "pradera"
+# H2: mayo y junio ya son tiempo de campaña, que iba «between the planting (late spring)
+# and harvest times (late autumn)» (Wikipedia, «Military campaign»): «verano» en el juego.
+# La «primavera» del juego es la de la siembra, sin nada que cosechar.
+season = "verano"
 base_level = 2
 briefing.es = """
 Toledo, primavera de 1212. Alfonso VIII de Castilla ha llamado a la guerra contra el califa almohade, y a la ciudad llegan caballeros de toda la cristiandad. Una hueste no vive del aire: hay que juntar víveres para la marcha y reunir a la tropa al otro lado del Tajo, camino del sur.

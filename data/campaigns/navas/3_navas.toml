@@ -9,6 +9,7 @@ players = 2
 width = 128
 height = 112
 base = "pradera"
+season = "verano"  # H2: 16 de julio
 base_level = 2
 briefing.es = """
 Julio de 1212. La hueste de Castilla, Aragón y Navarra ha llegado a Sierra Morena, pero el califa an-Nasir ha cerrado el puerto con sus hombres y espera en el llano, al otro lado. Forzar el paso es una matanza.

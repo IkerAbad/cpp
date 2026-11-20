@@ -2167,6 +2167,12 @@ private:
             ImGui::SameLine();
         }
         ImGui::Text(T("· población %d/%d"), ps.population, ps.population_cap);
+        // Estación de campaña (H2).
+        const auto& season_names = data_.engine.season_names;
+        if (static_cast<std::size_t>(curr_.season) < season_names.size()) {
+            ImGui::SameLine();
+            ImGui::Text("· %s", N(season_names[curr_.season]));
+        }
         ImGui::End();
     }
 
@@ -3403,6 +3409,20 @@ MenuChoice run_menu(Display& d, const GameData& base, MatchSettings& settings, N
                 for (const MapPreset& p : presets) {
                     if (ImGui::Selectable(N(p.name), p.name == shown)) {
                         settings.map = p.name;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+        // Estación (H2): la de engine.toml (verano) si no se elige otra.
+        const auto& season_names = base.engine.season_names;
+        if (static_cast<std::size_t>(base.engine.world.season.start) < season_names.size()) {
+            const std::string shown =
+                settings.season.empty() ? season_names[base.engine.world.season.start] : settings.season;
+            if (ImGui::BeginCombo(T("Estación"), N(shown))) {
+                for (const std::string& season_name : season_names) {
+                    if (ImGui::Selectable(N(season_name), season_name == shown)) {
+                        settings.season = season_name;
                     }
                 }
                 ImGui::EndCombo();

@@ -322,6 +322,53 @@ stops_charge = true
 # Objetivos de escenario (F4): se comprueban cada 10 ticks (medio segundo).
 check_every_ticks = 10
 
+[season]
+# La estación de campaña (H2). «In premodern times, campaigns were usually interrupted
+# during the winter season», y en Europa se hacían «between the planting (late spring)
+# and harvest times (late autumn)» (Wikipedia, «Military campaign»). El verano es la
+# estación de campaña y va al 100 % en todo: con él, el juego es el de siempre.
+# Un día de juego dura 18 min ([vision]), así que una partida cubre dos o tres días: la
+# estación no cambia en la partida (season_ticks = 0) y la fija el escenario (season =
+# "invierno") o el menú. Con season_ticks > 0 cambiaría cada tantos ticks, en el orden
+# de la lista.
+start = "verano"
+season_ticks = 0
+
+# Por estación, en %: farm_percent, ritmo de la cosecha en las granjas (0: no hay nada
+# que cosechar); forage_percent, lo que da el bosque a la tropa que forrajea (0: nada);
+# march_percent, velocidad de marcha (lluvia, barro, nieve); ration_percent, lo que come
+# la tropa (125: un 25 % más). Valores de diseño propios, a ajustar jugando.
+[[season.kind]]
+# Lo sembrado aún no se cosecha y el bosque da poco; lluvias de primavera.
+name = "primavera"
+farm_percent = 50
+forage_percent = 75
+march_percent = 90
+ration_percent = 100
+
+[[season.kind]]
+name = "verano"
+farm_percent = 100
+forage_percent = 100
+march_percent = 100
+ration_percent = 100
+
+[[season.kind]]
+# La cosecha: granjas a pleno y rastrojos que alimentan; lluvias de otoño.
+name = "otono"
+farm_percent = 125
+forage_percent = 125
+march_percent = 90
+ration_percent = 100
+
+[[season.kind]]
+# Nada que cosechar, poco que forrajear, caminos de barro o nieve y frío que da hambre.
+name = "invierno"
+farm_percent = 0
+forage_percent = 25
+march_percent = 75
+ration_percent = 125
+
 [market]
 # Mercado (C3). Lotes de 100; precios en oro por lote, los mismos para todos. Cada
 # compra encarece 3 y cada venta abarata 3, entre 10 y 400; cada 5 s vuelven 1 hacia su
