@@ -1,5 +1,7 @@
 # RTS medieval con capa de logística (nombre provisional)
 
+> **English:** Medieval RTS written in C++23 (SDL_GPU + Dear ImGui, CMake + vcpkg, CI on Windows/Linux), in the Tzar / Age of Empires II tradition, with an optional logistics layer modelled as a graph. Deterministic fixed-step simulation (20 Hz), HPA* pathfinding, flow fields, sampled RVO avoidance, replays, lockstep multiplayer, a rules-based AI and procedurally generated art and sound; no third-party game assets. The detailed documentation below is in Spanish; see `docs/PLAN.md` for the roadmap and the "Requisitos" and "Compilar y ejecutar" sections for build instructions (CMake >= 3.28, Clang >= 19 or GCC >= 14, Ninja). Licensed under MIT.
+
 RTS medieval en C++23, de la escuela de Tzar y Age of Empires II, con una capa de logística opcional modelada como grafo.
 Todo el código y todos los recursos son originales o de licencia compatible. No se usa ningún contenido del juego original.
 
